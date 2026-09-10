@@ -1,0 +1,3233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<script
+  defer
+  crossorigin="anonymous"
+  src="https://active-tomcat-7891.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"
+  type="text/javascript"
+></script>
+
+<script
+  defer
+  crossorigin="anonymous"
+  data-clerk-publishable-key="pk_test_YWN0aXZlLXRvbWNhdC03ODkxLmNsZXJrLmFjY291bnRzLmRldiQ"
+  src="https://active-tomcat-7891.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js"
+  type="text/javascript"
+></script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Majlis — Debate & Read</title>
+<style>
+  :root {
+    --ink: #ffffff;
+    --ink-soft: #f6f6f4;
+    --parchment: #1c1c1a;
+    --parchment-dim: #5b5b56;
+    --brass: #239f5c;
+    --brass-bright: #1c8a4d;
+    --wine: #c8102e;
+    --olive: #239f5c;
+    --line: rgba(28,28,26,0.12);
+    --modal-overlay: rgba(28,28,26,0.55);
+    --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  [data-theme="dark"] {
+    --ink: #121212;
+    --ink-soft: #1e1e1e;
+    --parchment: #e4e4e0;
+    --parchment-dim: #a0a09c;
+    --brass: #239f5c;
+    --brass-bright: #34d399;
+    --wine: #ef4444;
+    --olive: #239f5c;
+    --line: rgba(228,228,224,0.15);
+    --modal-overlay: rgba(0,0,0,0.75);
+  }
+
+  * { box-sizing: border-box; }
+  
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--ink);
+    color: var(--parchment);
+    font-family: var(--sans);
+    overflow-x: hidden;
+  }
+  
+  ::selection { background: var(--brass); color: #fff; }
+  a { color: inherit; text-decoration: none; }
+
+  /* Shell */
+  #app { min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
+
+  header.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; border-bottom: 1px solid var(--line);
+    background: var(--ink);
+    position: sticky; top: 0; z-index: 20;
+    gap: 16px;
+  }
+  
+  .brand { display: flex; align-items: center; gap: 12px; flex-shrink: 0; cursor: pointer; }
+  .brand .mark {
+    width: 34px; height: 34px; border: 1.5px solid var(--brass); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; background: #000000;
+  }
+  .brand .mark svg { width: 21px; height: 21px; overflow: visible; }
+  .brand h1 { font-family: var(--serif); font-weight: 400; font-size: 20px; letter-spacing: 0.5px; margin: 0; }
+  .brand h1 em { color: var(--brass-bright); font-style: normal; }
+
+  /* Animated neon "M" mark */
+  .logo-base {
+    fill: none; stroke: #003311; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .logo-lit {
+    fill: none; stroke: #00FF66; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 240.42; stroke-dashoffset: 240.42;
+    animation: logoDraw 3.4s linear infinite;
+    filter: url(#logoGlow);
+  }
+  .logo-flash {
+    fill: none; stroke: #ecfff5; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 10 300;
+    stroke-dashoffset: 240.42;
+    animation: logoComet 3.4s linear infinite;
+    filter: url(#logoFlashGlow);
+  }
+  @keyframes logoDraw {
+    0%   { stroke-dashoffset: 240.42; opacity: 0; }
+    1%   { opacity: 1; }
+    40%  { stroke-dashoffset: 0; opacity: 1; }
+    82%  { stroke-dashoffset: 0; opacity: 1; }
+    90%  { stroke-dashoffset: 240.42; opacity: 1; }
+    100% { stroke-dashoffset: 240.42; opacity: 0; }
+  }
+  @keyframes logoComet {
+    0%   { stroke-dashoffset: 240.42; opacity: 1; }
+    40%  { stroke-dashoffset: 0; opacity: 1; }
+    42%  { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  /* ===== Full-page splash / loading screen ===== */
+  #splash-screen {
+    position: fixed; inset: 0; z-index: 99999;
+    background: #000000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: opacity 0.6s ease;
+  }
+  #splash-screen.splash-hide { opacity: 0; pointer-events: none; }
+  .splash-ring-wrap { position: relative; width: 160px; height: 160px; }
+  .splash-ring-wrap svg { width: 100%; height: 100%; overflow: visible; display: block; }
+  .splash-ring-base {
+    fill: none; stroke: #12331f; stroke-width: 6;
+  }
+  .splash-ring-progress {
+    fill: none; stroke: #00FF66; stroke-width: 6; stroke-linecap: round;
+    stroke-dasharray: 534.07; stroke-dashoffset: 534.07;
+    transform: rotate(-90deg); transform-origin: 100px 100px;
+    filter: url(#splashRingGlow);
+    animation: splashRingDraw 3.2s cubic-bezier(.45,0,.25,1) forwards;
+  }
+  .splash-m-base {
+    fill: none; stroke: #12331f; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .splash-m-lit {
+    fill: none; stroke: #00FF66; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round;
+    filter: url(#splashMGlow);
+    opacity: 0;
+    animation: splashMLight 0.7s ease forwards;
+    animation-delay: 2.5s;
+  }
+  @keyframes splashRingDraw { to { stroke-dashoffset: 0; } }
+  @keyframes splashMLight { to { opacity: 1; } }
+  #splash-screen .splash-loading-text {
+    margin-top: 26px; color: #5b5b56; letter-spacing: 3px; font-size: 12px;
+    font-family: var(--sans); font-weight: 600;
+    animation: splashPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes splashPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+  #app { opacity: 0; animation: appFadeIn 0.6s ease forwards; animation-delay: 3.1s; }
+  @keyframes appFadeIn { to { opacity: 1; } }
+
+  /* Header Controls & Navigation */
+  .search-box {
+    position: relative;
+    flex: 1;
+    max-width: 240px;
+  }
+  .search-box input {
+    width: 100%;
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 20px;
+    background: var(--ink-soft);
+    border: 1px solid var(--line);
+    color: var(--parchment);
+  }
+  .search-results {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0; right: 0;
+    background: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    max-height: 250px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 40;
+  }
+  .search-result-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--line);
+  }
+  .search-result-item:hover { background: var(--ink); }
+
+  .desktop-nav { display: flex; align-items: center; gap: 16px; }
+  .navwrap { display: flex; align-items: center; gap: 4px; }
+  nav.tabs { display: flex; gap: 4px; align-items: center; }
+  nav.tabs button {
+    background: none; border: none; color: var(--parchment-dim); font-family: var(--sans);
+    font-size: 14px; font-weight: 500; padding: 8px 4px; cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  nav.tabs button:hover { color: var(--parchment); }
+  nav.tabs button.active { color: var(--parchment); border-bottom-color: var(--brass-bright); font-weight: 600; }
+
+  .dropdown { position: relative; }
+  .dropdown-trigger {
+    background: none; border: none; color: var(--parchment-dim); font-family: var(--sans);
+    font-size: 14px; font-weight: 500; padding: 8px 4px; cursor: pointer; border-bottom: 2px solid transparent;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .dropdown-trigger:hover { color: var(--parchment); }
+  .dropdown-trigger.active { color: var(--parchment); border-bottom-color: var(--brass-bright); font-weight: 600; }
+  .dropdown-menu {
+    position: absolute; top: calc(100% + 10px); left: 0; background: var(--ink-soft); border: 1px solid var(--line);
+    border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); min-width: 180px;
+    padding: 6px; z-index: 30;
+  }
+  .dropdown-menu button {
+    display: block; width: 100%; text-align: left; background: none; border: none; color: var(--parchment);
+    font-family: var(--sans); font-size: 14px; padding: 9px 12px; border-radius: 3px; cursor: pointer;
+  }
+  .dropdown-menu button:hover { background: var(--ink); }
+  .dropdown-menu button.active { color: var(--brass-bright); font-weight: 600; }
+
+  /* Mobile Nav Elements */
+  .hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--parchment);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .mobile-menu {
+    display: none;
+    flex-direction: column;
+    background: var(--ink-soft);
+    border-bottom: 1px solid var(--line);
+    padding: 16px 24px;
+    gap: 12px;
+  }
+  .mobile-menu.open { display: flex; }
+  .mobile-menu button {
+    background: none; border: none; color: var(--parchment); text-align: left;
+    font-size: 16px; padding: 8px 0; cursor: pointer; border-bottom: 1px solid var(--line);
+  }
+
+  .userchip { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .profile-pill {
+    display: flex; align-items: center; gap: 10px; background: var(--ink-soft); border: 1px solid var(--line);
+    border-radius: 20px; padding: 6px 12px;
+  }
+  .profile-pill .who { display: flex; flex-direction: column; line-height: 1.25; }
+  .profile-pill .who .uname { font-size: 13px; color: var(--parchment); font-weight: 600; }
+  .profile-pill .who .usub { font-size: 11px; color: var(--parchment-dim); }
+  .status-badge {
+    background: var(--ink); color: var(--parchment-dim); padding: 4px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.2px; white-space: nowrap; border: 1px solid var(--line);
+  }
+  .switcher-select {
+    width: auto; padding: 4px 6px; font-size: 11px; border-radius: 12px; background: var(--ink-soft); border: 1px solid var(--line); color: var(--parchment);
+  }
+
+  .theme-toggle {
+    background: none; border: 1px solid var(--line); color: var(--parchment);
+    padding: 6px 10px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+
+  main { flex: 1; padding: 32px 24px 60px; max-width: 1080px; width: 100%; margin: 0 auto; overflow-x: hidden; }
+
+  h2.section-title {
+    font-family: var(--serif); font-weight: 400; font-size: 26px; margin: 0 0 6px; color: var(--parchment);
+  }
+  p.section-sub { color: var(--parchment-dim); font-size: 14px; margin: 0 0 28px; max-width: 640px; line-height: 1.5; }
+
+  .grid { display: grid; gap: 18px; width: 100%; }
+  .grid-3 { grid-template-columns: repeat(3,1fr); }
+  .grid-2 { grid-template-columns: repeat(2,1fr); }
+
+  .card {
+    background: var(--ink-soft); border: 1px solid var(--line); border-radius: 3px; padding: 20px; word-wrap: break-word; overflow-wrap: break-word;
+  }
+  .card h3 { font-family: var(--serif); font-weight: 400; font-size: 17px; margin: 0 0 10px; color: var(--brass-bright); }
+  .stat-big { font-family: var(--serif); font-size: 38px; color: var(--parchment); line-height: 1; }
+  .stat-label { font-size: 12px; color: var(--parchment-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .btn {
+    display: inline-block; background: var(--brass); color: #ffffff; border: none; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-radius: 2px; cursor: pointer; transition: background .15s;
+  }
+  .btn:hover { background: var(--brass-bright); }
+  .btn.secondary { background: none; border: 1px solid var(--brass); color: var(--brass-bright); }
+  .btn.secondary:hover { background: rgba(35,159,92,0.1); }
+  .btn.wine { background: var(--wine); color: #ffffff; }
+  .btn.wine:hover { opacity: 0.9; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; background: var(--ink); border: 1px solid var(--line); color: var(--parchment);
+    padding: 10px 12px; font-size: 14px; border-radius: 2px;
+  }
+  textarea { resize: vertical; min-height: 110px; line-height: 1.5; }
+  label { font-size: 12px; color: var(--parchment-dim); text-transform: uppercase; letter-spacing: 0.6px; display: block; margin-bottom: 6px; }
+  .field { margin-bottom: 16px; position: relative; }
+
+  .pw-wrapper { position: relative; display: flex; align-items: center; }
+  .pw-wrapper input { padding-right: 60px; }
+  .pw-toggle {
+    position: absolute; right: 10px; background: none; border: none;
+    color: var(--parchment-dim); font-size: 11px; cursor: pointer; text-transform: uppercase; font-weight: 600;
+  }
+
+  .progress-track { background: var(--ink); height: 8px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+  .progress-fill { background: var(--brass); height: 100%; transition: width .3s; }
+
+  /* Quadrant compass */
+  .compass-block { margin-bottom: 30px; }
+  .compass-title { font-family: var(--serif); font-size: 16px; color: var(--brass-bright); margin: 0 0 2px; }
+  .compass-ideo { font-size: 13px; color: var(--parchment-dim); margin: 0 0 12px; }
+  .compass-layout { display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 320px; margin: 0 auto; }
+  .compass-toplabel, .compass-bottomlabel { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; color: var(--parchment-dim); text-transform: uppercase; }
+  .compass-midrow { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .compass-leftlabel, .compass-rightlabel { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; color: var(--parchment-dim); text-transform: uppercase; writing-mode: vertical-rl; }
+  .compass-square {
+    position: relative; width: 240px; height: 240px; flex-shrink: 0;
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    border: 1px solid var(--line); border-radius: 2px; overflow: hidden;
+  }
+  .compass-quad { opacity: 0.55; }
+  .compass-quad.q-tl { background: #e05555; }
+  .compass-quad.q-tr { background: #4f7fe0; }
+  .compass-quad.q-bl { background: #4caf6f; }
+  .compass-quad.q-br { background: #a06fe0; }
+  .compass-dot {
+    position: absolute; width: 12px; height: 12px; border-radius: 50%;
+    background: #ffffff; border: 2px solid #111; transform: translate(-50%,-50%);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
+  }
+  .compass-crosshair-v { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,0.35); }
+  .compass-crosshair-h { position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: rgba(0,0,0,0.35); }
+
+  .divider { height: 1px; background: var(--line); margin: 28px 0; }
+
+  /* Settings & Connections */
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 16px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row .settings-label { font-size: 14px; color: var(--parchment); font-weight: 600; }
+  .settings-row .settings-desc { font-size: 12px; color: var(--parchment-dim); margin-top: 3px; max-width: 420px; line-height: 1.4; }
+  .settings-row .seg-control { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .user-link { color: var(--brass-bright); font-weight: 600; cursor: pointer; background: none; border: none; font-family: var(--sans); font-size: inherit; padding: 0; }
+  .user-link:hover { text-decoration: underline; }
+  .friend-badge {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
+    color: var(--brass-bright); border: 1px solid var(--brass); border-radius: 10px; padding: 2px 8px; margin-left: 8px;
+  }
+
+  /* Book list */
+  .book-row {
+    display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line);
+    font-size: 14px; flex-wrap: wrap; gap: 8px;
+  }
+  .book-row:last-child { border-bottom: none; }
+  .book-title { font-family: var(--serif); font-size: 16px; }
+  .book-meta { color: var(--parchment-dim); font-size: 12px; margin-top: 2px; }
+  .points-tag { color: var(--brass-bright); font-family: var(--serif); font-size: 15px; }
+
+  /* Quiz */
+  .quiz-q { font-family: var(--serif); font-size: 19px; line-height: 1.5; margin-bottom: 18px; }
+  .quiz-opts { display: flex; flex-direction: column; gap: 8px; }
+  .quiz-opt {
+    text-align: left; background: var(--ink); border: 1px solid var(--line); color: var(--parchment);
+    padding: 12px 14px; border-radius: 2px; cursor: pointer; font-size: 14px;
+  }
+  .quiz-opt:hover { border-color: var(--brass); }
+
+  /* Debate lobby & Chat */
+  .lane {
+    display: flex; align-items: center; justify-content: space-between; padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 3px; margin-bottom: 10px; background: var(--ink);
+  }
+  .lane .who { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--olive); display: flex; align-items: center;
+    justify-content: center; font-family: var(--serif); font-size: 14px; color: #ffffff; flex-shrink: 0;
+  }
+  .avatar-img {
+    border-radius: 50%; object-fit: cover; flex-shrink: 0; display: inline-block; vertical-align: middle;
+  }
+  .avatar-upload-row { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; flex-wrap: wrap; }
+  .avatar-upload-actions { display: flex; flex-direction: column; gap: 8px; }
+  .profile-header-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+  .name-with-avatar { display: flex; align-items: center; gap: 10px; }
+  .topic-tag { font-size: 11px; color: var(--brass-bright); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .debate-room { display: grid; grid-template-columns: 1fr 220px; gap: 18px; }
+  .chat-window {
+    background: var(--ink); border: 1px solid var(--line); border-radius: 3px; height: 420px;
+    display: flex; flex-direction: column;
+  }
+  .chat-log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 80%; padding: 10px 13px; border-radius: 3px; font-size: 14px; line-height: 1.5; word-break: break-word; }
+  .msg.me { align-self: flex-end; background: var(--brass); color: #ffffff; }
+  .msg.them { align-self: flex-start; background: var(--ink-soft); border: 1px solid var(--line); }
+  .msg .tag { display: block; font-size: 10px; opacity: 0.7; text-transform: uppercase; margin-bottom: 3px; letter-spacing: 0.5px; }
+  .chat-input-row { display: flex; border-top: 1px solid var(--line); }
+  .chat-input-row textarea { border: none; border-radius: 0; min-height: 56px; flex: 1; }
+  .chat-input-row button { border-radius: 0; }
+
+  .sidebox { background: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 14px; }
+  .sidebox h4 { font-family: var(--serif); font-weight: 400; color: var(--brass-bright); margin: 0 0 10px; font-size: 14px; }
+  .sidebox p { font-size: 12px; color: var(--parchment-dim); line-height: 1.5; margin: 0 0 10px; }
+
+  /* Forum */
+  .forum-post { border: 1px solid var(--line); border-radius: 3px; padding: 16px; margin-bottom: 12px; background: var(--ink-soft); }
+  .forum-post h4 { font-family: var(--serif); font-weight: 400; font-size: 17px; margin: 0 0 6px; }
+  .forum-post .meta { font-size: 12px; color: var(--parchment-dim); margin-bottom: 10px; }
+  .forum-post p { font-size: 14px; line-height: 1.6; margin: 0; color: var(--parchment); }
+
+  /* Forum thread list */
+  .forum-stats-strip {
+    display: flex; gap: 28px; padding: 12px 18px; background: var(--ink-soft); border: 1px solid var(--line);
+    border-radius: 3px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .forum-stats-strip .fstat { display: flex; flex-direction: column; }
+  .forum-stats-strip .fstat b { font-family: var(--serif); font-size: 20px; color: var(--parchment); line-height: 1.1; }
+  .forum-stats-strip .fstat span { font-size: 11px; color: var(--parchment-dim); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
+
+  .forum-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 12px; flex-wrap: wrap; }
+  .forum-toolbar .sort-group { display: flex; gap: 6px; align-items: center; }
+  .sort-chip {
+    background: none; border: 1px solid var(--line); color: var(--parchment-dim); font-size: 12px;
+    padding: 5px 11px; border-radius: 14px; cursor: pointer; font-family: var(--sans);
+  }
+  .sort-chip.active { color: #ffffff; background: var(--brass); border-color: var(--brass); }
+
+  .thread-list { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .thread-row {
+    display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--ink-soft);
+    border-bottom: 1px solid var(--line); cursor: pointer; transition: background .12s;
+  }
+  .thread-row:last-child { border-bottom: none; }
+  .thread-row:hover { background: var(--ink); }
+  .thread-row .t-avatar {
+    width: 38px; height: 38px; border-radius: 50%; background: var(--olive); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 15px; color: #fff;
+  }
+  .thread-row .t-main { flex: 1; min-width: 0; }
+  .thread-row .t-title-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .thread-row .t-title { font-family: var(--serif); font-size: 16px; color: var(--parchment); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .thread-row .t-meta { font-size: 12px; color: var(--parchment-dim); margin-top: 4px; }
+  .thread-row .t-meta a.t-author { color: var(--brass-bright); }
+  .cat-chip {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; color: #fff;
+    background: var(--brass); padding: 3px 8px; border-radius: 2px; flex-shrink: 0;
+  }
+  .thread-row .t-nums { display: flex; gap: 22px; flex-shrink: 0; }
+  .thread-row .t-num { text-align: center; min-width: 46px; }
+  .thread-row .t-num b { display: block; font-family: var(--serif); font-size: 15px; color: var(--parchment); }
+  .thread-row .t-num span { font-size: 10px; color: var(--parchment-dim); text-transform: uppercase; letter-spacing: 0.4px; }
+  .thread-row .t-last { display: flex; align-items: center; gap: 8px; flex-shrink: 0; width: 130px; }
+  .thread-row .t-last .t-last-info { display: flex; flex-direction: column; line-height: 1.35; }
+  .thread-row .t-last .t-last-time { font-size: 12px; color: var(--parchment-dim); }
+  .thread-row .t-last .t-last-who { font-size: 12px; color: var(--brass-bright); }
+  @media (max-width: 720px) {
+    .thread-row { flex-wrap: wrap; }
+    .thread-row .t-nums, .thread-row .t-last { display: none; }
+  }
+
+  .thread-detail { border: 1px solid var(--line); border-radius: 3px; background: var(--ink-soft); padding: 18px; margin-bottom: 12px; }
+  .thread-detail .t-detail-body { font-size: 14px; line-height: 1.7; color: var(--parchment); margin: 14px 0; white-space: pre-wrap; }
+  .reply-row { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .reply-row .r-body { font-size: 13px; line-height: 1.6; color: var(--parchment); margin-top: 4px; }
+
+  .badge {
+    display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+    padding: 3px 8px; border-radius: 2px; border: 1px solid var(--line); color: var(--parchment-dim); margin-right: 6px;
+  }
+
+  .empty-note { color: var(--parchment-dim); font-size: 13px; font-style: italic; padding: 20px 0; }
+  .mock-note {
+    background: rgba(200,16,46,0.08); border: 1px solid rgba(200,16,46,0.4); color: var(--wine);
+    font-size: 12px; padding: 10px 14px; border-radius: 3px; margin-bottom: 20px; line-height: 1.5;
+  }
+
+  .video-frame {
+    background: #000000; border: 1px solid var(--line); border-radius: 3px; aspect-ratio: 16/9;
+    display: flex; align-items: center; justify-content: center; color: var(--parchment-dim); font-size: 13px;
+    position: relative; overflow: hidden;
+  }
+  .video-frame .pulse {
+    width: 12px; height: 12px; border-radius: 50%; background: var(--wine); position: absolute; top: 14px; right: 14px;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+  /* Cookie Banner */
+  .cookie-banner {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--ink-soft); border-top: 1px solid var(--line);
+    padding: 16px 24px; z-index: 100; display: flex; align-items: center;
+    justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+  }
+  .cookie-banner p { margin: 0; font-size: 13px; color: var(--parchment-dim); line-height: 1.4; flex: 1; min-width: 250px; }
+
+  /* Loading Spinner */
+  .spinner-wrap { display: flex; justify-content: center; align-items: center; padding: 40px 0; }
+  .spinner {
+    width: 32px; height: 32px; border: 3px solid var(--line);
+    border-top-color: var(--brass-bright); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Footer Links */
+  footer {
+    border-top: 1px solid var(--line); padding: 24px; text-align: center;
+    font-size: 13px; color: var(--parchment-dim); display: flex; justify-content: center; gap: 16px; margin-top: auto;
+  }
+  footer a { color: var(--parchment-dim); cursor: pointer; }
+  footer a:hover { color: var(--parchment); }
+
+  /* Responsive Adjustments */
+  @media (max-width: 850px) {
+    .desktop-nav { display: none; }
+    .hamburger { display: block; }
+    .grid-3, .grid-2 { grid-template-columns: 1fr; }
+    .debate-room { grid-template-columns: 1fr; }
+    header.topbar { padding: 12px 16px; }
+    main { padding: 20px 16px 40px; }
+    .search-box { max-width: 140px; }
+  }
+
+  /* ===== Icon buttons (bell / messages) ===== */
+  .icon-btn {
+    position: relative; background: none; border: 1px solid var(--line); color: var(--parchment);
+    width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 15px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .icon-btn:hover { border-color: var(--brass); }
+  .icon-btn.active { border-color: var(--brass-bright); color: var(--brass-bright); }
+  .badge-dot {
+    position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 3px;
+    border-radius: 8px; background: var(--wine); color: #fff; font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+  }
+
+  /* ===== Notifications ===== */
+  .notif-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item.unread { background: rgba(35,159,92,0.06); border-radius: 4px; }
+  .notif-text { font-size: 13.5px; line-height: 1.5; }
+  .notif-time { font-size: 11px; color: var(--parchment-dim); margin-top: 2px; }
+
+  /* ===== Messages / DMs ===== */
+  .dm-layout { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; min-height: 460px; }
+  .dm-convo-list { width: 260px; flex-shrink: 0; border-right: 1px solid var(--line); background: var(--ink-soft); overflow-y: auto; max-height: 620px; }
+  .dm-convo-item { display: flex; align-items: center; gap: 10px; padding: 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
+  .dm-convo-item:hover { background: var(--ink); }
+  .dm-convo-item.active { background: rgba(35,159,92,0.1); }
+  .dm-convo-name { font-size: 13.5px; font-weight: 600; }
+  .dm-convo-preview { font-size: 12px; color: var(--parchment-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .dm-thread { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .dm-thread-header { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+  .dm-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; max-height: 480px; }
+  .dm-bubble { max-width: 70%; padding: 8px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; }
+  .dm-bubble.me { align-self: flex-end; background: var(--brass); color: #fff; border-bottom-right-radius: 3px; }
+  .dm-bubble.them { align-self: flex-start; background: var(--ink-soft); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+  .dm-bubble-time { font-size: 10px; opacity: 0.7; margin-top: 3px; }
+  .dm-input-row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+  .dm-input-row textarea { flex: 1; min-height: 40px; max-height: 120px; resize: vertical; }
+  .dm-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--parchment-dim); font-size: 13px; }
+  @media (max-width: 760px) {
+    .dm-layout { flex-direction: column; min-height: 0; }
+    .dm-convo-list { width: 100%; max-height: 220px; border-right: none; border-bottom: 1px solid var(--line); }
+  }
+
+  /* ===== Members directory ===== */
+  .member-row { display: flex; align-items: center; gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .member-row:last-child { border-bottom: none; }
+  .member-bio { font-size: 12.5px; color: var(--parchment-dim); margin-top: 2px; max-width: 420px; }
+  .member-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+  /* ===== Bio / block-report ===== */
+  .bio-text { font-size: 14px; line-height: 1.55; color: var(--parchment); margin: 6px 0 0; white-space: pre-wrap; }
+  .mutuals-row { font-size: 12.5px; color: var(--parchment-dim); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 0; }
+  .blocked-banner { border: 1px solid var(--wine); background: rgba(200,16,46,0.08); color: var(--wine); padding: 10px 14px; border-radius: 4px; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div id="splash-screen">
+  <div class="splash-ring-wrap">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="splashRingGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="blur2"/>
+          <feMerge>
+            <feMergeNode in="blur1"/>
+            <feMergeNode in="blur2"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="splashMGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur1"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur2"/>
+          <feMerge>
+            <feMergeNode in="blur1"/>
+            <feMergeNode in="blur2"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <circle class="splash-ring-base" cx="100" cy="100" r="85"/>
+      <circle class="splash-ring-progress" cx="100" cy="100" r="85"/>
+      <path class="splash-m-base" d="M 55,140 L 55,60 L 100,105 L 145,60 L 145,140"/>
+      <path class="splash-m-lit" d="M 55,140 L 55,60 L 100,105 L 145,60 L 145,140"/>
+    </svg>
+  </div>
+  <div class="splash-loading-text">LOADING&hellip;</div>
+</div>
+<div id="app"></div>
+<script>
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var splash = document.getElementById('splash-screen');
+      if (!splash) return;
+      splash.classList.add('splash-hide');
+      setTimeout(function () { splash.remove(); }, 650);
+    }, 3300);
+  });
+</script>
+
+<script>
+/* ================= STATE ================= */
+function makeNewUserProfile(username, password, isGuest){
+  return {
+    username,
+    password: password || null,
+    isGuest: !!isGuest,
+    name: username,
+    readingElo: 0,
+    readingPoints: 0,
+    debatePoints: 0,
+    insightPoints: 0,
+    compass: null,
+    archetype: null,
+    ideologies: null,
+    fallacyStats: { adHominem:0, strawman:0, goalpostShift:0, falseEquivalency:0, total:0 },
+    guild: null,
+    pagesRead: 0,
+    booksFinished: 0,
+    debateRank: null,
+    placementTaken: false,
+    forumPostsCount: 0,
+    books: [],
+    activeDebateId: null,
+    avatar: null,
+    bio: '',
+    following: [],
+    followers: [],
+    blocked: [],
+    notifications: [],
+    settings: {
+      profileVisibility: 'public',   // 'public' | 'private'
+      showOnLeaderboard: true,
+      allowFollowers: true,
+    },
+  };
+}
+
+const state = {
+  tab: 'home',
+  authMode: 'login',
+  showAuth: false,
+  exploreOpen: false,
+  mobileNavOpen: false,
+  theme: localStorage.getItem('theme') || 'light',
+  cookieConsent: localStorage.getItem('cookieConsent') === 'true',
+  searchQuery: '',
+  loading: false,
+  showPassword: false,
+  currentUser: null,
+  users: {},
+  user: null,
+  viewingProfile: null,
+  quiz: {
+    active: false,
+    section: 'philosophy',
+    index: 0,
+    answers: [],
+    written: '',
+  },
+  forumPage: 1,
+  forumSort: 'new',
+  forumOpenThread: null,
+  debateQueue: { Text: [], Video: [] },
+  debates: {},
+  spectateDebates: [],
+  forum: [],
+  guilds: [],
+  wiki: [],
+  dms: {},          // conversationKey -> { messages: [{from,text,ts}] }
+  reports: [],       // { by, target, reason, ts }
+  memberSearch: '',
+  activeDM: null,    // username of currently open conversation
+  notifOpen: false,
+};
+
+// Initialize Theme
+document.documentElement.setAttribute('data-theme', state.theme);
+
+/* ================= PERSISTENCE ================= */
+const SAVE_KEY = 'majlis_state_v1';
+
+function saveState(){
+  try {
+    const persisted = {
+      users: state.users,
+      currentUser: state.currentUser,
+      debateQueue: state.debateQueue,
+      debates: state.debates,
+      forum: state.forum,
+      guilds: state.guilds,
+      wiki: state.wiki,
+      dms: state.dms,
+      reports: state.reports,
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(persisted));
+  } catch(e) {
+    console.warn('Could not save state:', e);
+  }
+}
+
+function loadState(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const persisted = JSON.parse(raw);
+    state.users = persisted.users || {};
+    Object.values(state.users).forEach(u => {
+      if(!u.settings) u.settings = { profileVisibility: 'public', showOnLeaderboard: true, allowFollowers: true };
+      if(!Array.isArray(u.following)) u.following = [];
+      if(!Array.isArray(u.followers)) u.followers = [];
+      if(!Array.isArray(u.blocked)) u.blocked = [];
+      if(!Array.isArray(u.notifications)) u.notifications = [];
+      if(typeof u.bio !== 'string') u.bio = '';
+    });
+    state.currentUser = persisted.currentUser || null;
+    state.debateQueue = persisted.debateQueue || { Text: [], Video: [] };
+    state.debates = persisted.debates || {};
+    state.forum = normalizeForum(persisted.forum || []);
+    state.guilds = persisted.guilds || [];
+    state.wiki = persisted.wiki || [];
+    state.dms = persisted.dms || {};
+    state.reports = persisted.reports || [];
+    if(state.currentUser && state.users[state.currentUser]){
+      state.user = state.users[state.currentUser];
+      return true;
+    }
+    return false;
+  } catch(e) {
+    console.warn('Could not load state:', e);
+    return false;
+  }
+}
+
+const hadSavedSession = loadState();
+
+function toggleTheme() {
+  state.theme = state.theme === 'light' ? 'dark' : 'light';
+  localStorage.setItem('theme', state.theme);
+  document.documentElement.setAttribute('data-theme', state.theme);
+  render();
+}
+
+function acceptCookies() {
+  state.cookieConsent = true;
+  localStorage.setItem('cookieConsent', 'true');
+  render();
+}
+
+function switchToUser(username){
+  state.currentUser = username;
+  state.user = state.users[username];
+  state.showAuth = false;
+  state.tab = 'home';
+}
+
+let guestCounter = 0;
+function startGuestSession(){
+  guestCounter += 1;
+  const username = 'Guest'+Math.floor(1000+Math.random()*9000)+(guestCounter>1?('-'+guestCounter):'');
+  state.users[username] = makeNewUserProfile(username, null, true);
+  switchToUser(username);
+}
+
+function logout(){
+  startGuestSession();
+  render();
+}
+
+/* ================= FOLLOW / FRIENDS / SETTINGS ================= */
+function isFollowing(username){
+  return !!(state.user.following || []).includes(username);
+}
+
+function areFriends(usernameA, usernameB){
+  const a = state.users[usernameA], b = state.users[usernameB];
+  if(!a || !b) return false;
+  return (a.following||[]).includes(usernameB) && (b.following||[]).includes(usernameA);
+}
+
+function toggleFollow(targetUsername){
+  if(state.user.isGuest){ alert('Create an account to follow people.'); return; }
+  if(targetUsername === state.currentUser) return;
+  const target = state.users[targetUsername];
+  if(!target) return;
+  if(isBlocked(targetUsername) || isBlockedBy(targetUsername)){
+    alert('You can\'t follow this user.');
+    return;
+  }
+  state.user.following = state.user.following || [];
+  target.followers = target.followers || [];
+
+  if(isFollowing(targetUsername)){
+    state.user.following = state.user.following.filter(u => u !== targetUsername);
+    target.followers = target.followers.filter(u => u !== state.currentUser);
+  } else {
+    if(target.settings && target.settings.allowFollowers === false){
+      alert(target.name + ' is not accepting new followers right now.');
+      return;
+    }
+    state.user.following.push(targetUsername);
+    target.followers.push(state.currentUser);
+    addNotification(targetUsername, {
+      type: 'follow',
+      text: state.user.name + ' started following you.',
+      from: state.currentUser,
+    });
+  }
+  saveState();
+  render();
+}
+
+/* ================= NOTIFICATIONS ================= */
+function addNotification(targetUsername, notif){
+  const target = state.users[targetUsername];
+  if(!target || targetUsername === state.currentUser) return;
+  target.notifications = target.notifications || [];
+  target.notifications.unshift({
+    id: Date.now()+Math.random(),
+    read: false,
+    ts: Date.now(),
+    ...notif,
+  });
+}
+
+function unreadNotifCount(){
+  return (state.user.notifications || []).filter(n=>!n.read).length;
+}
+
+function markAllNotifsRead(){
+  (state.user.notifications || []).forEach(n=>n.read = true);
+  saveState();
+  render();
+}
+
+/* ================= BLOCK / REPORT ================= */
+function isBlocked(username){
+  return !!(state.user.blocked || []).includes(username);
+}
+function isBlockedBy(username){
+  const them = state.users[username];
+  return !!(them && (them.blocked||[]).includes(state.currentUser));
+}
+
+function toggleBlock(targetUsername){
+  if(state.user.isGuest){ alert('Create an account to block people.'); return; }
+  if(targetUsername === state.currentUser) return;
+  const target = state.users[targetUsername];
+  if(!target) return;
+  state.user.blocked = state.user.blocked || [];
+  if(isBlocked(targetUsername)){
+    state.user.blocked = state.user.blocked.filter(u=>u!==targetUsername);
+  } else {
+    if(!confirm('Block '+target.name+'? They won\'t be able to follow or message you, and you\'ll stop following each other.')) return;
+    state.user.blocked.push(targetUsername);
+    // sever follow relationship both ways
+    state.user.following = (state.user.following||[]).filter(u=>u!==targetUsername);
+    state.user.followers = (state.user.followers||[]).filter(u=>u!==targetUsername);
+    target.following = (target.following||[]).filter(u=>u!==state.currentUser);
+    target.followers = (target.followers||[]).filter(u=>u!==state.currentUser);
+  }
+  saveState();
+  render();
+}
+
+function reportUser(targetUsername){
+  const target = state.users[targetUsername];
+  if(!target) return;
+  const reason = prompt('Tell us briefly why you\'re reporting '+target.name+':');
+  if(reason === null) return;
+  state.reports = state.reports || [];
+  state.reports.push({ by: state.currentUser, target: targetUsername, reason: reason.trim(), ts: Date.now() });
+  saveState();
+  alert('Thanks — your report has been submitted for review.');
+}
+
+/* ================= MUTUALS ================= */
+function getMutuals(username){
+  if(username === state.currentUser) return [];
+  const them = state.users[username];
+  if(!them) return [];
+  const myFollowing = state.user.following || [];
+  const theirFollowers = them.followers || [];
+  return myFollowing.filter(u => theirFollowers.includes(u) && u !== state.currentUser);
+}
+
+/* ================= DIRECT MESSAGES ================= */
+function dmKey(a, b){ return [a,b].sort().join('::'); }
+
+function getConversation(username){
+  const key = dmKey(state.currentUser, username);
+  return (state.dms[key] && state.dms[key].messages) || [];
+}
+
+function myConversations(){
+  const prefix = '';
+  return Object.keys(state.dms)
+    .filter(k => k.split('::').includes(state.currentUser))
+    .map(k => {
+      const parts = k.split('::');
+      const other = parts[0] === state.currentUser ? parts[1] : parts[0];
+      const msgs = state.dms[k].messages || [];
+      return { other, key: k, lastMsg: msgs[msgs.length-1] || null };
+    })
+    .filter(c => state.users[c.other])
+    .sort((a,b) => (b.lastMsg ? b.lastMsg.ts : 0) - (a.lastMsg ? a.lastMsg.ts : 0));
+}
+
+function hasUnreadDM(username){
+  const msgs = getConversation(username);
+  return msgs.some(m => m.from === username && !m.read);
+}
+
+function totalUnreadDMs(){
+  return myConversations().filter(c => hasUnreadDM(c.other)).length;
+}
+
+function openDM(username){
+  state.activeDM = username;
+  const msgs = getConversation(username);
+  msgs.forEach(m => { if(m.from === username) m.read = true; });
+  navigateWithLoading('messages');
+}
+
+function sendDM(toUsername, text){
+  const trimmed = (text||'').trim();
+  if(!trimmed) return;
+  if(state.user.isGuest){ alert('Create an account to send messages.'); return; }
+  if(isBlocked(toUsername) || isBlockedBy(toUsername)){ alert('You can\'t message this user.'); return; }
+  const key = dmKey(state.currentUser, toUsername);
+  state.dms[key] = state.dms[key] || { messages: [] };
+  state.dms[key].messages.push({ from: state.currentUser, text: trimmed, ts: Date.now(), read: false });
+  addNotification(toUsername, {
+    type: 'dm',
+    text: state.user.name + ' sent you a message.',
+    from: state.currentUser,
+  });
+  saveState();
+  render();
+}
+
+function viewProfile(username){
+  state.viewingProfile = (username === state.currentUser) ? null : username;
+  navigateWithLoading('profile');
+}
+
+function goToOwnProfile(){
+  state.viewingProfile = null;
+  navigateWithLoading('profile');
+}
+
+function updateSetting(key, value){
+  state.user.settings = state.user.settings || {};
+  state.user.settings[key] = value;
+  saveState();
+  render();
+}
+
+function updateDisplayName(newName){
+  const trimmed = (newName || '').trim();
+  state.user.name = trimmed || state.user.username;
+  saveState();
+  render();
+}
+
+function updateBio(newBio){
+  state.user.bio = (newBio || '').trim().slice(0,280);
+  saveState();
+  render();
+}
+
+function handleAvatarUpload(file){
+  if(!file) return;
+  if(!file.type || !file.type.startsWith('image/')){ alert('Please choose an image file.'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 200;
+      const minSide = Math.min(img.width, img.height);
+      const sx = (img.width - minSide) / 2, sy = (img.height - minSide) / 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+      state.user.avatar = canvas.toDataURL('image/jpeg', 0.85);
+      saveState();
+      render();
+    };
+    img.onerror = () => alert('Could not read that image.');
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeAvatar(){
+  state.user.avatar = null;
+  saveState();
+  render();
+}
+
+function navigateWithLoading(tabId) {
+  state.loading = true;
+  state.tab = tabId;
+  state.exploreOpen = false;
+  state.mobileNavOpen = false;
+  render();
+  setTimeout(() => {
+    state.loading = false;
+    render();
+  }, 300);
+}
+
+const PHIL_QUESTIONS = [
+  { q: 'If a tree falls in a forest with no one to hear it, does it make a sound?', opts: ['Yes — sound is a physical event independent of perception', 'The question is a category error about what "sound" means', 'It depends on how we define "sound"', 'No — sound requires a perceiving subject'] },
+  { q: 'Can you meaningfully doubt that you exist?', opts: ['No — the act of doubting proves a doubter exists', 'Existence and thought are separate questions', 'Doubt itself may be an illusion', 'Yes — "I" may just be a bundle of impressions with no persisting self'] },
+  { q: 'Is morality discovered or invented?', opts: ['Discovered — moral facts exist independent of us', 'Both — some core intuitions are innate, rest is constructed', 'Neither — moral language is not truth-apt', 'Invented — morality is a human construction'] },
+  { q: 'Does free will require the ability to have done otherwise?', opts: ['Yes — without alternate possibilities there is no real choice', 'It depends on what "ability" means in a determined universe', 'Free will is an incoherent concept either way', 'No — freedom just means acting on your own desires, regardless of determinism'] },
+  { q: 'Is a copy of you, atom for atom, "you"?', opts: ['Only if there is causal continuity, not mere resemblance', 'There is no fact of the matter', 'No — there is a unique first-person thread that cannot be duplicated', 'Yes — identity is just structural/functional continuity'] },
+  { q: 'Can we have certain knowledge of the external world?', opts: ['Yes — some truths are self-evident to reason alone', 'Only provisionally, through reliable method', 'Only of our own sensations, never of the world itself', 'No — all knowledge claims are ultimately fallible'] },
+  { q: 'Where does mathematical truth come from?', opts: ['It exists independently in an abstract realm we discover', 'It is a necessary structure of rational thought', 'It is a highly useful human invention', 'It is generalized from patterns in experience'] },
+  { q: 'What makes an action morally right?', opts: ['Conformity to a universal rational duty', 'The character and virtue it expresses', 'The consequences it produces', 'What a given culture or era agrees to'] },
+  { q: 'Is the mind identical to the brain?', opts: ['No — mind is a distinct, non-physical substance', 'Mind is what the brain does, not what it is', 'Yes — mental states just are brain states', 'The question is unanswerable given our current concepts'] },
+  { q: 'Can a machine truly think?', opts: ['Yes, if it reproduces the right functional organization', 'Only if it has genuine subjective experience, which we cannot verify', 'No — thinking requires biological consciousness', 'It depends entirely on how "thinking" is defined'] },
+  { q: 'Is there objective beauty, or is it purely in the eye of the beholder?', opts: ['Yes — some works meet objective standards of form and harmony', 'There are shared human responses, but no strict objectivity', 'It is largely cultural convention', 'Beauty is entirely subjective and non-rational'] },
+  { q: 'What grounds personal identity over time?', opts: ['An immaterial, persisting soul', 'Continuity of memory and psychological connection', 'Continuity of the physical body/brain', 'There is no deep fact of identity, only convenient labeling'] },
+  { q: 'Is it ever rational to believe something without evidence?', opts: ['Yes — some foundational beliefs must be taken on faith or intuition', 'Yes, when practical necessity demands a working assumption', 'Rarely, and only where evidence is in principle unobtainable', 'No — belief should always be proportioned to evidence'] },
+  { q: 'Does language shape the way we think, or just describe it?', opts: ['Thought is fundamentally independent of language', 'Language mostly expresses pre-existing thought', 'Language and thought are deeply intertwined', 'Language substantially constrains and shapes what we can think'] },
+  { q: 'Can there be a truly selfless act?', opts: ['Yes — reason can motivate action for duty alone', 'Yes, though most acts mix motives', 'Rarely — most apparent altruism serves the self indirectly', 'No — all action ultimately serves self-interest'] },
+  { q: 'Is time an objective feature of reality or a feature of how we perceive it?', opts: ['Time is a real, mind-independent dimension', 'Time is real but relational, not absolute', 'Time may be an emergent or derivative phenomenon', 'Time is fundamentally a structure imposed by the mind'] },
+  { q: 'Do we have direct access to reality, or only to our representations of it?', opts: ['Reason gives us direct insight into reality\'s structure', 'Perception gives reasonably direct access, checked by reason', 'We only ever access appearances, never things as they are', 'The distinction between appearance and reality is confused'] },
+  { q: 'Is suffering ever intrinsically meaningful?', opts: ['Yes — it can be a necessary path to virtue or growth', 'Sometimes, depending on how it is faced and interpreted', 'Rarely — most suffering is simply to be minimized', 'No — suffering has no meaning beyond what we project onto it'] },
+  { q: 'Can ethical disagreement between cultures ever be resolved by reason?', opts: ['Yes — there are universal moral truths reason can uncover', 'Often, through shared human values and careful argument', 'Only partially — some disagreements are genuinely irreducible', 'No — moral frameworks are incommensurable'] },
+  { q: 'Is the self a unified, continuous thing?', opts: ['Yes — there is a single persisting subject behind experience', 'Mostly, though it is shaped and revised over time', 'It is a loose narrative we construct after the fact', 'No — the self is a bundle of shifting, disconnected states'] },
+  { q: 'What is the source of logical necessity (why can\'t contradictions be true)?', opts: ['It reflects the necessary structure of rational thought itself', 'It reflects the structure of reality that thought tracks', 'It is a deeply entrenched convention of our conceptual scheme', 'It is simply what we find we cannot help believing'] },
+  { q: 'Can art have a purpose beyond aesthetic experience?', opts: ['Yes — art can express and reveal moral or metaphysical truth', 'Yes, often as a secondary function alongside aesthetic value', 'Its purposes are whatever a culture assigns to it', 'No — reducing art to "purpose" misses what art is'] },
+  { q: 'Is it possible to know you are not dreaming right now?', opts: ['Yes — coherence and rational structure are sufficient assurance', 'Practically yes, though never with absolute certainty', 'Only with great difficulty, if at all', 'No — no experience could ever rule it out'] },
+  { q: 'Does the universe require an explanation for its existence?', opts: ['Yes — everything contingent needs a sufficient reason', 'Probably, though the explanation may be naturalistic', 'Possibly not — brute facts may be unavoidable somewhere', 'No — demanding an explanation for existence itself is a category error'] },
+  { q: 'Can moral responsibility exist in a fully deterministic universe?', opts: ['No — genuine responsibility requires libertarian free will', 'Only in a revised, weaker sense', 'Yes — responsibility just tracks reasons-responsiveness, not indeterminism', 'Yes — determinism and responsibility are fully compatible as ordinarily understood'] },
+  { q: 'Is there a meaningful difference between knowledge and very strong belief?', opts: ['Yes — knowledge requires a special, non-accidental connection to truth', 'Yes, though the line is difficult to draw precisely', 'The difference is mostly a matter of degree', 'No — "knowledge" just names beliefs we feel confident enough to act on'] },
+  { q: 'Should we trust intuition or argument when they conflict?', opts: ['Argument — intuitions are often unreliable and should yield to reason', 'Usually argument, but a persistent intuition is real evidence too', 'Usually intuition, since arguments can go wrong in subtle ways', 'Intuition — deep intuitions are data that arguments must ultimately respect'] },
+  { q: 'Can something be true for one person and false for another?', opts: ['No — truth is single and mind-independent', 'Only for matters of taste, never for factual claims', 'For some domains (ethics, aesthetics) plausibly yes', 'Yes, broadly — truth is relative to a framework or perspective'] },
+  { q: 'Is death something to be feared?', opts: ['No — death is nothing to us, so fearing it is irrational', 'Not in itself, though the process of dying may be', 'It depends on whether one believes in an afterlife', 'Yes — the loss of everything one is and has is a genuine harm'] },
+  { q: 'Do animals have moral status comparable to humans?', opts: ['No — moral status requires rational agency, which only humans (fully) have', 'Some, in proportion to their capacity for suffering or cognition', 'Yes, largely comparable where sentience is comparable', 'Yes, fully — species membership alone cannot justify differential treatment'] },
+  { q: 'Is scientific progress cumulative and convergent on truth, or a series of paradigm shifts with no guaranteed convergence?', opts: ['Cumulative — science steadily approximates an objective truth', 'Broadly cumulative, with occasional revolutionary corrections', 'A mix — progress within paradigms, discontinuity between them', 'Paradigm-relative — there is no neutral standpoint to judge overall "progress"'] },
+  { q: 'Can a just society ever fully reconcile liberty and equality?', opts: ['Yes — properly understood, they are not in deep tension', 'Mostly, with careful institutional design', 'Only partially — some trade-off is unavoidable', 'No — they pull in genuinely opposite directions'] },
+  { q: 'Is consciousness reducible to physical processes?', opts: ['No — subjective experience is a fundamentally different kind of fact', 'Unclear — there may be an explanatory gap even if it is physical', 'Probably, though we lack the science to show how yet', 'Yes — consciousness just is a certain kind of physical/functional process'] },
+  { q: 'Should the burden of proof always fall on the person making a positive claim?', opts: ['Not always — some claims are properly assumed as background', 'Generally yes, but context and stakes matter', 'Yes, essentially always, to avoid unfounded belief', 'It depends on which claim is more antecedently probable'] },
+  { q: 'Is nostalgia a form of self-deception?', opts: ['No — it can be an accurate, valuable recollection', 'Sometimes it distorts, but the distortion can still be meaningful', 'Often — memory reliably flatters the past', 'Yes, essentially — it manufactures a past that never quite existed'] },
+  { q: 'Can two rational, fully-informed people permanently disagree on a factual matter?', opts: ['No — full information and rationality should converge on one answer', 'Rarely, and only where evidence is genuinely ambiguous', 'Sometimes, due to differing but reasonable priors', 'Yes, routinely — rationality does not guarantee convergence'] },
+  { q: 'Is there such a thing as objective progress in human history?', opts: ['Yes — reason and morality have advanced in identifiable ways', 'Broadly yes, unevenly, and with real setbacks', 'Only in narrow, technical senses (e.g. technology)', 'No — "progress" is a value-laden narrative we impose after the fact'] },
+  { q: 'Should we value the truth even when it makes us or others worse off?', opts: ['Yes, essentially always — truth has priority over comfort', 'Usually, with rare, carefully limited exceptions', 'It depends heavily on context and consequences', 'Not necessarily — well-being can reasonably outweigh truth in some cases'] },
+  { q: 'Is the "hard problem of consciousness" a genuine problem or a confusion?', opts: ['A genuine, perhaps permanent mystery about reality', 'A genuine problem current science has not yet solved', 'Possibly a problem generated by flawed concepts', 'A pseudo-problem that dissolves once we are clearer about our terms'] },
+  { q: 'Can virtue be taught, or is it mostly a matter of habituation and practice?', opts: ['It can be taught directly, as a body of rational knowledge', 'It is taught mainly by example and reasoned reflection together', 'It is instilled mostly through habit, practice, and social example', 'It is largely a matter of native temperament, not teaching'] },
+  { q: 'Is it coherent to say the universe as a whole has a purpose?', opts: ['Yes — purpose is either built into or discoverable in reality', 'Possibly, if there is a designing or teleological principle', 'Only in a weak, metaphorical sense', 'No — "purpose" only makes sense relative to agents, not the whole universe'] },
+  { q: 'Should punishment be justified mainly by desert (what someone deserves) or by its future effects?', opts: ['Mainly desert — retribution is intrinsically appropriate for wrongdoing', 'Primarily desert, tempered by practical considerations', 'Primarily future effects (deterrence, rehabilitation), tempered by desert', 'Entirely by future effects — backward-looking desert has no independent weight'] },
+  { q: 'Is it possible to fully understand another person\'s subjective experience?', opts: ['Yes, in principle, through sufficiently rich shared concepts and empathy', 'Approximately, through language, art, and careful attention', 'Only very partially — much remains permanently private', 'No — subjective experience is in principle inaccessible to another mind'] },
+  { q: 'Does moral luck (praise/blame partly depending on chance) undermine our ordinary notion of responsibility?', opts: ['No — responsibility tracks intention and character, which luck cannot touch', 'It complicates but does not undermine ordinary responsibility', 'It significantly weakens our confidence in many ordinary moral judgments', 'Yes — it shows much of our moral practice rests on an illusion of control'] },
+  { q: 'Is there a fact of the matter about which philosophical framework is "correct," or are frameworks just different useful lenses?', opts: ['Yes — one framework can be objectively more correct than others', 'Some frameworks are better supported by argument than others', 'Frameworks are largely tools, evaluated by usefulness, not truth', 'There is no fact of the matter — all frameworks are equally lenses, not truths'] },
+];
+
+/* Compass metadata: each of the three compasses has an X and Y axis, each fed by 15 questions (90 total). */
+const ECON_X_QUESTIONS = [
+  { q: 'Should the state redistribute wealth to reduce inequality?', opts: ['No, not at all', 'No, beyond a minimal safety net', 'Yes, but modestly', 'Yes, extensively'] },
+  { q: 'How should inheritance be treated?', opts: ['Untaxed — it is a private family matter', 'Lightly taxed at most', 'Taxed significantly above a moderate threshold', 'Heavily taxed or capped to limit dynastic wealth'] },
+  { q: 'Is a large gap between the richest and poorest acceptable if the poor are still improving?', opts: ['Yes, gaps reflect differences in effort and value created', 'Mostly yes, growth matters more than the gap itself', 'Only up to a point — extreme gaps are corrosive regardless', 'No — the gap itself is a serious injustice to correct'] },
+  { q: 'Should healthcare be primarily private or publicly provided?', opts: ['Primarily private, market-based', 'Private with a limited public safety net', 'Public with room for private options', 'Fully public and universal'] },
+  { q: 'Should higher education be free at the point of use?', opts: ['No — it should be paid for privately, like any service', 'No, but with expanded loans/scholarships for need', 'Yes, subsidized heavily for most students', 'Yes, fully free and publicly funded'] },
+  { q: 'What is the fairest way to fund government?', opts: ['A flat tax, the same rate for everyone', 'A mildly progressive tax with low top rates', 'A strongly progressive tax on income and wealth', 'Heavy taxation of wealth and capital, not just income'] },
+  { q: 'Should employees have significant ownership or say in the companies they work for?', opts: ['No — ownership belongs to those who invested capital', 'Rarely, only where owners choose to offer it', 'Often, through profit-sharing or board representation', 'Yes, as a matter of right — labor should co-govern capital'] },
+  { q: 'How should housing be treated?', opts: ['As an ordinary market good, priced by supply and demand', 'A market good, with modest support for the poorest', 'A right that markets alone can\'t be trusted to secure', 'A public good the state should directly guarantee'] },
+  { q: 'Should a strong social safety net exist even if it requires high taxes?', opts: ['No — safety nets erode responsibility and growth', 'A minimal net is fine, but taxes should stay low', 'Yes, a substantial net is worth meaningful taxation', 'Yes, an extensive net is a core duty of the state'] },
+  { q: 'Is poverty mainly a result of individual choices or structural conditions?', opts: ['Mainly individual choices and effort', 'Mostly individual, with some structural bad luck', 'Mostly structural, with some individual factors', 'Overwhelmingly structural — the system produces poverty'] },
+  { q: 'Should a universal basic income replace parts of the welfare system?', opts: ['No — targeted, conditional support works better', 'No, current programs should just be improved', 'Yes, as a supplement worth piloting', 'Yes, a full UBI should be a central economic policy'] },
+  { q: 'Should there be a legal maximum wage or pay ratio within a company?', opts: ['No — pay should be set entirely by the market', 'No, but transparency requirements are reasonable', 'Yes, a soft cap or ratio is a fair constraint', 'Yes, a firm legal cap should exist'] },
+  { q: 'Is it fair for wealth to be passed down and compound across generations largely untaxed?', opts: ['Yes — people should be free to provide for their children', 'Mostly yes, provided baseline taxes are paid', 'Not really — it entrenches unearned advantage', 'No — this is a core driver of unjust inequality'] },
+  { q: 'Should essential utilities (water, power, transit) be state-owned?', opts: ['No — private competition delivers them better', 'Mostly private, with regulation for fairness', 'Mostly public, with some private involvement', 'Yes, fully public as essential common goods'] },
+  { q: 'What should guide the minimum wage, if one exists?', opts: ['There should be no legally mandated minimum wage', 'A low, cautious minimum tied closely to market conditions', 'A living-wage minimum, updated regularly', 'A high minimum wage set primarily by need, not just market rates'] },
+];
+const ECON_Y_QUESTIONS = [
+  { q: 'Should markets or governments primarily allocate resources?', opts: ['Markets, with minimal intervention', 'Markets, with significant regulation', 'A planned mix favoring public control', 'Central planning'] },
+  { q: 'How much should government regulate business practices?', opts: ['As little as possible — let competition self-correct', 'Light-touch rules focused on fraud and safety', 'Substantial rules covering labor, environment, and pricing', 'Heavy, proactive regulation across most industries'] },
+  { q: 'Should the state use tariffs to protect domestic industries?', opts: ['No — free trade should be nearly unrestricted', 'Rarely, only for clearly strategic industries', 'Often, to protect jobs and key sectors', 'Yes, extensively, as a default economic tool'] },
+  { q: 'Should a central bank actively manage the economy (interest rates, stimulus)?', opts: ['No — monetary policy should follow strict, minimal rules', 'A light hand, intervening only in emergencies', 'An active hand, regularly adjusting to conditions', 'Aggressive, continuous management of the whole economy'] },
+  { q: 'How should failing large companies ("too big to fail") be handled?', opts: ['Let them fail — bailouts distort the market', 'Bail out only in genuine systemic emergencies', 'Provide support with strong conditions attached', 'The state should often step in and even take a stake'] },
+  { q: 'Should the government subsidize favored industries (green energy, agriculture, tech)?', opts: ['No — subsidies distort markets and pick winners badly', 'Rarely, and only with strict sunset clauses', 'Often, to steer development toward public goals', 'Yes, actively, as core industrial policy'] },
+  { q: 'How should professional licensing (who may practice a trade) be handled?', opts: ['Minimal licensing — let reputation and the market sort it out', 'Light licensing for a few high-risk professions only', 'Broad licensing for most skilled professions', 'Extensive, government-managed licensing across most trades'] },
+  { q: 'Should antitrust law aggressively break up dominant companies?', opts: ['No — size alone is not a problem if consumers benefit', 'Only in clear, proven cases of abuse', 'Fairly often, when concentration itself risks harm', 'Yes, proactively, to prevent concentrated market power'] },
+  { q: 'Should environmental regulation take priority over short-term business costs?', opts: ['No — cost to business and consumers should usually come first', 'Balanced, leaning toward business flexibility', 'Balanced, leaning toward environmental protection', 'Yes, environmental limits should usually take priority'] },
+  { q: 'How should the government respond to a recession?', opts: ['Let markets correct themselves with minimal interference', 'Small, targeted, temporary support only', 'Significant stimulus spending and public investment', 'Large-scale direct intervention, including public job creation'] },
+  { q: 'Should there be strict rent control in expensive cities?', opts: ['No — rent control worsens housing supply over time', 'No, but zoning reform to boost supply is fine', 'Yes, targeted rent stabilization is a reasonable tool', 'Yes, strong rent control should be standard policy'] },
+  { q: 'Should financial markets be tightly regulated after crises?', opts: ['No — regulation should stay light to preserve efficiency', 'Modest reforms targeted at the specific failure', 'Substantial new rules to prevent recurrence', 'Comprehensive, permanent, strict financial regulation'] },
+  { q: 'Should the state run its own enterprises in strategic sectors (energy, transport, banking)?', opts: ['No — state enterprises are generally less efficient', 'Rarely, only where markets clearly fail', 'Sometimes, to secure strategic capacity', 'Yes, the state should hold major stakes in key sectors'] },
+  { q: 'How should zoning and land use be decided?', opts: ['Landowners should have wide freedom to build as they choose', 'Light local rules, mostly deferring to owners', 'Significant public planning to shape development', 'Land use should be tightly planned for the collective good'] },
+  { q: 'Should advertising and consumer marketing be tightly regulated?', opts: ['No — consumers should judge claims for themselves', 'Only to prevent outright fraud', 'Yes, with real limits on manipulative practices', 'Yes, heavily regulated, especially toward vulnerable groups'] },
+];
+const POL_X_QUESTIONS = [
+  { q: 'Is national sovereignty more important than international cooperation?', opts: ['Sovereignty should almost always win', 'Sovereignty generally comes first', 'Cooperation generally comes first', 'International bodies should override sovereignty when rights are at stake'] },
+  { q: 'Should international courts be able to override national law?', opts: ['No — national courts should always have final say', 'Rarely, only by explicit prior treaty', 'Often, especially on human rights matters', 'Yes, international law should generally take precedence'] },
+  { q: 'How open should borders be to immigration?', opts: ['Very restricted, prioritizing national cohesion', 'Selective, favoring skills and clear national benefit', 'Fairly open, with reasonable vetting', 'Largely open, treating movement as a basic freedom'] },
+  { q: 'Should countries prioritize domestic industry over global trade efficiency?', opts: ['Yes, domestic industry and jobs should come first', 'Generally yes, with trade playing a supporting role', 'Generally no, global efficiency benefits everyone more', 'No, open global trade should be the clear priority'] },
+  { q: 'Should national culture be actively protected from outside influence?', opts: ['Yes — the state should actively defend national culture', 'Some protective measures are reasonable', 'Openness to outside influence is mostly healthy', 'No — cultural exchange should be entirely unrestricted'] },
+  { q: 'Should military alliances bind a country to fight for others?', opts: ['No — a country should decide independently each time', 'Rarely, only with very narrow, revisited commitments', 'Yes, firm alliances provide valuable stability', 'Yes, strong collective defense commitments should be the norm'] },
+  { q: 'Should global institutions (UN, WTO, IMF) have more power over member states?', opts: ['No, their power should be reduced', 'No change — current limited power is about right', 'Yes, somewhat more power would help coordination', 'Yes, significantly more power is needed for global problems'] },
+  { q: 'Is it a country\'s duty to intervene abroad to stop atrocities?', opts: ['No — intervention abroad is rarely a nation\'s business', 'Only in extreme, narrowly defined cases', 'Often, when there is a credible ability to help', 'Yes, as a routine expression of international responsibility'] },
+  { q: 'Should foreign ownership of domestic land/companies be restricted?', opts: ['Yes, restricted significantly to protect national interests', 'Restricted in a few sensitive sectors', 'Allowed with light oversight', 'Allowed freely, treating capital as globally mobile'] },
+  { q: 'Should climate policy be set mainly nationally or through binding global agreements?', opts: ['Mainly nationally, based on domestic priorities', 'Nationally, with loose international coordination', 'Mostly through binding global agreements', 'Global agreements should override national reluctance'] },
+  { q: 'Should dual citizenship and loyalty to more than one nation be encouraged?', opts: ['No — citizens should hold undivided national loyalty', 'Tolerated, but not encouraged', 'Generally encouraged in a connected world', 'Yes, national identity should matter less than it used to'] },
+  { q: 'Should a country accept refugees even at real domestic cost?', opts: ['No — domestic capacity and cohesion come first', 'Only limited numbers, carefully managed', 'Yes, a generous but managed intake is right', 'Yes, refugee protection should take priority over domestic cost concerns'] },
+  { q: 'Is outsourcing jobs abroad mainly good or bad for a nation?', opts: ['Mainly bad — it should be discouraged or taxed', 'Net negative for workers, needs real limits', 'Net positive overall, despite local disruption', 'Mainly good — global efficiency benefits everyone, including eventually workers'] },
+  { q: 'Should national governments be able to opt out of global agreements they later dislike?', opts: ['Yes, freely and without much cost', 'Yes, but with real diplomatic and economic cost', 'Rarely, once genuinely committed', 'No, binding global commitments should be very hard to exit'] },
+  { q: 'Is patriotism (special loyalty to one\'s own nation) a virtue?', opts: ['Yes, a central and important civic virtue', 'Yes, a healthy and normal sentiment', 'A minor sentiment, secondary to universal human ties', 'Not really — universal human solidarity should come first'] },
+];
+const POL_Y_QUESTIONS = [
+  { q: 'Should the government be able to monitor citizens\' communications for security?', opts: ['No — mass surveillance is never justified', 'Only with a warrant for specific, serious suspects', 'Broadly, in exchange for meaningfully greater security', 'Yes, extensive monitoring is a reasonable price for safety'] },
+  { q: 'Should free speech protections extend to hate speech?', opts: ['Yes, without exception', 'Yes, with narrow exceptions for incitement', 'No, hate speech should be broadly restricted', 'No, and the state should actively police it'] },
+  { q: 'How should recreational drug use be handled by law?', opts: ['Fully legal, an individual choice', 'Decriminalized, regulated like alcohol', 'Mostly illegal, with limited exceptions', 'Strictly illegal, with strong enforcement'] },
+  { q: 'Should ordinary citizens be able to own firearms with minimal restriction?', opts: ['Yes, ownership should face minimal restriction', 'Yes, with modest background checks only', 'Only with substantial licensing and limits', 'No — private firearm ownership should be tightly restricted or banned'] },
+  { q: 'Is civil disobedience justified against unjust laws?', opts: ['Always, if the law is genuinely unjust', 'Usually, if peaceful', 'Rarely, only in extreme cases', 'No — legal channels should always be used first, and disruption punished'] },
+  { q: 'Should the state be able to expand its own powers during a declared emergency?', opts: ['No — emergency powers are routinely abused and should stay minimal', 'Only with strict time limits and independent oversight', 'Yes, broad emergency powers are often necessary', 'Yes, the state should have wide latitude to act decisively in a crisis'] },
+  { q: 'Should the internet be actively regulated by the state (content, platforms, speech)?', opts: ['No — the internet should remain largely unregulated', 'Only light rules against clear illegal activity', 'Meaningful regulation of harmful content and platforms', 'Yes, active, ongoing state oversight of online speech and platforms'] },
+  { q: 'Should protests that disrupt public order be tolerated?', opts: ['Yes, disruption is often a legitimate part of protest', 'Yes, within generous limits', 'Only if clearly non-disruptive and pre-approved', 'No — disruptive protest should be firmly restricted'] },
+  { q: 'How much discretion should police have to stop and search people?', opts: ['Very limited — strong protections against search are essential', 'Meaningful limits, with clear justification required', 'Fairly broad discretion in the name of public safety', 'Very broad discretion — safety should take priority over inconvenience'] },
+  { q: 'Should sentencing for crimes emphasize individual rights and rehabilitation, or public order and deterrence?', opts: ['Individual rights and rehabilitation should clearly come first', 'Mostly rehabilitation, with order as a secondary concern', 'Mostly public order and deterrence, tempered by fairness', 'Public order and deterrence should clearly come first'] },
+  { q: 'Should citizens be legally required to perform national service (military or civil)?', opts: ['No — required service violates personal liberty', 'No, but strongly encouraged voluntary options are good', 'Yes, in some limited or conditional form', 'Yes, mandatory service should be a normal civic duty'] },
+  { q: 'Should individuals be free to refuse medical treatment even in a public health emergency?', opts: ['Yes, bodily autonomy should almost always prevail', 'Yes, with strong encouragement but no compulsion', 'Only with real limits during serious public emergencies', 'No — the state should be able to compel treatment for the common good'] },
+  { q: 'Should the media be free from government influence, even when it is highly critical of the state?', opts: ['Yes, media independence should be nearly absolute', 'Yes, with only narrow, court-tested limits', 'Some state oversight of media is reasonable', 'The state should have significant say over major media, especially in crises'] },
+  { q: 'Should encryption that even the government cannot break be legal?', opts: ['Yes, unbreakable encryption is an important right', 'Yes, generally, with rare narrow exceptions', 'No, the state should usually retain some access', 'No — the state should be able to access any communication when needed'] },
+  { q: 'Should there be strong legal limits on how long someone can be detained without trial?', opts: ['Yes, very strict limits with almost no exceptions', 'Yes, strong limits with narrow, reviewable exceptions', 'Some flexibility should exist for serious security cases', 'The state should have broad latitude in serious security cases'] },
+];
+const SOC_X_QUESTIONS = [
+  { q: 'Should marriage be defined broadly to include same-sex couples?', opts: ['No, marriage should retain its traditional definition', 'Civil unions are fine, but marriage should stay traditional', 'Yes, marriage should be extended to same-sex couples', 'Yes, and the state should treat all family forms equally'] },
+  { q: 'How should schools teach topics like evolution or comprehensive sex education?', opts: ['Cautiously, respecting traditional or religious values', 'With some deference to community/parental preference', 'As standard, evidence-based curriculum for all students', 'Comprehensively and early, as essential modern education'] },
+  { q: 'What role should religion play in public and civic life?', opts: ['A central, visible role in shared public life', 'A meaningful but not dominant public presence', 'Mostly private, with a secular public sphere', 'None — public life should be fully secular'] },
+  { q: 'Should traditional gender roles still guide family and social life?', opts: ['Yes, they reflect enduring and valuable social structure', 'They can be a reasonable default, not a requirement', 'They should mostly give way to individual choice', 'No, gender roles should play no guiding role at all'] },
+  { q: 'How should society treat rapid changes in social norms (e.g. around gender, family, identity)?', opts: ['With real caution — rapid change often erodes valuable tradition', 'Openly, but tested carefully over time', 'Generally welcomed, as moral progress', 'Actively embraced and accelerated where possible'] },
+  { q: 'Should historical monuments tied to controversial figures be preserved as-is?', opts: ['Yes, preserved as important historical record', 'Preserved with added context, rather than removed', 'Removed or relocated in clearly harmful cases', 'Actively reassessed and often removed'] },
+  { q: 'Is a strong shared national culture important for social cohesion?', opts: ['Yes, a strong shared culture is essential', 'A shared culture helps, though diversity is fine within it', 'Diversity is more valuable than a single shared culture', 'A single shared national culture is neither realistic nor desirable'] },
+  { q: 'Should immigrants be expected to assimilate to the dominant culture?', opts: ['Yes, assimilation to shared norms should be expected', 'Substantial adaptation is reasonable to ask for', 'Integration matters more than full assimilation', 'No — multiculturalism, not assimilation, should be the goal'] },
+  { q: 'How should society treat non-traditional family structures (single parents, blended families, etc.)?', opts: ['As a departure from an ideal that should be discouraged', 'Accepted, but the traditional family remains a preferred model', 'Fully accepted as simply one normal family form among others', 'Actively affirmed and destigmatized as equally valid'] },
+  { q: 'Should artistic works that challenge traditional morals face social or institutional pushback?', opts: ['Yes, communities are right to push back on works that offend deep values', 'Some pushback is a normal part of public debate', 'Pushback should be rare — artistic freedom should usually prevail', 'No — art should be essentially free from moral policing'] },
+  { q: 'Should gender identity be a matter of personal self-identification in law and policy?', opts: ['No — legal sex should be based on fixed biological criteria', 'Mostly biological, with narrow case-by-case exceptions', 'Yes, generally, self-identification should be respected in most contexts', 'Yes, fully — self-identification should be the standard everywhere'] },
+  { q: 'Should national holidays and rituals continue largely unchanged across generations?', opts: ['Yes, they preserve important continuity and identity', 'Mostly unchanged, with gradual, careful updates', 'Updated fairly often to reflect a changing society', 'Reinvented regularly to reflect current values'] },
+  { q: 'Is moral change over time generally a sign of progress or of decline?', opts: ['Often decline — much traditional morality had good reasons behind it', 'Mixed — real gains alongside real losses', 'Generally progress, correcting old injustices', 'Consistently progress — morality reliably improves over time'] },
+  { q: 'Should public institutions actively promote a particular vision of the good family or good life?', opts: ["Yes, institutions should uphold a traditional vision of the good life", "Mild encouragement of traditional norms is reasonable", "Institutions should mostly stay neutral between visions of the good life", "No — institutions should actively support diverse, self-chosen visions of the good life"] },
+  { q: 'How should society balance free expression against protecting people from being offended?', opts: ['Free expression should take clear priority, even when it offends', 'Mostly priority to expression, with some social restraint expected', 'Meaningful weight should be given to avoiding real offense/harm', 'Protecting people from serious offense should often come first'] },
+];
+const SOC_Y_QUESTIONS = [
+  { q: 'Should individuals be free to make risky personal choices (diet, extreme sports, etc.) even at cost to themselves?', opts: ['Yes, entirely — it is no one else\'s business', 'Yes, generally, with only light safety guidance', 'Some limits are reasonable when costs fall on others too', 'No — the community has a legitimate interest in limiting self-harm'] },
+  { q: 'Should vaccination or similar public-health measures ever be mandatory?', opts: ['No — personal medical choice should always be respected', 'Only in extremely narrow, well-justified cases', 'Yes, mandates are reasonable during serious outbreaks', 'Yes, mandatory public-health measures should be a normal tool'] },
+  { q: 'Should people be free to express themselves however they choose, even against social convention?', opts: ['Yes, self-expression should face essentially no social constraint', 'Yes, mostly, with only light social expectations', 'Some deference to social convention and cohesion is reasonable', 'No — individuals should generally defer to shared community norms'] },
+  { q: 'Is it more important for a community to maintain harmony or for individuals to freely voice dissent?', opts: ['Individual dissent should almost always be protected and voiced', 'Dissent is generally healthy, even when disruptive', 'Community harmony should generally be weighed heavily', 'Community harmony should usually take priority over individual dissent'] },
+  { q: 'Should individuals have strong personal responsibility for outcomes, even ones shaped by circumstance?', opts: ['Yes, personal responsibility should be emphasized above nearly all else', 'Mostly personal responsibility, with reasonable allowance for circumstance', 'Mostly shared/community responsibility, with some personal accountability', 'Outcomes should be treated as primarily a shared, collective responsibility'] },
+  { q: 'Should communities be able to enforce shared norms of behavior on individuals within them?', opts: ['No — individual autonomy should take priority over community norms', 'Only lightly, through social rather than legal pressure', 'Yes, communities have a legitimate interest in enforcing shared norms', 'Yes, strongly — the collective good should shape individual behavior'] },
+  { q: 'Is it better for people to pursue their own individual path, or to fulfill roles within a larger collective?', opts: ['Individual path — self-determination should come first', 'Mostly individual, with some duty to family/community', 'Mostly collective roles, with room for some personal choice', 'Fulfilling one\'s role within the collective should come first'] },
+  { q: 'Should personal privacy generally outweigh a community\'s interest in knowing about its members\' lives?', opts: ['Yes, privacy should be strongly protected as a personal right', 'Generally yes, with modest, narrow exceptions', 'The community\'s legitimate interest often matters just as much', 'No — a close-knit community reasonably expects less individual privacy'] },
+  { q: 'Should schools prioritize teaching independent critical thinking over shared civic/social values?', opts: ['Yes, independent thinking should clearly be the priority', 'Mostly independent thinking, alongside some shared values', 'Mostly shared civic and social values, alongside some independent thinking', 'Yes, shared civic and social values should clearly be the priority'] },
+  { q: 'Should an individual be able to opt out of communal obligations (e.g. local traditions, mutual aid expectations)?', opts: ['Yes, participation in communal life should be entirely optional', 'Yes, generally, though some social cost is expected', 'Opting out should carry real social expectations against it', 'No — communal obligations should be treated as binding, not optional'] },
+  { q: 'Is it healthier for identity to be built mainly around personal achievement, or around group belonging?', opts: ['Mainly personal achievement and individual identity', 'Mostly personal, with meaningful group ties', 'Mostly group belonging, with some personal identity', 'Mainly group belonging — identity is fundamentally collective'] },
+  { q: 'Should social pressure be used to discourage behavior seen as harmful to the group, even if it harms no specific individual?', opts: ['No — social pressure should be reserved for clear, direct harm to others', 'Rarely, and lightly, only for fairly serious cases', 'Yes, moderate social pressure for the collective good is reasonable', 'Yes, strong social pressure is an appropriate tool for group welfare'] },
+  { q: 'Should collective decision-making (majority vote, consensus) override strong individual objections?', opts: ["No, strong individual objections should generally be protected", "Usually not, except on matters of clear shared necessity", "Usually yes, once a fair collective process has been followed", "Yes, collective decisions should generally bind individual objectors"] },
+  { q: 'Is it reasonable to expect individuals to sacrifice personal convenience for the good of their community?', opts: ['Rarely — personal convenience is a legitimate priority', 'Sometimes, for clearly significant communal benefit', 'Often, as a normal part of belonging to a community', 'Yes, routinely — communal good should take priority over convenience'] },
+  { q: 'Should a person\'s obligations to their family/community generally come before their individual ambitions?', opts: ['No, individual ambition should generally take priority', 'Mostly individual ambition, balanced with some family duty', 'Mostly family/community duty, with room for personal ambition', 'Yes, family and community obligations should generally come first'] },
+];
+
+const DEBATE_RANK_TITLES = [
+  {min:1, max:2, title:'Novice'}, {min:3, max:4, title:'Apprentice'},
+  {min:5, max:6, title:'Disputant'}, {min:7, max:8, title:'Reasoner'},
+  {min:9, max:10, title:'Dialectician'}, {min:11, max:12, title:'Advocate'},
+  {min:13, max:14, title:'Orator'}, {min:15, max:16, title:'Sage'},
+  {min:17, max:18, title:'Elder'}, {min:19, max:20, title:'Hakim'},
+];
+
+const READING_LEVEL_TITLES = [
+  {min:1, max:2, title:'Reader'}, {min:3, max:4, title:'Scholar-in-training'},
+  {min:5, max:6, title:'Bibliophile'}, {min:7, max:9, title:'Scholar'},
+  {min:10, max:13, title:'Archivist'}, {min:14, max:17, title:'Sage of the Stacks'},
+  {min:18, max:99, title:'Grand Librarian'},
+];
+
+function titleFor(list, n){
+  const hit = list.find(t=> n>=t.min && n<=t.max);
+  return hit ? hit.title : list[list.length-1].title;
+}
+
+/* ================= HELPERS ================= */
+function el(tag, attrs={}, children=[]){
+  const e = document.createElement(tag);
+  for(const k in attrs){
+    if(k==='class') e.className = attrs[k];
+    else if(k==='html') e.innerHTML = attrs[k];
+    else if(k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  (Array.isArray(children)?children:[children]).forEach(c=>{
+    if(c==null) return;
+    if(typeof c==='string' || typeof c==='number'){ e.appendChild(document.createTextNode(String(c))); return; }
+    if(Array.isArray(c)){ c.forEach(cc=>{ if(cc!=null) e.appendChild(typeof cc==='string'||typeof cc==='number' ? document.createTextNode(String(cc)) : cc); }); return; }
+    e.appendChild(c);
+  });
+  return e;
+}
+
+function levelFromPoints(pts){ return Math.floor(pts/150)+1; }
+
+function avatarNode(userOrUsername, size){
+  size = size || 36;
+  const user = typeof userOrUsername === 'string' ? state.users[userOrUsername] : userOrUsername;
+  const displayName = user ? user.name : (typeof userOrUsername === 'string' ? userOrUsername : '?');
+  if(user && user.avatar){
+    return el('img', {class:'avatar-img', src: user.avatar, style:`width:${size}px;height:${size}px;`});
+  }
+  return el('div', {class:'avatar', style:`width:${size}px;height:${size}px;font-size:${Math.max(10,Math.round(size*0.4))}px;`},
+    (displayName || '?').charAt(0).toUpperCase());
+}
+
+const FORUM_CATEGORIES = ['Discussion', 'Question', 'Debate', 'Off-topic'];
+
+function normalizeForum(list){
+  return list.map(p=>({
+    id: p.id || (Date.now()+Math.random()),
+    title: p.title,
+    author: p.author,
+    body: p.body,
+    category: p.category || 'Discussion',
+    createdAt: p.createdAt || Date.now(),
+    views: typeof p.views === 'number' ? p.views : 0,
+    replies: Array.isArray(p.replies) ? p.replies : [],
+  }));
+}
+
+function timeAgo(ts){
+  const diff = Math.max(0, Date.now() - ts);
+  const m = Math.floor(diff/60000);
+  if(m < 1) return 'just now';
+  if(m < 60) return m+'m ago';
+  const h = Math.floor(m/60);
+  if(h < 24) return h+'h ago';
+  const d = Math.floor(h/24);
+  if(d < 7) return d+'d ago';
+  return new Date(ts).toLocaleDateString();
+}
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  if(!state.currentUser){
+    startGuestSession();
+  }
+  
+  app.appendChild(buildTopbar());
+  app.appendChild(buildMobileNav());
+  
+  const main = el('main');
+  if(state.loading){
+    main.appendChild(el('div', {class:'spinner-wrap'}, el('div', {class:'spinner'})));
+  } else {
+    main.appendChild(renderTab());
+  }
+  app.appendChild(main);
+
+  app.appendChild(buildFooter());
+
+  if(!state.cookieConsent){
+    app.appendChild(buildCookieBanner());
+  }
+
+  if(state.showAuth){
+    app.appendChild(renderAuthOverlay());
+  }
+
+  saveState();
+}
+
+/* ================= COOKIE BANNER ================= */
+function buildCookieBanner(){
+  return el('div', {class: 'cookie-banner'}, [
+    el('p', {}, 'We use basic local storage to preserve your preferences and session data locally. No privacy-invasive tracking is performed.'),
+    el('button', {class: 'btn', onclick: acceptCookies}, 'Accept')
+  ]);
+}
+
+/* ================= FOOTER ================= */
+function buildFooter(){
+  return el('footer', {}, [
+    el('a', {onclick: () => navigateWithLoading('privacy')}, 'Privacy Policy'),
+    el('span', {}, '·'),
+    el('a', {onclick: () => navigateWithLoading('terms')}, 'Terms & Conditions')
+  ]);
+}
+
+/* ================= AUTH OVERLAY ================= */
+function renderAuthOverlay(){
+  const backdrop = el('div',{style:
+    'position:fixed;inset:0;background:var(--modal-overlay);display:flex;align-items:center;justify-content:center;z-index:50;'});
+  backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop){ state.showAuth=false; render(); } });
+
+  const box = el('div',{style:'width:100%;max-width:380px;padding:24px;'});
+  const isLogin = state.authMode === 'login';
+  const card = el('div',{class:'card', style:'position:relative;'});
+  
+  card.appendChild(el('button',{class:'btn secondary', style:'position:absolute;top:14px;right:14px;padding:4px 10px;font-size:12px;', onclick:()=>{state.showAuth=false; render();}}, '✕'));
+  card.appendChild(el('h3',{}, isLogin ? 'Log in' : 'Create an account'));
+  card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:14px;'},
+    'Optional — you can keep using Majlis as a guest. An account just lets you come back to the same profile.'));
+
+  const userIn = el('input',{type:'text', placeholder:'Username'});
+  const passIn = el('input',{type: state.showPassword ? 'text' : 'password', placeholder:'Password'});
+  const passToggle = el('button', {class: 'pw-toggle', onclick: () => {
+    state.showPassword = !state.showPassword;
+    passIn.type = state.showPassword ? 'text' : 'password';
+    passToggle.textContent = state.showPassword ? 'Hide' : 'Show';
+  }}, state.showPassword ? 'Hide' : 'Show');
+
+  card.appendChild(el('div',{class:'field'},[el('label',{},'Username'), userIn]));
+  card.appendChild(el('div',{class:'field'},[
+    el('label',{},'Password'),
+    el('div', {class: 'pw-wrapper'}, [passIn, passToggle])
+  ]));
+
+  const errorBox = el('div',{style:'color:var(--wine);font-size:13px;margin-bottom:10px;min-height:16px;'});
+  card.appendChild(errorBox);
+
+  card.appendChild(el('button',{class:'btn', style:'width:100%;', onclick:()=>{
+    const u = userIn.value.trim();
+    const p = passIn.value;
+    if(!u || !p){ errorBox.textContent = 'Enter a username and password.'; return; }
+    if(isLogin){
+      const existing = state.users[u];
+      if(!existing || existing.password !== p){ errorBox.textContent = 'No account with that username/password.'; return; }
+      switchToUser(u);
+      render();
+    } else {
+      if(state.users[u] && !state.users[u].isGuest){ errorBox.textContent = 'That username is taken.'; return; }
+      const carryOver = state.user && state.user.isGuest ? state.user : null;
+      const oldGuestUsername = carryOver ? state.currentUser : null;
+      const profile = carryOver ? { ...carryOver } : makeNewUserProfile(u, p, false);
+      profile.username = u;
+      profile.password = p;
+      profile.name = u;
+      profile.isGuest = false;
+      state.users[u] = profile;
+      if(oldGuestUsername && oldGuestUsername !== u) delete state.users[oldGuestUsername];
+      switchToUser(u);
+      render();
+    }
+  }}, isLogin ? 'Log in' : 'Create account'));
+
+  box.appendChild(card);
+  box.appendChild(el('div',{style:'text-align:center;margin-top:16px;font-size:13px;color:var(--parchment-dim);'},[
+    isLogin ? 'New here? ' : 'Already have an account? ',
+    el('a',{href:'#', style:'color:var(--brass-bright);cursor:pointer;', onclick:(e)=>{
+      e.preventDefault();
+      state.authMode = isLogin ? 'signup' : 'login';
+      render();
+    }}, isLogin ? 'Create an account' : 'Log in'),
+  ]));
+
+  backdrop.appendChild(box);
+  return backdrop;
+}
+
+/* ================= SEARCH SYSTEM ================= */
+function executeSearch(query) {
+  state.searchQuery = query;
+  if (!query.trim()) { render(); return; }
+  
+  const q = query.toLowerCase();
+  const results = [];
+
+  const pages = [
+    { title: 'Home', tab: 'home' },
+    { title: 'Reading Tracker', tab: 'reading' },
+    { title: 'Placement Assessment', tab: 'assessment' },
+    { title: 'Debate Lobby', tab: 'debate' },
+    { title: 'Forum', tab: 'forum' },
+    { title: 'Leaderboards', tab: 'leaderboard' },
+    { title: 'Ranks Overview', tab: 'ranks' },
+    { title: 'Political Compass', tab: 'compass' },
+    { title: 'Guilds', tab: 'guilds' },
+    { title: 'Wiki', tab: 'wiki' },
+  ];
+
+  pages.forEach(p => {
+    if (p.title.toLowerCase().includes(q)) results.push({ label: 'Page: ' + p.title, tab: p.tab });
+  });
+
+  state.wiki.forEach(w => {
+    if (w.title.toLowerCase().includes(q) || w.summary.toLowerCase().includes(q)) {
+      results.push({ label: 'Wiki: ' + w.title, tab: 'wiki' });
+    }
+  });
+
+  Object.values(state.users).forEach(u => {
+    if (u.isGuest || u.username === state.currentUser) return;
+    if (u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)) {
+      results.push({ label: 'Person: ' + u.name, user: u.username });
+    }
+  });
+
+  state.searchResults = results;
+  render();
+}
+
+/* ================= TOPBAR & NAV ================= */
+function buildTopbar(){
+  const primaryTabs = [
+    ['home','Home'],['reading','Reading'],['assessment','Assessment'],['forum','Forum'],
+  ];
+  const exploreTabs = [
+    ['debate','Debate'],['leaderboard','Leaderboard'],['ranks','Ranks'],
+    ['compass','Compass'],['guilds','Guilds'],['wiki','Wiki'],['members','Members'],
+  ];
+
+  const M_PATH = 'M 10,80 L 10,20 L 50,65 L 90,20 L 90,80';
+  const markSvg = el('div',{class:'mark', html: `
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="logoGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur1"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur2"/>
+          <feMerge>
+            <feMergeNode in="blur1"/>
+            <feMergeNode in="blur2"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="logoFlashGlow" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1"/>
+          <feMerge>
+            <feMergeNode in="blur1"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <path class="logo-base" d="${M_PATH}"/>
+      <path class="logo-lit" d="${M_PATH}"/>
+      <path class="logo-flash" d="${M_PATH}"/>
+    </svg>
+  `});
+
+  const brand = el('div',{class:'brand', onclick: () => navigateWithLoading('home')},[
+    markSvg,
+    el('h1',{}, ['MA', el('em',{},'JLIS')]),
+  ]);
+
+  const searchIn = el('input', {
+    type: 'text',
+    placeholder: 'Search site...',
+    value: state.searchQuery,
+    oninput: (e) => executeSearch(e.target.value)
+  });
+
+  let searchDropdown = null;
+  if (state.searchQuery.trim() && state.searchResults) {
+    searchDropdown = el('div', {class: 'search-results'}, 
+      state.searchResults.length ? state.searchResults.map(r => 
+        el('div', {class: 'search-result-item', onclick: () => {
+          state.searchQuery = '';
+          state.searchResults = null;
+          if(r.user){ viewProfile(r.user); } else { navigateWithLoading(r.tab); }
+        }}, r.label)
+      ) : [el('div', {class: 'search-result-item'}, 'No results found')]
+    );
+  }
+
+  const searchBox = el('div', {class: 'search-box'}, [searchIn, searchDropdown]);
+
+  const nav = el('nav',{class:'tabs'}, primaryTabs.map(([id,label])=>
+    el('button',{class: state.tab===id?'active':'', onclick:()=>navigateWithLoading(id)}, label)
+  ));
+
+  const exploreIsActive = exploreTabs.some(([id])=>id===state.tab);
+  const dropdown = el('div',{class:'dropdown'},[
+    el('button',{class:'dropdown-trigger'+(exploreIsActive?' active':''), onclick:()=>{state.exploreOpen = !state.exploreOpen; render();}}, ['Explore ', el('span',{},'▾')]),
+    state.exploreOpen ? el('div',{class:'dropdown-menu'}, exploreTabs.map(([id,label])=>
+      el('button',{class: state.tab===id?'active':'', onclick:()=>navigateWithLoading(id)}, label)
+    )) : null,
+  ]);
+
+  const navwrap = el('div',{class:'navwrap'},[nav, dropdown]);
+  const desktopNav = el('div', {class: 'desktop-nav'}, [navwrap]);
+
+  const themeToggle = el('button', {class: 'theme-toggle', onclick: toggleTheme}, state.theme === 'light' ? 'Dark Mode' : 'Light Mode');
+
+  const rankLabel = state.user.debateRank ? ('Rank '+state.user.debateRank) : 'Unranked';
+  const otherAccounts = Object.keys(state.users).filter(u=>u!==state.currentUser && !state.users[u].isGuest);
+  const switcher = otherAccounts.length ? el('select',{class:'switcher-select', onchange:(e)=>{
+    if(e.target.value){ switchToUser(e.target.value); render(); }
+  }}, [
+    el('option',{value:''}, 'Switch...'),
+    ...otherAccounts.map(u=>el('option',{value:u}, u)),
+  ]) : null;
+
+  const profilePill = el('div',{class:'profile-pill', style:'cursor:pointer;', onclick: goToOwnProfile},[
+    avatarNode(state.user, 30),
+    el('div',{class:'who'},[
+      el('span',{class:'uname'}, state.user.name + (state.user.isGuest ? ' (guest)' : '')),
+      el('span',{class:'usub'}, 'Elo: '+state.user.readingElo),
+    ]),
+    el('span',{class:'status-badge'}, rankLabel),
+    switcher,
+  ]);
+
+  const cta = state.user.isGuest
+    ? el('div',{style:'display:flex;gap:6px;'},[
+        el('button',{class:'btn secondary', style:'padding:6px 12px;font-size:13px;', onclick:()=>{state.showAuth=true; state.authMode='login'; render();}}, 'Log in'),
+        el('button',{class:'btn', style:'padding:6px 12px;font-size:13px;', onclick:()=>{state.showAuth=true; state.authMode='signup'; render();}}, 'Sign up'),
+      ])
+    : el('button',{class:'btn secondary', style:'padding:6px 12px;font-size:13px;', onclick:logout}, 'Log out');
+
+  const chip = el('div',{class:'userchip'},[profilePill, cta]);
+
+  const hamburger = el('button', {class: 'hamburger', onclick: () => { state.mobileNavOpen = !state.mobileNavOpen; render(); }}, '☰');
+
+  const unreadNotifs = unreadNotifCount();
+  const bellBtn = el('button',{
+    class:'icon-btn'+(state.tab==='notifications'?' active':''),
+    title:'Notifications',
+    onclick:()=>navigateWithLoading('notifications'),
+  },[
+    '🔔',
+    unreadNotifs ? el('span',{class:'badge-dot'}, unreadNotifs>9?'9+':String(unreadNotifs)) : null,
+  ]);
+  const unreadDMs = totalUnreadDMs();
+  const dmBtn = el('button',{
+    class:'icon-btn'+(state.tab==='messages'?' active':''),
+    title:'Messages',
+    onclick:()=>navigateWithLoading('messages'),
+  },[
+    '✉️',
+    unreadDMs ? el('span',{class:'badge-dot'}, unreadDMs>9?'9+':String(unreadDMs)) : null,
+  ]);
+  const iconRow = el('div',{style:'display:flex;align-items:center;gap:8px;flex-shrink:0;'},[bellBtn, dmBtn]);
+
+  return el('header',{class:'topbar'},[
+    brand,
+    searchBox,
+    desktopNav,
+    themeToggle,
+    iconRow,
+    chip,
+    hamburger
+  ]);
+}
+
+function buildMobileNav() {
+  const allTabs = [
+    ['home','Home'],['reading','Reading'],['assessment','Assessment'],['forum','Forum'],
+    ['debate','Debate'],['leaderboard','Leaderboard'],['ranks','Ranks'],
+    ['compass','Compass'],['guilds','Guilds'],['wiki','Wiki'],['members','Members'],
+    ['messages','Messages'],['notifications','Notifications'],
+  ];
+
+  return el('div', {class: 'mobile-menu' + (state.mobileNavOpen ? ' open' : '')}, 
+    allTabs.map(([id, label]) => 
+      el('button', {onclick: () => navigateWithLoading(id)}, label)
+    )
+  );
+}
+
+/* ================= ROUTER ================= */
+function renderTab(){
+  switch(state.tab){
+    case 'home': return renderHome();
+    case 'reading': return renderReading();
+    case 'assessment': return renderAssessment();
+    case 'debate': return renderDebate();
+    case 'forum': return renderForum();
+    case 'ranks': return renderRanks();
+    case 'leaderboard': return renderLeaderboard();
+    case 'compass': return renderCompass();
+    case 'guilds': return renderGuilds();
+    case 'wiki': return renderWiki();
+    case 'members': return renderMembers();
+    case 'messages': return renderMessages();
+    case 'notifications': return renderNotifications();
+    case 'profile': return renderProfile();
+    case 'settings': return renderSettings();
+    case 'privacy': return renderPrivacy();
+    case 'terms': return renderTerms();
+    default: return render404();
+  }
+}
+
+/* ================= PAGES ================= */
+function render404(){
+  return el('div',{style:'text-align:center;padding:60px 0;'},[
+    el('h2',{class:'section-title'},'404 — Page Not Found'),
+    el('p',{class:'section-sub', style:'margin:0 auto 20px;'},'The state or argument you are looking for does not exist in this realm.'),
+    el('button',{class:'btn', onclick:()=>navigateWithLoading('home')},'Return to Home')
+  ]);
+}
+
+function resetAllData(){
+  if(!confirm('This will permanently delete all saved accounts, debate history, reading data, and settings stored in this browser. Continue?')) return;
+  localStorage.removeItem(SAVE_KEY);
+  localStorage.removeItem('theme');
+  localStorage.removeItem('cookieConsent');
+  location.reload();
+}
+
+function renderPrivacy(){
+  return el('div',{},[
+    el('h2',{class:'section-title'},'Privacy Policy'),
+    el('p',{class:'section-sub'},'Last updated: 2026'),
+    el('div',{class:'card'},[
+      el('h3',{},'Data Storage & Usage'),
+      el('p',{style:'font-size:14px;line-height:1.6;color:var(--parchment);'},
+        'Majlis operates primarily using client-side execution and local storage. Personal identifier details, assessment results, and reading statistics remain localized within your browser session state unless explicit sync actions are taken. We do not track users across external sites or sell personal data.'),
+    ]),
+    el('div',{class:'card'},[
+      el('h3',{},'Reset local data'),
+      el('p',{style:'font-size:14px;line-height:1.6;color:var(--parchment);margin-bottom:12px;'},
+        'This permanently erases every account, debate, and assessment result saved in this browser\'s local storage. It cannot be undone.'),
+      el('button',{class:'btn wine', onclick: resetAllData}, 'Reset all data'),
+    ])
+  ]);
+}
+
+function renderTerms(){
+  return el('div',{},[
+    el('h2',{class:'section-title'},'Terms & Conditions'),
+    el('p',{class:'section-sub'},'Last updated: 2026'),
+    el('div',{class:'card'},[
+      el('h3',{},'Conduct & Usage Agreement'),
+      el('p',{style:'font-size:14px;line-height:1.6;color:var(--parchment);'},
+        'By using Majlis, you agree to participate in constructive, bad-faith-free debate. Fallacy tracking tools and algorithmic evaluation are designed for structural feedback. Abuse of platform features or automated queue manipulation is strictly prohibited.'),
+    ])
+  ]);
+}
+
+function renderHome(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Welcome back'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Track your reading, prove your reasoning, and debate people at your level.'));
+
+  const grid = el('div',{class:'grid grid-3'});
+  grid.appendChild(el('div',{class:'card'},[
+    el('h3',{},'Reading Elo'),
+    el('div',{class:'stat-big'}, String(state.user.readingElo)),
+    el('div',{class:'stat-label'},'Based on pages, difficulty & consistency'),
+  ]));
+  grid.appendChild(el('div',{class:'card'},[
+    el('h3',{},'Debate Rank'),
+    el('div',{class:'stat-big'}, state.user.debateRank ? ('#'+state.user.debateRank) : '—'),
+    el('div',{class:'stat-label'}, state.user.debateRank ? titleFor(DEBATE_RANK_TITLES, state.user.debateRank) : 'Take the assessment to unlock'),
+  ]));
+  grid.appendChild(el('div',{class:'card'},[
+    el('h3',{},'Reading Points'),
+    el('div',{class:'stat-big'}, String(state.user.readingPoints)),
+    el('div',{class:'stat-label'},'Level '+levelFromPoints(state.user.readingPoints)+' · '+titleFor(READING_LEVEL_TITLES, levelFromPoints(state.user.readingPoints))),
+  ]));
+  wrap.appendChild(grid);
+
+  wrap.appendChild(el('div',{class:'divider'}));
+
+  if(!state.user.placementTaken){
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'You have not been ranked yet'),
+      el('p',{style:'font-size:14px;color:var(--parchment-dim);margin-bottom:14px;'},
+        'Take the placement assessment, then write your case for a position you hold. Depth and clarity set your starting debate rank.'),
+      el('button',{class:'btn', onclick:()=>navigateWithLoading('assessment')},'Start Assessment'),
+    ]));
+  } else {
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'Continue debating'),
+      el('p',{style:'font-size:14px;color:var(--parchment-dim);margin-bottom:14px;'},
+        'You can be matched with rank '+(state.user.debateRank-2)+' through '+(state.user.debateRank+2)+'.'),
+      el('button',{class:'btn', onclick:()=>navigateWithLoading('debate')},'Find a Debate'),
+    ]));
+  }
+
+  const grid2 = el('div',{class:'grid grid-3'});
+  grid2.appendChild(el('div',{class:'card'},[
+    el('h3',{},'Archetype'),
+    el('div',{class:'stat-big'}, state.user.archetype || '—'),
+    el('div',{class:'stat-label'},'From your assessment answers'),
+  ]));
+  grid2.appendChild(el('div',{class:'card'},[
+    el('h3',{},'Debate Points'),
+    el('div',{class:'stat-big'}, String(state.user.debatePoints||0)),
+    el('div',{class:'stat-label'},'Insight Points: '+(state.user.insightPoints||0)),
+  ]));
+  grid2.appendChild(el('div',{class:'card'},[
+    el('h3',{},'Fallacies flagged'),
+    el('div',{class:'stat-big'}, String(state.user.fallacyStats.total||0)),
+    el('div',{class:'stat-label'},'Career total, public on your profile'),
+  ]));
+  wrap.appendChild(el('div',{style:'height:18px'}));
+  wrap.appendChild(grid2);
+
+  return wrap;
+}
+
+const LEANINGS = ['Left','Right','Center','Libertarian','Authoritarian','Traditionalist','Progressive','Classical','Anti-establishment'];
+const CANONICAL_WEIGHT = [
+  { pattern:/kant|hegel|heidegger|wittgenstein|husserl/i, weight: 2.2 },
+  { pattern:/plato|aristotle|spinoza|kierkegaard|nietzsche/i, weight: 1.8 },
+  { pattern:/hobbes|locke|rousseau|rawls|nozick|marx/i, weight: 1.5 },
+  { pattern:/./, weight: 1.0 },
+];
+
+function stableHash(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) | 0; }
+  return Math.abs(h);
+}
+
+function aiEvaluateBookElo(title, author, pages){
+  const key = (title+' '+author).toLowerCase();
+  const match = CANONICAL_WEIGHT.find(c=>c.pattern.test(key)) || CANONICAL_WEIGHT[CANONICAL_WEIGHT.length-1];
+  const base = 4 + (pages/100)*3;
+  const wobble = 0.85 + (stableHash(key) % 30)/100;
+  const worth = Math.round(base * match.weight * wobble);
+  return Math.max(2, worth);
+}
+
+function diversityScore(){
+  const finished = state.user.books.filter(b=>b.status==='Finished');
+  if(finished.length===0) return 0;
+  const unique = new Set(finished.map(b=>b.leaning));
+  return Math.round((unique.size/finished.length)*100);
+}
+
+function renderReading(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Reading Tracker'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Reading Elo starts at 0 and moves when books are evaluated based on page count and difficulty.'));
+
+  const grid = el('div',{class:'grid grid-3'});
+  grid.appendChild(statCard('Books finished', state.user.booksFinished));
+  grid.appendChild(statCard('Pages read', state.user.pagesRead.toLocaleString()));
+  grid.appendChild(statCard('Reading Diversity', diversityScore()+'%'));
+  wrap.appendChild(grid);
+
+  wrap.appendChild(el('div',{class:'divider'}));
+
+  const listCard = el('div',{class:'card'});
+  listCard.appendChild(el('h3',{},'Your books'));
+  state.user.books.forEach(b=>{
+    const row = el('div',{class:'book-row'},[
+      el('div',{},[
+        el('div',{class:'book-title'}, b.title),
+        el('div',{class:'book-meta'}, b.author+' · '+b.pagesRead+'/'+b.pages+' pages · '+b.status+' · ['+b.leaning+'] · AI Elo worth: '+b.eloWorth),
+      ]),
+      el('div',{class:'points-tag'}, '+'+b.points+' pts'),
+    ]);
+    listCard.appendChild(row);
+  });
+  wrap.appendChild(listCard);
+
+  wrap.appendChild(el('div',{class:'divider'}));
+
+  const addCard = el('div',{class:'card'});
+  addCard.appendChild(el('h3',{},'Log a new book'));
+  const titleInput = el('input',{type:'text', placeholder:'Book title'});
+  const authorInput = el('input',{type:'text', placeholder:'Author'});
+  const pagesInput = el('input',{type:'number', placeholder:'Total pages'});
+  const pagesReadInput = el('input',{type:'number', placeholder:'Pages read so far'});
+  const leaningSelect = el('select',{}, LEANINGS.map(l=>el('option',{value:l},l)));
+  
+  addCard.appendChild(el('div',{class:'field'},[el('label',{},'Title'), titleInput]));
+  addCard.appendChild(el('div',{class:'field'},[el('label',{},'Author'), authorInput]));
+  const row2 = el('div',{class:'grid grid-2'},[
+    el('div',{class:'field'},[el('label',{},'Total pages'), pagesInput]),
+    el('div',{class:'field'},[el('label',{},'Pages read'), pagesReadInput]),
+  ]);
+  addCard.appendChild(row2);
+  addCard.appendChild(el('div',{class:'field'},[el('label',{},'Author ideological leaning'), leaningSelect]));
+  addCard.appendChild(el('button',{class:'btn', onclick:()=>{
+    const title = titleInput.value.trim();
+    const author = authorInput.value.trim();
+    const pages = parseInt(pagesInput.value)||0;
+    const pagesRead = Math.min(parseInt(pagesReadInput.value)||0, pages||0);
+    const leaning = leaningSelect.value;
+    if(!title || !pages){ alert('Enter at least a title and total pages.'); return; }
+    let points = Math.round(pagesRead * 0.5);
+    const status = pagesRead>=pages && pages>0 ? 'Finished' : 'Reading';
+    const eloWorth = aiEvaluateBookElo(title, author||'Unknown', pages);
+    const completionFraction = pages>0 ? pagesRead/pages : 0;
+    const eloGained = Math.round(eloWorth * completionFraction);
+    
+    state.user.books.unshift({title, author: author||'Unknown', pages, pagesRead, points, status, leaning, eloWorth});
+    state.user.pagesRead += pagesRead;
+    state.user.readingPoints += points;
+    state.user.readingElo += eloGained;
+    if(status==='Finished'){ state.user.booksFinished += 1; }
+    render();
+  }}, 'Add book'));
+  wrap.appendChild(addCard);
+
+  return wrap;
+}
+
+function statCard(label, value){
+  return el('div',{class:'card'},[
+    el('div',{class:'stat-big'}, String(value)),
+    el('div',{class:'stat-label'}, label),
+  ]);
+}
+
+function renderAssessment(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Placement Assessment'));
+
+  if(state.user.placementTaken && !state.quiz.active){
+    wrap.appendChild(el('p',{class:'section-sub'},'You have completed the assessment.'));
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'Your result'),
+      el('div',{class:'stat-big'}, 'Rank #'+state.user.debateRank),
+      el('div',{class:'stat-label'},'You can retake this later once ranked debates track your record.'),
+    ]));
+    return wrap;
+  }
+
+  if(!state.quiz.active){
+    wrap.appendChild(el('p',{class:'section-sub'},
+      'A philosophy section, then three separate mapping sections — economic, political, and social — each producing its own compass. Finish with a short written statement of your own view. Your debate rank is derived from mapping and reasoning depth.'));
+    wrap.appendChild(el('button',{class:'btn', onclick:()=>{
+      state.quiz.active = true;
+      state.quiz.section = 'philosophy';
+      state.quiz.index = 0;
+      state.quiz.answers = [];
+      render();
+    }}, 'Begin Assessment'));
+    return wrap;
+  }
+
+  const QUIZ_SECTIONS = ['philosophy','economic','political','social'];
+  const SECTION_BANK = {
+    philosophy: PHIL_QUESTIONS,
+    economic: ECONOMIC_QUESTIONS,
+    political: POLITICAL_QUESTIONS,
+    social: SOCIAL_QUESTIONS,
+  };
+  const SECTION_LABEL = {
+    philosophy: 'Philosophy',
+    economic: 'Economic mapping',
+    political: 'Political mapping',
+    social: 'Social mapping',
+  };
+
+  if(QUIZ_SECTIONS.includes(state.quiz.section)){
+    const bank = SECTION_BANK[state.quiz.section];
+    const item = bank[state.quiz.index];
+    const displayIndex = state.quiz.index+1;
+    const displayTotal = bank.length;
+
+    wrap.appendChild(el('p',{class:'section-sub'},
+      SECTION_LABEL[state.quiz.section]+' — question '+displayIndex+' of '+displayTotal));
+
+    const track = el('div',{class:'progress-track'});
+    track.appendChild(el('div',{class:'progress-fill', style:'width:'+Math.round((displayIndex/displayTotal)*100)+'%'}));
+    wrap.appendChild(track);
+    wrap.appendChild(el('div',{style:'height:20px'}));
+
+    const card = el('div',{class:'card'});
+    card.appendChild(el('div',{class:'quiz-q'}, item.q));
+    const optsWrap = el('div',{class:'quiz-opts'});
+    item.opts.forEach((opt)=>{
+      optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>{
+        state.quiz.answers.push({section: state.quiz.section, axis: item.axis || null, q: item.q, choice: opt});
+        if(displayIndex >= displayTotal){
+          const nextIdx = QUIZ_SECTIONS.indexOf(state.quiz.section) + 1;
+          if(nextIdx < QUIZ_SECTIONS.length){
+            state.quiz.section = QUIZ_SECTIONS[nextIdx];
+            state.quiz.index = 0;
+          } else {
+            state.quiz.section = 'written';
+          }
+        } else {
+          state.quiz.index += 1;
+        }
+        render();
+      }}, opt));
+    });
+    card.appendChild(optsWrap);
+    wrap.appendChild(card);
+    return wrap;
+  }
+
+  if(state.quiz.section === 'written'){
+    wrap.appendChild(el('p',{class:'section-sub'},
+      'State a position you hold and make your strongest case for it, in your own words.'));
+    const card = el('div',{class:'card'});
+    const viewBox = el('textarea',{placeholder:'Why you hold this position...', style:'min-height:160px;'});
+    card.appendChild(el('div',{class:'field'},[el('label',{},'A position you hold'), el('input',{type:'text', placeholder:'e.g. Markets should be lightly regulated'})]));
+    card.appendChild(el('div',{class:'field'},[el('label',{},'Your case for it'), viewBox]));
+    card.appendChild(el('button',{class:'btn', onclick:()=>{
+      const viewText = viewBox.value.trim();
+      if(viewText.length < 80){
+        alert('Write a bit more — at least a few sentences.');
+        return;
+      }
+      finishAssessment(viewText);
+    }}, 'Submit & get ranked'));
+    wrap.appendChild(card);
+    return wrap;
+  }
+}
+
+const ARCHETYPES = ['Rationalist','Empiricist','Existentialist','Stoic','Utilitarian','Skeptic'];
+
+const ECONOMIC_QUESTIONS = ECON_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(ECON_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
+const POLITICAL_QUESTIONS = POL_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(POL_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
+const SOCIAL_QUESTIONS = SOC_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(SOC_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
+
+const COMPASS_DEFS = {
+  economic: {
+    title: 'Economic Compass',
+    xLabels: ['Left','Right'], yLabels: ['Interventionist','Laissez-faire'],
+    quads: { tl:'Socialist', tr:'Corporatist', bl:'Communalist', br:'Free-Market Capitalist' },
+  },
+  political: {
+    title: 'Political Compass',
+    xLabels: ['Nationalist','Globalist'], yLabels: ['Authoritarian','Libertarian'],
+    quads: { tl:'Nationalist-Authoritarian', tr:'Technocratic Globalist', bl:'Sovereigntist Libertarian', br:'Cosmopolitan Libertarian' },
+  },
+  social: {
+    title: 'Social Compass',
+    xLabels: ['Traditional','Progressive'], yLabels: ['Collectivist','Individualist'],
+    quads: { tl:'Traditionalist Communitarian', tr:'Progressive Communitarian', bl:'Conservative Individualist', br:'Liberal Individualist' },
+  },
+};
+
+function axisScoreToPct(sum, questionCount){
+  const max = questionCount * 3;
+  return Math.max(0, Math.min(100, Math.round(50 + (sum/max)*50)));
+}
+
+function computeAxisPair(answers, section){
+  const secAnswers = answers.filter(a=>a.section===section);
+  const bank = section==='economic' ? ECONOMIC_QUESTIONS : section==='political' ? POLITICAL_QUESTIONS : SOCIAL_QUESTIONS;
+  let xSum = 0, xCount = 0, ySum = 0, yCount = 0;
+  secAnswers.forEach(a=>{
+    const q = bank.find(b=>b.q===a.q);
+    if(!q) return;
+    const optIndex = q.opts.indexOf(a.choice);
+    if(optIndex === -1) return;
+    const value = -3 + optIndex*2; // 0->-3, 1->-1, 2->1, 3->3
+    if(q.axis==='x'){ xSum += value; xCount++; } else { ySum += value; yCount++; }
+  });
+  return {
+    x: axisScoreToPct(xSum, xCount || 15),
+    y: axisScoreToPct(ySum, yCount || 15),
+  };
+}
+
+function computeThreeCompasses(answers){
+  return {
+    economic: computeAxisPair(answers, 'economic'),
+    political: computeAxisPair(answers, 'political'),
+    social: computeAxisPair(answers, 'social'),
+  };
+}
+
+function deriveQuadrantIdeology(section, pair){
+  const def = COMPASS_DEFS[section];
+  const isRight = pair.x >= 50;
+  const isTop = pair.y >= 50;
+  if(isTop && !isRight) return def.quads.tl;
+  if(isTop && isRight) return def.quads.tr;
+  if(!isTop && !isRight) return def.quads.bl;
+  return def.quads.br;
+}
+
+function deriveArchetype(answers){
+  // Philosophical archetype, derived only from the philosophy section, independent of the three compasses.
+  const philAnswers = answers.filter(a=>a.section==='philosophy');
+  let epistemic = 0;
+  philAnswers.forEach(a=>{
+    const bank = PHIL_QUESTIONS.find(q=>q.q===a.q);
+    if(!bank) return;
+    const optIndex = bank.opts.indexOf(a.choice);
+    if(optIndex === -1) return;
+    epistemic += (2 - optIndex);
+  });
+  const freeWillAnswer = philAnswers.find(a=>/free will/i.test(a.q));
+  const moralityAnswer = philAnswers.find(a=>/morality discovered/i.test(a.q));
+
+  if(epistemic <= -8) return 'Empiricist';
+  if(moralityAnswer && /Invented/i.test(moralityAnswer.choice)) return 'Existentialist';
+  if(freeWillAnswer && /incoherent/i.test(freeWillAnswer.choice)) return 'Skeptic';
+  if(epistemic >= 20) return 'Rationalist';
+  if(epistemic >= 8) return 'Utilitarian';
+  return 'Stoic';
+}
+
+function finishAssessment(viewText){
+  const depthScore = Math.min(100, Math.round((viewText.length/6)));
+  const baseRank = 6 + Math.round(depthScore/12);
+  state.user.debateRank = Math.max(1, Math.min(20, baseRank));
+  state.user.placementTaken = true;
+  const compass = computeThreeCompasses(state.quiz.answers);
+  state.user.compass = compass;
+  state.user.archetype = deriveArchetype(state.quiz.answers);
+  state.user.ideologies = {
+    economic: deriveQuadrantIdeology('economic', compass.economic),
+    political: deriveQuadrantIdeology('political', compass.political),
+    social: deriveQuadrantIdeology('social', compass.social),
+  };
+  state.quiz.active = false;
+  state.tab = 'assessment';
+  render();
+}
+
+function genId(){ return 'd'+Math.random().toString(36).slice(2,10); }
+function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
+
+function tryMatchQueue(mode){
+  const q = state.debateQueue[mode];
+  const me = state.currentUser;
+  const myEntry = q.find(e=>e.username===me);
+  if(!myEntry) return;
+  const isUnranked = myEntry.unranked;
+  const myRank = state.users[me].debateRank;
+
+  const matchIndex = q.findIndex(e=>{
+    if(e.username===me) return false;
+    if(e.unranked !== isUnranked) return false;
+    if(isUnranked) return true;
+    return Math.abs(state.users[e.username].debateRank - myRank) <= 2;
+  });
+
+  if(matchIndex === -1) return;
+  const oppEntry = q[matchIndex];
+  state.debateQueue[mode] = q.filter(e=>e.username!==me && e.username!==oppEntry.username);
+
+  const id = genId();
+  const debate = {
+    id, mode, topic: myEntry.topic || 'Open topic', unranked: isUnranked,
+    participants: [me, oppEntry.username], chatLog: [], verdict: null, status: 'active',
+  };
+  state.debates[id] = debate;
+  state.users[me].activeDebateId = id;
+  state.users[oppEntry.username].activeDebateId = id;
+}
+
+function queueForMatch(mode, topic, unranked){
+  const q = state.debateQueue[mode];
+  if(!q.find(e=>e.username===state.currentUser)){
+    q.push({ username: state.currentUser, topic, unranked: !!unranked });
+  }
+  tryMatchQueue(mode);
+  render();
+}
+
+function cancelQueue(mode){
+  state.debateQueue[mode] = state.debateQueue[mode].filter(e=>e.username!==state.currentUser);
+  render();
+}
+
+function renderDebate(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Debate'));
+
+  if(!state.user.placementTaken){
+    wrap.appendChild(el('p',{class:'section-sub'},'Take the placement assessment first so you can be matched by rank.'));
+    wrap.appendChild(el('button',{class:'btn', onclick:()=>navigateWithLoading('assessment')},'Go to Assessment'));
+    return wrap;
+  }
+
+  if(state.user.activeDebateId && state.debates[state.user.activeDebateId]){
+    return renderChatRoom(state.debates[state.user.activeDebateId]);
+  }
+
+  wrap.appendChild(el('p',{class:'section-sub'},
+    'Ranked matches pair active accounts within rank '+(state.user.debateRank-2)+' to '+(state.user.debateRank+2)+'.'));
+
+  const grid = el('div',{class:'grid grid-2'});
+  const topicInput = el('input',{type:'text', placeholder:'Proposed topic (optional)'});
+  wrap.appendChild(el('div',{class:'field'},[el('label',{},'Topic'), topicInput]));
+
+  ['Text','Video'].forEach(mode=>{
+    const queued = state.debateQueue[mode].some(e=>e.username===state.currentUser);
+    const card = el('div',{class:'card'});
+    card.appendChild(el('h3',{}, mode+' debate — ranked'));
+    card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);'},
+      mode==='Video' ? 'Live video, same rank band.' : 'Structured live chat within your rank band.'));
+    if(queued){
+      card.appendChild(el('p',{style:'font-size:13px;color:var(--brass-bright);'}, 'Waiting for match...'));
+      card.appendChild(el('button',{class:'btn secondary', onclick:()=>cancelQueue(mode)}, 'Cancel'));
+    } else {
+      card.appendChild(el('button',{class: mode==='Text'?'btn':'btn secondary', onclick:()=>queueForMatch(mode, topicInput.value.trim(), false)}, 'Find '+mode+' Match'));
+    }
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+
+  return wrap;
+}
+
+function renderChatRoom(debate){
+  const wrap = el('div',{});
+  if(debate.verdict) return renderVerdict(debate);
+
+  const oppName = otherParticipant(debate);
+  wrap.appendChild(el('h2',{class:'section-title'}, debate.mode+' Debate — '+debate.topic));
+  wrap.appendChild(el('p',{class:'section-sub'}, 'vs. '+oppName+(debate.unranked?' · unranked':' · ranked')));
+
+  const room = el('div',{class:'debate-room'});
+  const left = el('div',{});
+
+  if(debate.mode === 'Video'){
+    left.appendChild(el('div',{class:'mock-note'}, 'Prototype note: Video streams require media server signaling. Layout shown below.'));
+    left.appendChild(el('div',{class:'video-frame'},[el('div',{class:'pulse'}), 'Live Video Stream']));
+    left.appendChild(el('div',{style:'height:14px'}));
+    left.appendChild(el('button',{class:'btn wine', onclick:()=>endDebate(debate.id)}, 'End debate & submit for review'));
+  } else {
+    const chatWindow = el('div',{class:'chat-window'});
+    const log = el('div',{class:'chat-log'});
+    renderChatMessages(log, debate);
+    chatWindow.appendChild(log);
+    
+    const inputRow = el('div',{class:'chat-input-row'});
+    const box = el('textarea',{placeholder:'Write your argument...'});
+    inputRow.appendChild(box);
+    inputRow.appendChild(el('button',{class:'btn', onclick:()=>{
+      const val = box.value.trim();
+      if(!val) return;
+      debate.chatLog.push({ author: state.currentUser, text: val });
+      box.value='';
+      renderChatMessages(log, debate);
+    }}, 'Send'));
+    chatWindow.appendChild(inputRow);
+    left.appendChild(chatWindow);
+    left.appendChild(el('div',{style:'height:14px'}));
+    left.appendChild(el('button',{class:'btn wine', onclick:()=>endDebate(debate.id)}, 'End debate & submit for review'));
+  }
+
+  room.appendChild(left);
+  room.appendChild(el('div',{class:'sidebox'},[
+    el('h4',{},'AI Judge'),
+    el('p',{},'Submitting evaluates reasoning, structure, and responsiveness.')
+  ]));
+
+  wrap.appendChild(room);
+  return wrap;
+}
+
+function renderChatMessages(log, debate){
+  log.innerHTML = '';
+  debate.chatLog.forEach(m=>{
+    const mine = m.author === state.currentUser;
+    log.appendChild(el('div',{class:'msg '+(mine?'me':'them')},[
+      el('span',{class:'tag'}, m.author),
+      m.text
+    ]));
+  });
+  log.scrollTop = log.scrollHeight;
+}
+
+const FALLACY_PATTERNS = [
+  { key: 'adHominem', label: 'Ad hominem', pattern: /\b(you'?re|you are)\s+(an?\s+)?(idiot|stupid|dumb|moron|fool|clown|liar)\b|\byou always\b|\btypical of someone like you\b/i },
+  { key: 'strawman', label: 'Strawman', pattern: /\bso you'?re saying\b|\bwhat you'?re really saying is\b|\bso basically you want\b/i },
+  { key: 'goalpostShift', label: 'Goalpost shift', pattern: /\bthat'?s not what i meant\b|\bi never said that\b|\bmoving on from that\b/i },
+  { key: 'falseEquivalency', label: 'False equivalence', pattern: /\bthat'?s the same as\b|\bjust like\b.*\bso it'?s equally\b|\bno different from\b/i },
+];
+
+function evaluateArgumentQuality(text){
+  if(!text) return 0;
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  const sentences = text.split(/[.!?]+/).filter(s=>s.trim().length>0);
+  const avgSentenceLen = sentences.length ? wordCount/sentences.length : 0;
+  const hasReasoningMarkers = /\b(because|therefore|however|suppose|if.*then|it follows|for example|on the other hand|consequently)\b/i.test(text);
+  const hasQuestion = /\?/.test(text);
+
+  let score = 0;
+  score += Math.min(40, wordCount * 0.4);
+  score += avgSentenceLen > 6 && avgSentenceLen < 35 ? 15 : 5;
+  score += hasReasoningMarkers ? 20 : 0;
+  score += hasQuestion ? 5 : 0;
+  return Math.round(score);
+}
+
+function detectFallacies(text){
+  const hits = [];
+  FALLACY_PATTERNS.forEach(f=>{
+    if(f.pattern.test(text)) hits.push(f.key);
+  });
+  return hits;
+}
+
+function judgeDebate(debate){
+  const [p1, p2] = debate.participants;
+  const scores = { [p1]: 0, [p2]: 0 };
+  const fallaciesFound = { [p1]: [], [p2]: [] };
+  const msgCount = { [p1]: 0, [p2]: 0 };
+
+  debate.chatLog.forEach(m=>{
+    const q = evaluateArgumentQuality(m.text);
+    const fallacies = detectFallacies(m.text);
+    scores[m.author] = (scores[m.author]||0) + q - (fallacies.length * 12);
+    fallaciesFound[m.author] = (fallaciesFound[m.author]||[]).concat(fallacies);
+    msgCount[m.author] = (msgCount[m.author]||0) + 1;
+  });
+
+  // Responsiveness bonus: reward alternating exchange over one-sided monologue
+  [p1, p2].forEach(u=>{
+    if(msgCount[u] >= 2) scores[u] += 8;
+  });
+
+  let winner;
+  if(msgCount[p1] === 0 && msgCount[p2] === 0){
+    winner = null; // no-contest, nobody argued
+  } else {
+    winner = scores[p1] >= scores[p2] ? p1 : p2;
+  }
+
+  return { scores, fallaciesFound, winner, msgCount };
+}
+
+function applyFallacyStats(username, fallacyKeys){
+  const profile = state.users[username];
+  if(!profile) return;
+  fallacyKeys.forEach(key=>{
+    profile.fallacyStats[key] = (profile.fallacyStats[key]||0) + 1;
+    profile.fallacyStats.total = (profile.fallacyStats.total||0) + 1;
+  });
+}
+
+function applyDebateResult(debate, result){
+  const { winner, scores } = result;
+  const [p1, p2] = debate.participants;
+
+  [p1, p2].forEach(u=>{
+    applyFallacyStats(u, result.fallaciesFound[u] || []);
+  });
+
+  if(winner === null){
+    return; // no-contest: no points, no rank change
+  }
+
+  const loser = winner === p1 ? p2 : p1;
+  const winnerProfile = state.users[winner];
+  const loserProfile = state.users[loser];
+
+  const margin = Math.abs((scores[p1]||0) - (scores[p2]||0));
+  const insightGain = Math.min(15, Math.round(margin/4));
+
+  winnerProfile.debatePoints = (winnerProfile.debatePoints||0) + 10;
+  winnerProfile.insightPoints = (winnerProfile.insightPoints||0) + insightGain;
+  loserProfile.debatePoints = (loserProfile.debatePoints||0) + 3;
+
+  if(!debate.unranked){
+    const winnerRank = winnerProfile.debateRank || 1;
+    const loserRank = loserProfile.debateRank || 1;
+    const rankGap = loserRank - winnerRank;
+    const kFactor = 1;
+    const winnerDelta = Math.max(0, Math.round(kFactor * (1 + rankGap*0.2)));
+    const loserDelta = Math.max(0, Math.round(kFactor * (1 - rankGap*0.2)));
+    winnerProfile.debateRank = Math.max(1, Math.min(20, winnerRank + Math.max(1, winnerDelta)));
+    loserProfile.debateRank = Math.max(1, Math.min(20, loserRank - Math.max(0, loserDelta)));
+  }
+
+  if(!winnerProfile.debateHistory) winnerProfile.debateHistory = [];
+  if(!loserProfile.debateHistory) loserProfile.debateHistory = [];
+  winnerProfile.debateHistory.unshift({ topic: debate.topic, mode: debate.mode, result: 'win', opponent: loser, unranked: debate.unranked });
+  loserProfile.debateHistory.unshift({ topic: debate.topic, mode: debate.mode, result: 'loss', opponent: winner, unranked: debate.unranked });
+}
+
+function endDebate(debateId){
+  const debate = state.debates[debateId];
+  const result = judgeDebate(debate);
+  applyDebateResult(debate, result);
+  debate.verdict = {
+    winner: result.winner,
+    unranked: debate.unranked,
+    scores: result.scores,
+    fallaciesFound: result.fallaciesFound,
+  };
+  debate.status = 'ended';
+  render();
+}
+
+function renderVerdict(debate){
+  const v = debate.verdict;
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'AI Judge — Verdict'));
+
+  const summaryCard = el('div',{class:'card'});
+  if(v.winner === null){
+    summaryCard.appendChild(el('h3',{},'No contest'));
+    summaryCard.appendChild(el('p',{},'Neither side presented an argument before ending the debate. No points or rank changes awarded.'));
+  } else {
+    summaryCard.appendChild(el('h3',{},'Winner: ' + v.winner));
+    summaryCard.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);'},
+      debate.unranked ? 'Unranked match — no rank change, points awarded normally.' : 'Ranked match — rank adjusted for both participants.'));
+  }
+  wrap.appendChild(summaryCard);
+
+  if(v.winner !== null){
+    wrap.appendChild(el('div',{style:'height:14px'}));
+    const grid = el('div',{class:'grid grid-2'});
+    debate.participants.forEach(u=>{
+      const fallacies = v.fallaciesFound[u] || [];
+      const card = el('div',{class:'card'},[
+        el('h3',{}, u + (u===v.winner ? ' (winner)' : '')),
+        el('div',{class:'stat-label'},'Judge score'),
+        el('div',{class:'stat-big'}, String(v.scores[u]||0)),
+        el('div',{style:'height:10px'}),
+        el('div',{class:'stat-label'},'Fallacies flagged this debate'),
+        fallacies.length
+          ? el('p',{style:'font-size:13px;'}, fallacies.map(f=>{
+              const meta = FALLACY_PATTERNS.find(fp=>fp.key===f);
+              return meta ? meta.label : f;
+            }).join(', '))
+          : el('p',{style:'font-size:13px;color:var(--parchment-dim);'},'None detected'),
+      ]);
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid);
+  }
+
+  wrap.appendChild(el('div',{style:'height:18px'}));
+  wrap.appendChild(el('button',{class:'btn', onclick:()=>{
+    state.user.activeDebateId = null;
+    navigateWithLoading('debate');
+  }},'Return to Lobby'));
+
+  return wrap;
+}
+
+function forumReplyCount(p){ return p.replies.length; }
+
+function openThread(id){
+  state.forumOpenThread = (state.forumOpenThread === id) ? null : id;
+  if(state.forumOpenThread === id){
+    const p = state.forum.find(x=>x.id===id);
+    if(p) p.views = (p.views||0) + 1;
+    saveState();
+  }
+  render();
+}
+
+function renderThreadDetail(p){
+  const box = el('div',{class:'thread-detail'});
+  box.appendChild(el('h3',{style:'margin:0;'}, p.title));
+  box.appendChild(el('div',{class:'meta'}, p.author+' · '+timeAgo(p.createdAt)+' · '+p.category));
+  box.appendChild(el('div',{class:'t-detail-body'}, p.body));
+
+  if(p.replies.length){
+    const repliesWrap = el('div',{});
+    p.replies.forEach(r=>{
+      repliesWrap.appendChild(el('div',{class:'reply-row'},[
+        avatarNode(r.author, 30),
+        el('div',{},[
+          el('div',{class:'meta'}, r.author+' · '+timeAgo(r.createdAt)),
+          el('div',{class:'r-body'}, r.body),
+        ]),
+      ]));
+    });
+    box.appendChild(repliesWrap);
+  }
+
+  const replyIn = el('textarea',{placeholder:'Write a reply...', style:'min-height:70px;margin-top:12px;'});
+  box.appendChild(replyIn);
+  box.appendChild(el('button',{class:'btn secondary', style:'margin-top:8px;', onclick:(e)=>{
+    e.stopPropagation();
+    const b = replyIn.value.trim();
+    if(!b) return;
+    p.replies.push({ author: state.user.name, body: b, createdAt: Date.now() });
+    saveState();
+    render();
+  }},'Post reply'));
+
+  box.addEventListener('click', (e)=>e.stopPropagation());
+  return box;
+}
+
+function renderForum(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Forum — Discussions'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Open threads and unranked exchanges.'));
+
+  const totalReplies = state.forum.reduce((s,p)=>s+forumReplyCount(p),0);
+  const totalViews = state.forum.reduce((s,p)=>s+(p.views||0),0);
+  const statsStrip = el('div',{class:'forum-stats-strip'},[
+    el('div',{class:'fstat'},[el('b',{}, state.forum.length), el('span',{},'Threads')]),
+    el('div',{class:'fstat'},[el('b',{}, totalReplies), el('span',{},'Replies')]),
+    el('div',{class:'fstat'},[el('b',{}, totalViews), el('span',{},'Views')]),
+  ]);
+  wrap.appendChild(statsStrip);
+
+  const newPostCard = el('div',{class:'card'});
+  newPostCard.appendChild(el('h3',{},'Start a thread'));
+  const titleIn = el('input',{type:'text', placeholder:'Thread title'});
+  const catIn = el('select',{}, FORUM_CATEGORIES.map(c=>el('option',{value:c},c)));
+  const bodyIn = el('textarea',{placeholder:'Lay out your position or question...'});
+  newPostCard.appendChild(el('div',{class:'field'},[el('label',{},'Title'), titleIn]));
+  newPostCard.appendChild(el('div',{class:'field'},[el('label',{},'Category'), catIn]));
+  newPostCard.appendChild(el('div',{class:'field'},[el('label',{},'Body'), bodyIn]));
+  newPostCard.appendChild(el('button',{class:'btn', onclick:()=>{
+    const t = titleIn.value.trim(), b = bodyIn.value.trim();
+    if(!t || !b){ alert('Add a title and body.'); return; }
+    state.forum.unshift({
+      id: Date.now()+Math.random(),
+      title: t, author: state.user.name, category: catIn.value,
+      createdAt: Date.now(), views: 0, replies: [], body: b,
+    });
+    saveState();
+    render();
+  }},'Post thread'));
+  wrap.appendChild(newPostCard);
+  wrap.appendChild(el('div',{class:'divider'}));
+
+  if(state.forum.length===0){
+    wrap.appendChild(el('p',{class:'empty-note'},'No threads posted yet.'));
+    return wrap;
+  }
+
+  const SORTS = [['new','Newest'],['active','Most replies'],['viewed','Most viewed']];
+  const toolbar = el('div',{class:'forum-toolbar'},[
+    el('span',{style:'font-size:12px;color:var(--parchment-dim);'}, state.forum.length+' thread'+(state.forum.length===1?'':'s')),
+    el('div',{class:'sort-group'}, SORTS.map(([key,label])=>
+      el('button',{class:'sort-chip'+(state.forumSort===key?' active':''), onclick:()=>{ state.forumSort = key; state.forumPage = 1; render(); }}, label)
+    )),
+  ]);
+  wrap.appendChild(toolbar);
+
+  let sorted = state.forum.slice();
+  if(state.forumSort === 'active') sorted.sort((a,b)=>forumReplyCount(b)-forumReplyCount(a));
+  else if(state.forumSort === 'viewed') sorted.sort((a,b)=>(b.views||0)-(a.views||0));
+  else sorted.sort((a,b)=>b.createdAt-a.createdAt);
+
+  const PAGE_SIZE = 8;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  if(state.forumPage > totalPages) state.forumPage = totalPages;
+  const start = (state.forumPage - 1) * PAGE_SIZE;
+
+  const list = el('div',{class:'thread-list'});
+  sorted.slice(start, start + PAGE_SIZE).forEach(p=>{
+    const lastActivity = p.replies.length ? p.replies[p.replies.length-1] : null;
+    const row = el('div',{class:'thread-row', onclick:()=>openThread(p.id)},[
+      avatarNode(p.author, 38),
+      el('div',{class:'t-main'},[
+        el('div',{class:'t-title-line'},[
+          el('span',{class:'cat-chip'}, p.category),
+          el('span',{class:'t-title'}, p.title),
+        ]),
+        el('div',{class:'t-meta'}, 'by '+p.author+' · '+timeAgo(p.createdAt)),
+      ]),
+      el('div',{class:'t-nums'},[
+        el('div',{class:'t-num'},[el('b',{}, forumReplyCount(p)), el('span',{},'Replies')]),
+        el('div',{class:'t-num'},[el('b',{}, p.views||0), el('span',{},'Views')]),
+      ]),
+      el('div',{class:'t-last'},[
+        avatarNode(lastActivity ? lastActivity.author : p.author, 28),
+        el('div',{class:'t-last-info'},[
+          el('span',{class:'t-last-who'}, lastActivity ? lastActivity.author : p.author),
+          el('span',{class:'t-last-time'}, timeAgo(lastActivity ? lastActivity.createdAt : p.createdAt)),
+        ]),
+      ]),
+    ]);
+    list.appendChild(row);
+    if(state.forumOpenThread === p.id){
+      list.appendChild(renderThreadDetail(p));
+    }
+  });
+  wrap.appendChild(list);
+
+  if(totalPages > 1){
+    const pager = el('div',{style:'display:flex;justify-content:center;gap:10px;align-items:center;margin-top:14px;'});
+    pager.appendChild(el('button',{class:'btn secondary', style: state.forumPage<=1?'opacity:0.4;pointer-events:none;':'', onclick:()=>{ state.forumPage--; render(); }}, '← Prev'));
+    pager.appendChild(el('span',{style:'font-size:13px;color:var(--parchment-dim);'}, 'Page '+state.forumPage+' of '+totalPages));
+    pager.appendChild(el('button',{class:'btn secondary', style: state.forumPage>=totalPages?'opacity:0.4;pointer-events:none;':'', onclick:()=>{ state.forumPage++; render(); }}, 'Next →'));
+    wrap.appendChild(pager);
+  }
+
+  return wrap;
+}
+
+function renderLeaderboard(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Leaderboard'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Active user rankings for reading and debating.'));
+  
+  const accounts = Object.values(state.users).filter(u=>!u.isGuest);
+  if(!accounts.length){
+    wrap.appendChild(el('p',{class:'empty-note'},'No registered accounts available on leaderboard.'));
+    return wrap;
+  }
+
+  const grid = el('div',{class:'grid grid-2'});
+  const debateCard = el('div',{class:'card'},[el('h3',{},'Top Debaters')]);
+  [...accounts].filter(u=>u.settings ? u.settings.showOnLeaderboard !== false : true).sort((a,b)=>(b.debateRank||0)-(a.debateRank||0)).forEach((u,i)=>{
+    debateCard.appendChild(el('div',{class:'book-row'},[
+      leaderboardNameCell(u, i),
+      el('div',{class:'points-tag'}, u.debateRank ? 'Rank '+u.debateRank : 'Unranked')
+    ]));
+  });
+  grid.appendChild(debateCard);
+
+  const readingCard = el('div',{class:'card'},[el('h3',{},'Top Readers')]);
+  [...accounts].filter(u=>u.settings ? u.settings.showOnLeaderboard !== false : true).sort((a,b)=>(b.readingElo||0)-(a.readingElo||0)).forEach((u,i)=>{
+    readingCard.appendChild(el('div',{class:'book-row'},[
+      leaderboardNameCell(u, i),
+      el('div',{class:'points-tag'}, 'Elo '+(u.readingElo||0))
+    ]));
+  });
+  grid.appendChild(readingCard);
+
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function leaderboardNameCell(u, i){
+  const isMe = u.username === state.currentUser;
+  const parts = [
+    el('div',{style:'display:flex;align-items:center;gap:10px;'},[
+      el('span',{}, i+1+'.'),
+      avatarNode(u, 28),
+      el('button',{class:'user-link', onclick:()=>viewProfile(u.username)}, u.name),
+    ])
+  ];
+  if(!isMe && !state.user.isGuest){
+    parts.push(el('button',{
+      class: 'btn secondary', style:'padding:2px 10px;font-size:11px;margin-left:10px;',
+      onclick: (e)=>{ e.stopPropagation(); toggleFollow(u.username); }
+    }, isFollowing(u.username) ? 'Following' : 'Follow'));
+  }
+  return el('div',{style:'display:flex;align-items:center;'}, parts);
+}
+
+function renderRanks(){
+  return el('div',{},[
+    el('h2',{class:'section-title'},'Rank Structure'),
+    el('p',{class:'section-sub'},'Overview of debate ranks and reading levels.'),
+    el('div',{class:'card'},[
+      el('h3',{},'Debate Ladders'),
+      el('p',{},'Ranks range from 1 (Novice) to 20 (Hakim), pairing users within tight bands.')
+    ])
+  ]);
+}
+
+function renderQuadrantCompass(section, pair){
+  const def = COMPASS_DEFS[section];
+  const ideology = deriveQuadrantIdeology(section, pair);
+
+  const square = el('div',{class:'compass-square'},[
+    el('div',{class:'compass-quad q-tl'}), el('div',{class:'compass-quad q-tr'}),
+    el('div',{class:'compass-quad q-bl'}), el('div',{class:'compass-quad q-br'}),
+    el('div',{class:'compass-crosshair-v'}), el('div',{class:'compass-crosshair-h'}),
+    el('div',{class:'compass-dot', style:'left:'+pair.x+'%;top:'+(100-pair.y)+'%;'}),
+  ]);
+
+  const midrow = el('div',{class:'compass-midrow'},[
+    el('span',{class:'compass-leftlabel'}, def.xLabels[0]),
+    square,
+    el('span',{class:'compass-rightlabel'}, def.xLabels[1]),
+  ]);
+
+  const layout = el('div',{class:'compass-layout'},[
+    el('span',{class:'compass-toplabel'}, def.yLabels[0]),
+    midrow,
+    el('span',{class:'compass-bottomlabel'}, def.yLabels[1]),
+  ]);
+
+  return el('div',{class:'compass-block'},[
+    el('h3',{class:'compass-title'}, def.title),
+    el('p',{class:'compass-ideo'}, ideology),
+    layout,
+  ]);
+}
+
+function renderCompass(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Compass'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Three separate ideological maps — economic, political, and social — each derived from its own set of mapping questions.'));
+
+  if(!state.user.placementTaken || !state.user.compass){
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'Not yet mapped'),
+      el('p',{},'Take the placement assessment to compute your ideological coordinates.'),
+      el('button',{class:'btn', onclick:()=>navigateWithLoading('assessment')},'Go to Assessment'),
+    ]));
+    return wrap;
+  }
+
+  const c = state.user.compass;
+  const card = el('div',{class:'card'});
+  card.appendChild(el('h3',{},'Philosophical archetype: ' + state.user.archetype));
+  card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:20px;'},'Derived from the philosophy section only — kept separate from the three compasses below.'));
+  card.appendChild(renderQuadrantCompass('economic', c.economic));
+  card.appendChild(renderQuadrantCompass('political', c.political));
+  card.appendChild(renderQuadrantCompass('social', c.social));
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function guildMembers(guildName){
+  return Object.values(state.users).filter(u=>u.guild===guildName && !u.isGuest);
+}
+
+function guildTotals(guildName){
+  const members = guildMembers(guildName);
+  return {
+    memberCount: members.length,
+    totalReadingElo: members.reduce((s,u)=>s+(u.readingElo||0),0),
+    totalDebatePoints: members.reduce((s,u)=>s+(u.debatePoints||0),0),
+    totalPagesRead: members.reduce((s,u)=>s+(u.pagesRead||0),0),
+  };
+}
+
+function joinGuild(guildName){
+  if(state.user.isGuest){ alert('Create an account to join a guild.'); return; }
+  if(state.user.guild === guildName) return;
+  state.user.guild = guildName;
+  render();
+}
+
+function leaveGuild(){
+  state.user.guild = null;
+  render();
+}
+
+function renderGuilds(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Guilds'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Collective affinity groups pooling reading and debate metrics. Anyone can found one.'));
+
+  if(state.user.guild){
+    const mineCard = el('div',{class:'card'});
+    const totals = guildTotals(state.user.guild);
+    mineCard.appendChild(el('h3',{}, 'Your guild: '+state.user.guild));
+    mineCard.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);'},
+      totals.memberCount+' members · '+totals.totalReadingElo+' combined reading Elo · '+totals.totalDebatePoints+' combined debate points · '+totals.totalPagesRead.toLocaleString()+' pages read'));
+    mineCard.appendChild(el('button',{class:'btn secondary', onclick: leaveGuild},'Leave guild'));
+    wrap.appendChild(mineCard);
+    wrap.appendChild(el('div',{class:'divider'}));
+  } else if(!state.user.isGuest){
+    const createCard = el('div',{class:'card'});
+    createCard.appendChild(el('h3',{},'Found a guild'));
+    const nameIn = el('input',{type:'text', placeholder:'Guild name'});
+    const descIn = el('textarea',{placeholder:'What is this guild about?'});
+    createCard.appendChild(el('div',{class:'field'},[el('label',{},'Name'), nameIn]));
+    createCard.appendChild(el('div',{class:'field'},[el('label',{},'Description'), descIn]));
+    createCard.appendChild(el('button',{class:'btn', onclick:()=>{
+      const name = nameIn.value.trim();
+      const desc = descIn.value.trim();
+      if(!name){ alert('Give your guild a name.'); return; }
+      if(state.guilds.find(g=>g.name.toLowerCase()===name.toLowerCase())){ alert('That guild already exists — join it instead.'); return; }
+      state.guilds.unshift({ name, description: desc, founder: state.currentUser });
+      joinGuild(name);
+    }},'Found guild'));
+    wrap.appendChild(createCard);
+    wrap.appendChild(el('div',{class:'divider'}));
+  } else {
+    wrap.appendChild(el('div',{class:'card'},[
+      el('p',{},'Create an account to found or join a guild.'),
+    ]));
+    wrap.appendChild(el('div',{class:'divider'}));
+  }
+
+  if(!state.guilds.length){
+    wrap.appendChild(el('p',{class:'empty-note'},'No guilds founded yet. Be the first.'));
+    return wrap;
+  }
+
+  state.guilds.forEach(g=>{
+    const totals = guildTotals(g.name);
+    const card = el('div',{class:'forum-post'});
+    card.appendChild(el('h4',{}, g.name));
+    card.appendChild(el('div',{class:'meta'}, 'Founded by '+g.founder+' · '+totals.memberCount+' members'));
+    if(g.description) card.appendChild(el('p',{}, g.description));
+    if(state.user.guild !== g.name && !state.user.isGuest){
+      card.appendChild(el('button',{class:'btn secondary', style:'margin-top:8px;', onclick:()=>joinGuild(g.name)},'Join'));
+    }
+    wrap.appendChild(card);
+  });
+
+  return wrap;
+}
+
+function renderProfile(){
+  if(state.viewingProfile && state.viewingProfile !== state.currentUser){
+    return renderOtherProfile(state.viewingProfile);
+  }
+  return renderOwnProfile();
+}
+
+function connectionsList(usernames, emptyText, opts={}){
+  const box = el('div',{});
+  if(!usernames.length){
+    box.appendChild(el('p',{class:'empty-note'}, emptyText));
+    return box;
+  }
+  usernames.forEach(uname=>{
+    const person = state.users[uname];
+    if(!person) return;
+    const row = el('div',{class:'book-row'},[
+      el('div',{style:'display:flex;align-items:center;gap:10px;'},[
+        avatarNode(person, 30),
+        el('button',{class:'user-link', onclick:()=>viewProfile(uname)}, person.name),
+        areFriends(state.currentUser, uname) ? el('span',{class:'friend-badge'},'Friends') : null,
+      ]),
+    ]);
+    if(opts.unfollowable){
+      row.appendChild(el('button',{class:'btn secondary', style:'padding:4px 12px;font-size:12px;', onclick:()=>toggleFollow(uname)}, 'Unfollow'));
+    } else if(opts.followBack){
+      row.appendChild(el('button',{class:'btn secondary', style:'padding:4px 12px;font-size:12px;', onclick:()=>toggleFollow(uname)},
+        isFollowing(uname) ? 'Following' : 'Follow back'));
+    }
+    box.appendChild(row);
+  });
+  return box;
+}
+
+function renderOwnProfile(){
+  const wrap = el('div',{});
+  const u = state.user;
+  wrap.appendChild(el('div',{class:'profile-header-row'},[
+    avatarNode(u, 76),
+    el('div',{},[
+      el('h2',{class:'section-title', style:'margin:0;'}, u.name + (u.isGuest ? ' (guest)' : '')),
+    ]),
+  ]));
+  wrap.appendChild(el('p',{class:'section-sub'}, u.isGuest
+    ? 'Guest session — data is saved locally but you have no username/password to log back in on another device.'
+    : 'Account profile and stats.'));
+  if(u.bio){
+    wrap.appendChild(el('p',{class:'bio-text', style:'margin:-18px 0 22px;'}, u.bio));
+  }
+
+  const grid = el('div',{class:'grid grid-3'});
+  grid.appendChild(statCard('Reading Elo', u.readingElo));
+  grid.appendChild(statCard('Debate Rank', u.debateRank ? '#'+u.debateRank : '—'));
+  grid.appendChild(statCard('Guild', u.guild || 'None'));
+  wrap.appendChild(grid);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+
+  const connGrid = el('div',{class:'grid grid-2'});
+  connGrid.appendChild(statCard('Following', (u.following||[]).length));
+  connGrid.appendChild(statCard('Followers', (u.followers||[]).length));
+  wrap.appendChild(connGrid);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+
+  if(!u.isGuest){
+    const connectionsCard = el('div',{class:'card'});
+    connectionsCard.appendChild(el('h3',{},'Connections'));
+    connectionsCard.appendChild(el('p',{style:'font-size:12px;color:var(--parchment-dim);margin:-4px 0 14px;'},'Following someone who follows you back marks you as friends.'));
+    connectionsCard.appendChild(el('div',{style:'font-size:12px;text-transform:uppercase;letter-spacing:0.6px;color:var(--parchment-dim);margin-bottom:4px;'},'Following'));
+    connectionsCard.appendChild(connectionsList(u.following||[], 'Not following anyone yet — find people on the Leaderboard or via search.', {unfollowable:true}));
+    connectionsCard.appendChild(el('div',{class:'divider'}));
+    connectionsCard.appendChild(el('div',{style:'font-size:12px;text-transform:uppercase;letter-spacing:0.6px;color:var(--parchment-dim);margin-bottom:4px;'},'Followers'));
+    connectionsCard.appendChild(connectionsList(u.followers||[], 'No followers yet.', {followBack:true}));
+    wrap.appendChild(connectionsCard);
+    wrap.appendChild(el('div',{style:'height:18px'}));
+  }
+
+  const fallacyCard = el('div',{class:'card'});
+  fallacyCard.appendChild(el('h3',{},'Fallacy record'));
+  const stats = u.fallacyStats || { total: 0 };
+  if(!stats.total){
+    fallacyCard.appendChild(el('p',{class:'empty-note'},'No fallacies flagged yet.'));
+  } else {
+    FALLACY_PATTERNS.forEach(f=>{
+      if(stats[f.key]){
+        fallacyCard.appendChild(el('div',{class:'book-row'},[
+          el('div',{}, f.label),
+          el('div',{class:'points-tag'}, String(stats[f.key])),
+        ]));
+      }
+    });
+  }
+  wrap.appendChild(fallacyCard);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+
+  const historyCard = el('div',{class:'card'});
+  historyCard.appendChild(el('h3',{},'Debate history'));
+  const history = u.debateHistory || [];
+  if(!history.length){
+    historyCard.appendChild(el('p',{class:'empty-note'},'No completed debates yet.'));
+  } else {
+    history.slice(0,15).forEach(h=>{
+      historyCard.appendChild(el('div',{class:'book-row'},[
+        el('div',{},[
+          el('div',{class:'book-title'}, h.topic),
+          el('div',{class:'book-meta'}, h.mode+' vs. '+h.opponent+(h.unranked?' · unranked':' · ranked')),
+        ]),
+        el('div',{class:'points-tag', style: h.result==='win' ? 'color:var(--brass-bright);' : 'color:var(--wine);'}, h.result==='win' ? 'Win' : 'Loss'),
+      ]));
+    });
+  }
+  wrap.appendChild(historyCard);
+
+  wrap.appendChild(el('div',{style:'height:18px'}));
+  const accountCard = el('div',{class:'card'});
+  accountCard.appendChild(el('h3',{},'Account'));
+  const accountBtns = el('div',{style:'display:flex;gap:10px;flex-wrap:wrap;'});
+  accountBtns.appendChild(el('button',{class:'btn secondary', onclick:()=>navigateWithLoading('settings')}, 'Settings'));
+  if(!u.isGuest){
+    accountBtns.appendChild(el('button',{class:'btn secondary', onclick: logout}, 'Log out'));
+  }
+  accountCard.appendChild(accountBtns);
+  wrap.appendChild(accountCard);
+
+  return wrap;
+}
+
+function renderOtherProfile(username){
+  const wrap = el('div',{});
+  const person = state.users[username];
+  if(!person){
+    wrap.appendChild(el('h2',{class:'section-title'},'User not found'));
+    wrap.appendChild(el('button',{class:'btn secondary', onclick: goToOwnProfile},'Back to your profile'));
+    return wrap;
+  }
+
+  const titleRow = el('div',{class:'profile-header-row'},[
+    avatarNode(person, 76),
+    el('div',{class:'name-with-avatar'},[
+      el('h2',{class:'section-title', style:'margin:0;'}, person.name),
+      areFriends(state.currentUser, username) ? el('span',{class:'friend-badge'},'Friends') : null,
+    ]),
+  ]);
+  wrap.appendChild(titleRow);
+  wrap.appendChild(el('p',{class:'section-sub'}, (person.guild ? 'Guild: '+person.guild : 'No guild') + ' · ' +
+    (person.followers||[]).length + ' followers · ' + (person.following||[]).length + ' following'));
+
+  if(person.bio){
+    wrap.appendChild(el('p',{class:'bio-text', style:'margin-top:-14px;margin-bottom:14px;max-width:520px;'}, person.bio));
+  }
+
+  const blockedByMe = isBlocked(username);
+  const blockedByThem = isBlockedBy(username);
+
+  if(!state.user.isGuest && !blockedByMe && !blockedByThem){
+    const mutuals = getMutuals(username);
+    if(mutuals.length){
+      wrap.appendChild(el('div',{class:'mutuals-row'},[
+        'Followed by ',
+        mutuals.slice(0,3).map((mu,i)=> el('span',{},[
+          el('button',{class:'user-link', style:'font-size:12.5px;', onclick:()=>viewProfile(mu)}, state.users[mu]?state.users[mu].name:mu),
+          i < Math.min(mutuals.length,3)-1 ? ', ' : '',
+        ])),
+        mutuals.length>3 ? (' and '+(mutuals.length-3)+' more you follow') : (mutuals.length>1 ? ' — people you follow' : ' — someone you follow'),
+      ]));
+    }
+  }
+
+  wrap.appendChild(el('div',{style:'height:14px'}));
+
+  if(blockedByMe){
+    wrap.appendChild(el('div',{class:'blocked-banner'}, 'You have blocked '+person.name+'. Unblock them to interact again.'));
+    wrap.appendChild(el('button',{class:'btn secondary', onclick:()=>toggleBlock(username)}, 'Unblock'));
+    return wrap;
+  }
+  if(blockedByThem){
+    wrap.appendChild(el('div',{class:'blocked-banner'}, 'This profile is unavailable.'));
+    return wrap;
+  }
+
+  const actionRow = el('div',{style:'display:flex;gap:10px;flex-wrap:wrap;'});
+  if(!state.user.isGuest){
+    actionRow.appendChild(el('button',{
+      class: isFollowing(username) ? 'btn secondary' : 'btn',
+      onclick: ()=>toggleFollow(username)
+    }, isFollowing(username) ? 'Following' : 'Follow'));
+    actionRow.appendChild(el('button',{class:'btn secondary', onclick:()=>openDM(username)}, 'Message'));
+    actionRow.appendChild(el('button',{class:'btn secondary', style:'color:var(--wine);border-color:var(--wine);', onclick:()=>toggleBlock(username)}, 'Block'));
+    actionRow.appendChild(el('button',{class:'btn secondary', onclick:()=>reportUser(username)}, 'Report'));
+  }
+  wrap.appendChild(actionRow);
+  wrap.appendChild(el('div',{style:'height:22px'}));
+
+  const isPrivate = person.settings && person.settings.profileVisibility === 'private';
+  if(isPrivate){
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'This profile is private'),
+      el('p',{},'Only the name and connection counts above are visible.'),
+    ]));
+    return wrap;
+  }
+
+  const grid = el('div',{class:'grid grid-3'});
+  grid.appendChild(statCard('Reading Elo', person.readingElo||0));
+  grid.appendChild(statCard('Debate Rank', person.debateRank ? '#'+person.debateRank : '—'));
+  grid.appendChild(statCard('Guild', person.guild || 'None'));
+  wrap.appendChild(grid);
+
+  return wrap;
+}
+
+function segControl(options, currentValue, onChange){
+  return el('div',{class:'seg-control'}, options.map(([val,label])=>
+    el('button',{
+      class: 'sort-chip' + (currentValue===val ? ' active' : ''),
+      onclick: ()=>onChange(val)
+    }, label)
+  ));
+}
+
+function renderSettings(){
+  const wrap = el('div',{});
+  const u = state.user;
+  u.settings = u.settings || { profileVisibility:'public', showOnLeaderboard:true, allowFollowers:true };
+
+  wrap.appendChild(el('h2',{class:'section-title'},'Settings'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Manage your photo, display name, and who can see your activity.'));
+
+  const photoCard = el('div',{class:'card'});
+  photoCard.appendChild(el('h3',{},'Profile picture'));
+  const fileIn = el('input',{type:'file', accept:'image/*', style:'display:none;', onchange:(e)=>handleAvatarUpload(e.target.files[0])});
+  const photoActions = el('div',{class:'avatar-upload-actions'},[
+    el('button',{class:'btn secondary', onclick:()=>fileIn.click()}, u.avatar ? 'Change photo' : 'Upload photo'),
+    u.avatar ? el('button',{class:'btn secondary', style:'color:var(--wine);border-color:var(--wine);', onclick:removeAvatar}, 'Remove photo') : null,
+  ]);
+  photoCard.appendChild(el('div',{class:'avatar-upload-row'},[avatarNode(u, 84), photoActions, fileIn]));
+  photoCard.appendChild(el('p',{style:'font-size:12px;color:var(--parchment-dim);margin:0;'},'JPG or PNG, cropped to a square automatically.'));
+  wrap.appendChild(photoCard);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+
+  const nameCard = el('div',{class:'card'});
+  nameCard.appendChild(el('h3',{},'Display name'));
+  const nameIn = el('input',{type:'text', value: u.name});
+  nameCard.appendChild(el('div',{class:'field'},[el('label',{},'Name shown to others'), nameIn]));
+  nameCard.appendChild(el('button',{class:'btn secondary', onclick:()=>updateDisplayName(nameIn.value)}, 'Save name'));
+  wrap.appendChild(nameCard);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+
+  const bioCard = el('div',{class:'card'});
+  bioCard.appendChild(el('h3',{},'Bio'));
+  const bioIn = el('textarea',{placeholder:'Tell people a bit about yourself...', style:'min-height:90px;', maxlength:280}, u.bio||'');
+  bioCard.appendChild(el('div',{class:'field'},[el('label',{},'Shown on your profile (280 chars)'), bioIn]));
+  bioCard.appendChild(el('button',{class:'btn secondary', onclick:()=>updateBio(bioIn.value)}, 'Save bio'));
+  wrap.appendChild(bioCard);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+
+  const blockedCard = el('div',{class:'card'});
+  blockedCard.appendChild(el('h3',{},'Blocked accounts'));
+  const blockedList = u.blocked || [];
+  if(!blockedList.length){
+    blockedCard.appendChild(el('p',{class:'empty-note'},'You haven\'t blocked anyone.'));
+  } else {
+    blockedList.forEach(bu=>{
+      const person = state.users[bu];
+      blockedCard.appendChild(el('div',{class:'book-row'},[
+        el('div',{style:'display:flex;align-items:center;gap:10px;'},[avatarNode(person||bu, 28), el('span',{}, person?person.name:bu)]),
+        el('button',{class:'btn secondary', style:'padding:4px 12px;font-size:12px;', onclick:()=>toggleBlock(bu)},'Unblock'),
+      ]));
+    });
+  }
+  wrap.appendChild(blockedCard);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+
+  const privacyCard = el('div',{class:'card'});
+  privacyCard.appendChild(el('h3',{},'Privacy'));
+
+  privacyCard.appendChild(el('div',{class:'settings-row'},[
+    el('div',{},[
+      el('div',{class:'settings-label'},'Profile visibility'),
+      el('div',{class:'settings-desc'},'Public profiles show your stats and debate history to anyone. Private profiles show only your name and connection counts.'),
+    ]),
+    segControl([['public','Public'],['private','Private']], u.settings.profileVisibility, (v)=>updateSetting('profileVisibility', v)),
+  ]));
+
+  privacyCard.appendChild(el('div',{class:'settings-row'},[
+    el('div',{},[
+      el('div',{class:'settings-label'},'Show on leaderboard'),
+      el('div',{class:'settings-desc'},'Turn this off to keep your reading and debate rankings out of the public Leaderboard page.'),
+    ]),
+    segControl([[true,'On'],[false,'Off']], u.settings.showOnLeaderboard, (v)=>updateSetting('showOnLeaderboard', v)),
+  ]));
+
+  privacyCard.appendChild(el('div',{class:'settings-row'},[
+    el('div',{},[
+      el('div',{class:'settings-label'},'Allow new followers'),
+      el('div',{class:'settings-desc'},'Turn this off to stop new people from following you. Existing followers are unaffected.'),
+    ]),
+    segControl([[true,'On'],[false,'Off']], u.settings.allowFollowers, (v)=>updateSetting('allowFollowers', v)),
+  ]));
+
+  wrap.appendChild(privacyCard);
+  wrap.appendChild(el('div',{style:'height:18px'}));
+  wrap.appendChild(el('button',{class:'btn secondary', onclick:()=>navigateWithLoading('profile')}, '← Back to profile'));
+
+  return wrap;
+}
+
+function renderMembers(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Members'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Everyone on Majlis. Follow, message, or view a profile.'));
+
+  const searchIn = el('input',{type:'text', placeholder:'Search @members by name or username...', value: state.memberSearch,
+    oninput:(e)=>{ state.memberSearch = e.target.value; render(); }});
+  wrap.appendChild(el('div',{class:'field'},[searchIn]));
+
+  const q = (state.memberSearch||'').toLowerCase().trim();
+  const all = Object.values(state.users).filter(u=>!u.isGuest && u.username!==state.currentUser);
+  const filtered = q ? all.filter(u => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)) : all;
+
+  const card = el('div',{class:'card'});
+  if(!filtered.length){
+    card.appendChild(el('p',{class:'empty-note'}, all.length ? 'No members match your search.' : 'No other members yet — invite some friends.'));
+  } else {
+    filtered.forEach(person=>{
+      const blockedByMe = isBlocked(person.username);
+      const blockedByThem = isBlockedBy(person.username);
+      const row = el('div',{class:'member-row'},[
+        avatarNode(person, 42),
+        el('div',{},[
+          el('button',{class:'user-link', onclick:()=>viewProfile(person.username)}, person.name),
+          el('div',{style:'font-size:12px;color:var(--parchment-dim);'}, '@'+person.username +
+            (areFriends(state.currentUser, person.username) ? ' · Friends' : '')),
+          person.bio ? el('div',{class:'member-bio'}, person.bio) : null,
+        ]),
+      ]);
+      const actions = el('div',{class:'member-actions'});
+      if(!state.user.isGuest && !blockedByMe && !blockedByThem){
+        actions.appendChild(el('button',{
+          class: isFollowing(person.username) ? 'btn secondary' : 'btn',
+          style:'padding:5px 12px;font-size:12px;',
+          onclick: ()=>toggleFollow(person.username),
+        }, isFollowing(person.username) ? 'Following' : 'Follow'));
+        actions.appendChild(el('button',{class:'btn secondary', style:'padding:5px 12px;font-size:12px;', onclick:()=>openDM(person.username)}, 'Message'));
+      } else if(blockedByMe){
+        actions.appendChild(el('span',{style:'font-size:12px;color:var(--wine);'}, 'Blocked'));
+      }
+      actions.appendChild(el('button',{class:'btn secondary', style:'padding:5px 12px;font-size:12px;', onclick:()=>viewProfile(person.username)}, 'View'));
+      row.appendChild(actions);
+      card.appendChild(row);
+    });
+  }
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function renderNotifications(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Notifications'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Follows, messages, and other activity involving you.'));
+
+  const notifs = state.user.notifications || [];
+  if(notifs.length && unreadNotifCount()>0){
+    wrap.appendChild(el('button',{class:'btn secondary', style:'margin-bottom:16px;', onclick:markAllNotifsRead}, 'Mark all as read'));
+  }
+
+  const card = el('div',{class:'card'});
+  if(!notifs.length){
+    card.appendChild(el('p',{class:'empty-note'},'No notifications yet.'));
+  } else {
+    notifs.forEach(n=>{
+      const person = state.users[n.from];
+      const item = el('div',{class:'notif-item'+(n.read?'':' unread')},[
+        avatarNode(person||n.from, 34),
+        el('div',{},[
+          el('div',{class:'notif-text'}, n.text),
+          el('div',{class:'notif-time'}, timeAgo(n.ts)),
+        ]),
+      ]);
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', ()=>{
+        n.read = true;
+        if(n.type === 'dm'){ openDM(n.from); }
+        else if(n.from){ viewProfile(n.from); }
+        else { render(); }
+      });
+      card.appendChild(item);
+    });
+  }
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function renderMessages(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Messages'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Direct conversations with other members.'));
+
+  if(state.user.isGuest){
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'Create an account to message people'),
+      el('p',{},'Guests can browse Majlis but need an account to send and receive direct messages.'),
+    ]));
+    return wrap;
+  }
+
+  const convos = myConversations();
+  const activeUser = state.activeDM && state.users[state.activeDM] ? state.activeDM : (convos[0] ? convos[0].other : null);
+
+  const convoList = el('div',{class:'dm-convo-list'});
+  if(!convos.length){
+    convoList.appendChild(el('div',{style:'padding:16px;'}, el('p',{class:'empty-note', style:'padding:0;'}, 'No conversations yet. Message someone from their profile or the Members page.')));
+  } else {
+    convos.forEach(c=>{
+      const person = state.users[c.other];
+      if(!person) return;
+      const preview = c.lastMsg ? ((c.lastMsg.from===state.currentUser?'You: ':'')+c.lastMsg.text) : '';
+      const item = el('div',{class:'dm-convo-item'+(c.other===activeUser?' active':''), onclick:()=>openDM(c.other)},[
+        avatarNode(person, 36),
+        el('div',{style:'min-width:0;flex:1;'},[
+          el('div',{class:'dm-convo-name'}, person.name + (hasUnreadDM(c.other) ? ' ●' : '')),
+          el('div',{class:'dm-convo-preview'}, preview),
+        ]),
+      ]);
+      convoList.appendChild(item);
+    });
+  }
+
+  const threadWrap = el('div',{class:'dm-thread'});
+  if(!activeUser || !state.users[activeUser]){
+    threadWrap.appendChild(el('div',{class:'dm-empty'}, 'Select a conversation to start chatting.'));
+  } else {
+    const person = state.users[activeUser];
+    const blockedByMe = isBlocked(activeUser);
+    const blockedByThem = isBlockedBy(activeUser);
+
+    threadWrap.appendChild(el('div',{class:'dm-thread-header'},[
+      avatarNode(person, 32),
+      el('button',{class:'user-link', onclick:()=>viewProfile(activeUser)}, person.name),
+    ]));
+
+    const msgsBox = el('div',{class:'dm-messages'});
+    const msgs = getConversation(activeUser);
+    msgs.forEach(m=>{
+      msgsBox.appendChild(el('div',{class:'dm-bubble '+(m.from===state.currentUser?'me':'them')},[
+        el('div',{}, m.text),
+        el('div',{class:'dm-bubble-time'}, timeAgo(m.ts)),
+      ]));
+    });
+    threadWrap.appendChild(msgsBox);
+
+    if(blockedByMe || blockedByThem){
+      threadWrap.appendChild(el('div',{class:'blocked-banner', style:'margin:12px 16px;'},
+        blockedByMe ? 'You\'ve blocked '+person.name+'. Unblock them to keep messaging.' : 'You can\'t message this user.'));
+    } else {
+      const textIn = el('textarea',{placeholder:'Write a message...'});
+      const sendBtn = el('button',{class:'btn', onclick:()=>{
+        sendDM(activeUser, textIn.value);
+        textIn.value = '';
+      }}, 'Send');
+      textIn.addEventListener('keydown',(e)=>{
+        if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendBtn.click(); }
+      });
+      threadWrap.appendChild(el('div',{class:'dm-input-row'},[textIn, sendBtn]));
+    }
+  }
+
+  wrap.appendChild(el('div',{class:'dm-layout'},[convoList, threadWrap]));
+  return wrap;
+}
+
+function renderWiki(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('h2',{class:'section-title'},'Knowledge Base Wiki'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Community summaries and conceptual breakdowns. Anyone can contribute an article.'));
+
+  const createCard = el('div',{class:'card'});
+  createCard.appendChild(el('h3',{},'Write an article'));
+  const titleIn = el('input',{type:'text', placeholder:'Article title (e.g. "Categorical Imperative")'});
+  const summaryIn = el('textarea',{placeholder:'One or two sentence summary shown in search results...'});
+  const bodyIn = el('textarea',{placeholder:'Full article body...', style:'min-height:160px;'});
+  createCard.appendChild(el('div',{class:'field'},[el('label',{},'Title'), titleIn]));
+  createCard.appendChild(el('div',{class:'field'},[el('label',{},'Summary'), summaryIn]));
+  createCard.appendChild(el('div',{class:'field'},[el('label',{},'Body'), bodyIn]));
+  createCard.appendChild(el('button',{class:'btn', onclick:()=>{
+    const title = titleIn.value.trim();
+    const summary = summaryIn.value.trim();
+    const body = bodyIn.value.trim();
+    if(!title || !summary || !body){ alert('Fill in title, summary, and body.'); return; }
+    if(state.wiki.find(w=>w.title.toLowerCase()===title.toLowerCase())){ alert('An article with that title already exists.'); return; }
+    state.wiki.unshift({ title, summary, body, author: state.currentUser });
+    render();
+  }},'Publish article'));
+  wrap.appendChild(createCard);
+  wrap.appendChild(el('div',{class:'divider'}));
+
+  if(!state.wiki.length){
+    wrap.appendChild(el('p',{class:'empty-note'},'No articles published yet. Be the first to contribute.'));
+    return wrap;
+  }
+
+  state.wiki.forEach(w=>{
+    const card = el('div',{class:'forum-post'});
+    card.appendChild(el('h4',{}, w.title));
+    card.appendChild(el('div',{class:'meta'}, 'by '+w.author));
+    card.appendChild(el('p',{style:'font-style:italic;color:var(--parchment-dim);'}, w.summary));
+    card.appendChild(el('p',{}, w.body));
+    wrap.appendChild(card);
+  });
+
+  return wrap;
+}
+
+/* ================= INIT ================= */
+render();
+</script>
+</body>
+</html>
+
