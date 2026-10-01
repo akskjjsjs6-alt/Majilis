@@ -1,0 +1,22 @@
+{
+  "name": "Majlis — Read, Reason, Debate",
+  "short_name": "Majlis",
+  "description": "Debate anyone, keep a reading log, and learn philosophy, politics and theology in 20 minutes a day.",
+  "start_url": "./?source=app",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#050806",
+  "theme_color": "#07090a",
+  "categories": ["education", "social"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Motion of the day", "url": "./?tab=motion", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Find a debate", "url": "./?tab=debate", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "30-day guide", "url": "./?tab=guide", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
