@@ -2022,7 +2022,7 @@ function renderPrivacy(){
       'We may update this Privacy Policy from time to time to reflect changes in our practices or for legal, operational, or regulatory reasons. Material changes will be reflected by updating the "Last updated" date above.'),
 
     section('13. Contact',
-      'Questions or requests regarding this Privacy Policy, including data access or deletion requests, can be directed through the contact details listed on this site.'),
+      'Questions or requests regarding this Privacy Policy, including data access or deletion requests, can be sent as a direct message to the site administrator on Majlis (@SafePlace2359, use the Messages page), or to the founders through the TikTok links at the bottom of every page. You can also delete your account yourself at any time from Settings.'),
 
     el('div',{class:'card'},[
       el('h3',{},'Delete account'),
@@ -2098,7 +2098,7 @@ function renderTerms(){
       'If any provision of these Terms is found to be unenforceable or invalid, that provision will be limited or eliminated to the minimum extent necessary, and the remaining provisions will remain in full force and effect.'),
 
     section('19. Contact',
-      'Questions, concerns, or requests regarding these Terms can be directed through the contact details listed on this site.'),
+      'Questions, concerns, or requests regarding these Terms can be sent as a direct message to the site administrator on Majlis (@SafePlace2359, use the Messages page), or to the founders through the TikTok links at the bottom of every page.'),
   ]);
 }
 
