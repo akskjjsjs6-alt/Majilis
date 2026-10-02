@@ -6076,3 +6076,31 @@ function renderWiki(){
   render();
   if(window.hideSplash) window.hideSplash();
 })();
+
+/* ================= SERVER CHECK =================
+   If the server can't be reached (it's paused, or the visitor is offline), say so,
+   instead of showing a site that quietly looks empty. */
+(function checkServer(){
+  function showBanner(){
+    if(document.getElementById('server-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'server-banner';
+    b.setAttribute('role', 'alert');
+    b.style.cssText = 'position:fixed;left:12px;right:12px;top:12px;z-index:99999;max-width:520px;margin:0 auto;display:flex;align-items:center;gap:12px;'
+      + 'padding:12px 14px;border-radius:12px;background:#2a1215;color:#ffd9dc;border:1px solid #6b2a30;font:14px/1.4 system-ui,sans-serif;box-shadow:0 8px 30px #0008;';
+    const t = document.createElement('span');
+    t.style.flex = '1';
+    t.textContent = 'We can\'t reach the server right now. Check your connection, then try again.';
+    const btn = document.createElement('button');
+    btn.textContent = 'Try again';
+    btn.style.cssText = 'background:#ffd9dc;color:#2a1215;border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer;';
+    btn.onclick = () => location.reload();
+    b.append(t, btn);
+    document.body.appendChild(b);
+  }
+  const hide = () => { const b = document.getElementById('server-banner'); if(b) b.remove(); };
+  fetch(SUPABASE_URL + '/auth/v1/health', { headers: { apikey: SUPABASE_ANON_KEY }, signal: AbortSignal.timeout(9000) })
+    .then(r => { if(!r.ok) showBanner(); })
+    .catch(showBanner);
+  window.addEventListener('online', hide);
+})();
