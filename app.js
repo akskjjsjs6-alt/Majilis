@@ -6041,7 +6041,7 @@ function renderWiki(){
     card.appendChild(el('h4',{}, w.title));
     card.appendChild(el('div',{class:'meta'}, 'by '+w.author));
     card.appendChild(el('p',{style:'font-style:italic;color:var(--parchment-dim);'}, w.summary));
-    card.appendChild(el('p',{}, w.body));
+    card.appendChild(el('p',{style:'white-space:pre-line;'}, w.body));
     if(w.author !== state.currentUser && state.users[w.author] && (state.user && !state.user.isGuest)){
       card.appendChild(el('button',{class:'report-link', onclick:()=>openReport(w.author, { type:'wiki', id:w.id, preview:w.title })}, [icon('flag', 13), 'Report article']));
     }
