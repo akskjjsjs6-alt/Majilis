@@ -3315,7 +3315,7 @@ const DALLAH_SVG = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" s
   + '<path d="M22 24c-6-2-12 0-14-6 5 1 8 3 11 5"/><path d="M42 26c5 0 8 4 7 9s-5 7-8 7"/><path d="M20 52h20"/>'
   + '<path d="M50 50h8l-1 5h-6z"/><path d="M4 50h8l-1 5H5z"/></svg>';
 const MAJLIS_MAX_LISTENERS = 40;
-// A new geopolitics topic every 25 minutes. Each room gets a different one.
+// A new topic every 25 minutes (see topics.js). Each room gets a different one.
 const MAJLIS_TOPIC_MS = 25 * 60000;
 const MAJLIS_TOPICS = [
   'Is the UN Security Council still fit for purpose?', 'Should the veto powers at the UN be abolished?',
@@ -3336,7 +3336,11 @@ const MAJLIS_TOPICS = [
   'Should small states pick a side between the big powers?', 'Will water be the cause of future wars?',
 ];
 function majlisTopicIndex(room){ return Math.floor(Date.now() / MAJLIS_TOPIC_MS) + ((room || 1) - 1) * 7; }
-function majlisTopic(room){ return MAJLIS_TOPICS[majlisTopicIndex(room) % MAJLIS_TOPICS.length]; }
+function majlisTopic(room){
+  // topics.js makes an endless supply; the old geopolitics list is the backup if it didn't load
+  if(window.MajlisTopics) return window.MajlisTopics.at(majlisTopicIndex(room));
+  return MAJLIS_TOPICS[majlisTopicIndex(room) % MAJLIS_TOPICS.length];
+}
 function majlisQuestion(){ return majlisTopic(1); }
 function majlisNextTopicMins(){ return Math.max(1, Math.ceil((MAJLIS_TOPIC_MS - (Date.now() % MAJLIS_TOPIC_MS)) / 60000)); }
 let majlisTopicShown = null;
