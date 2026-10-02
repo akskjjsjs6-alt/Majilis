@@ -62,8 +62,6 @@ function applyProfileRow(p){
   u.placementTaken = !!p.placement_taken;
   u.debateRank = u.placementTaken ? rankFromPoints(u.debatePoints) : null;
   u.fallacyStats = Object.assign({ adHominem:0, strawman:0, goalpostShift:0, falseEquivalency:0, total:0 }, p.fallacy_stats || {});
-  u.guildId = p.guild_id || null;
-  u.guild = (u.guildId && state.guildsById[u.guildId]) ? state.guildsById[u.guildId].name : null;
   if(p.placement_taken){
     u.compass = {
       economic: { x: p.compass_economic_x ?? 50, y: p.compass_economic_y ?? 50 },
@@ -92,7 +90,7 @@ function applyProfileRow(p){
 // wiki authors, etc. can be shown even if you've never logged in as them.
 async function loadAllProfiles(){
   try {
-    const [, { data, error }] = await Promise.all([loadGuilds(), sb.from('profiles_public').select('*')]);
+    const { data, error } = await sb.from('profiles_public').select('*');
     if(error || !data){ if(error) console.warn('loadAllProfiles failed', error); return; }
     data.forEach(applyProfileRow);
     if(state.user && !state.user.isGuest && state.users[state.currentUser]) state.user = state.users[state.currentUser];
@@ -393,8 +391,6 @@ function makeNewUserProfile(username, isGuest){
     archetype: null,
     ideologies: null,
     fallacyStats: { adHominem:0, strawman:0, goalpostShift:0, falseEquivalency:0, total:0 },
-    guild: null,
-    guildId: null,
     pagesRead: 0,
     booksFinished: 0,
     debateRank: null,
@@ -445,8 +441,6 @@ const state = {
   debateQueue: { Text: [], Audio: [], Video: [] },
   debates: {},
   forum: [],
-  guilds: [],
-  guildsById: {},
   wiki: [],
   dms: {},          // conversationKey -> { messages: [{from,text,ts}] }
   reports: [],       // only loaded for moderators
@@ -1543,7 +1537,6 @@ function computeSearchResults(query) {
     { title: 'Leaderboards', tab: 'leaderboard' },
     { title: 'Ranks Overview', tab: 'ranks' },
     { title: 'Political Compass', tab: 'compass' },
-    { title: 'Guilds', tab: 'guilds' },
     { title: 'Wiki', tab: 'wiki' },
   ];
 
@@ -1630,12 +1623,12 @@ function icon(name, size){
 const NAV_GROUPS = () => [
   ['Play', [['home','Home','home'],['motion','Motion of the day','megaphone'],['majlis','The Majlis','majlis'],['debate','Debate','debate'],['assessment','Assessment','target']]],
   ['Read', [['guide','30-day guide','scroll'],['reading','Reading','book'],['wiki','Wiki','library']]],
-  ['Community', [['forum','Forum','forum'],['members','Members','users'],['guilds','Guilds','shield'],['messages','Messages','mail'],['notifications','Notifications','bell']]],
+  ['Community', [['forum','Forum','forum'],['members','Members','users'],['messages','Messages','mail'],['notifications','Notifications','bell']]],
   ['Standings', [['leaderboard','Leaderboard','trophy'],['ranks','Ranks','ranks'],['compass','Compass','compass']]],
   ...(canModerate() ? [['Moderation', [['activity','Activity','activity'],['reports','Reports','flag']]]] : []),
 ];
 const TAB_TITLES = { motion:'Motion of the day', guide:'30-day guide', home:'Home', watch:'Watching live', majlis:'The Majlis', activity:'Activity', debate:'Debate', assessment:'Assessment', reading:'Reading', wiki:'Wiki', forum:'Forum',
-  members:'Members', guilds:'Guilds', messages:'Messages', leaderboard:'Leaderboard', ranks:'Ranks', compass:'Compass',
+  members:'Members', messages:'Messages', leaderboard:'Leaderboard', ranks:'Ranks', compass:'Compass',
   reports:'Reports', notifications:'Notifications', profile:'Profile', settings:'Settings', privacy:'Privacy', terms:'Terms' };
 
 function brandMark(){
@@ -1834,7 +1827,6 @@ function renderTab(){
     case 'ranks': return renderRanks();
     case 'leaderboard': return renderLeaderboard();
     case 'compass': return renderCompass();
-    case 'guilds': return renderGuilds();
     case 'wiki': return renderWiki();
     case 'members': return renderMembers();
     case 'messages': return renderMessages();
@@ -5270,134 +5262,6 @@ function renderCompassSection(section){
   return panel;
 }
 
-/* ================= GUILDS (stored in Supabase) ================= */
-async function loadGuilds(){
-  const { data, error } = await sb.from('guilds').select('*').order('created_at', { ascending: false });
-  if(error){ console.warn('loadGuilds failed', error); return; }
-  state.guilds = (data||[]).map(g => ({ id: g.id, name: g.name, description: g.description || '', founderId: g.founder_id }));
-  state.guildsById = {};
-  state.guilds.forEach(g => { state.guildsById[g.id] = g; });
-}
-
-function guildMembers(guildId){
-  return Object.values(state.users).filter(u=>u.guildId===guildId && !u.isGuest);
-}
-
-function guildTotals(guildId){
-  const members = guildMembers(guildId);
-  return {
-    memberCount: members.length,
-    totalReadingElo: members.reduce((s,u)=>s+(u.readingElo||0),0),
-    totalDebatePoints: members.reduce((s,u)=>s+(u.debatePoints||0),0),
-    totalPagesRead: members.reduce((s,u)=>s+(u.pagesRead||0),0),
-  };
-}
-
-function founderName(g){
-  const founder = Object.values(state.users).find(u => u.id && u.id === g.founderId);
-  return founder ? founder.name : 'a former member';
-}
-
-async function joinGuild(guildId){
-  if(state.user.isGuest){ alert('Create an account to join a guild.'); return; }
-  if(state.user.guildId === guildId) return;
-  if(state.user.guildId){
-    const { error: leaveErr } = await sb.from('guild_members').delete().eq('user_id', state.user.id);
-    if(leaveErr){ alert('Couldn\'t leave your current guild — please try again.'); return; }
-  }
-  const previous = state.user.guildId;
-  setMyGuild(guildId);
-  const { error } = await sb.from('guild_members').insert({ user_id: state.user.id, guild_id: guildId });
-  if(error){ setMyGuild(previous && !state.user.guildId ? previous : null); alert('Couldn\'t join that guild — please try again.'); return; }
-}
-
-// Update your guild on screen right away (no need to re-download everyone's profile).
-function setMyGuild(guildId){
-  state.user.guildId = guildId || null;
-  state.user.guild = guildId && state.guildsById[guildId] ? state.guildsById[guildId].name : null;
-  render();
-}
-
-async function leaveGuild(){
-  if(state.user.isGuest || !state.user.id) return;
-  const previous = state.user.guildId;
-  setMyGuild(null);
-  const { error } = await sb.from('guild_members').delete().eq('user_id', state.user.id);
-  if(error){ setMyGuild(previous); alert('Couldn\'t leave the guild — please try again.'); }
-}
-
-async function foundGuild(name, description){
-  const { data, error } = await sb.from('guilds').insert({ name, description, founder_id: state.user.id }).select().single();
-  if(error){
-    alert(error.code === '23505' ? 'That guild already exists — join it instead.' : 'Couldn\'t found that guild — please try again.');
-    return false;
-  }
-  await loadGuilds();
-  await joinGuild(data.id);
-  return true;
-}
-
-function renderGuilds(){
-  const wrap = el('div',{});
-  wrap.appendChild(el('h2',{class:'section-title'},'Guilds'));
-  wrap.appendChild(el('p',{class:'section-sub'},'Collective affinity groups pooling reading and debate metrics. Anyone can found one.'));
-
-  if(state.user.guildId && state.guildsById[state.user.guildId]){
-    const mine = state.guildsById[state.user.guildId];
-    const mineCard = el('div',{class:'card'});
-    const totals = guildTotals(mine.id);
-    mineCard.appendChild(el('h3',{}, 'Your guild: '+mine.name));
-    mineCard.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);'},
-      totals.memberCount+' members · '+totals.totalReadingElo+' combined reading Elo · '+totals.totalDebatePoints+' combined debate points · '+totals.totalPagesRead.toLocaleString()+' pages read'));
-    mineCard.appendChild(el('button',{class:'btn secondary', onclick: leaveGuild},'Leave guild'));
-    wrap.appendChild(mineCard);
-    wrap.appendChild(el('div',{class:'divider'}));
-  } else if(!state.user.isGuest){
-    const createCard = el('div',{class:'card'});
-    createCard.appendChild(el('h3',{},'Found a guild'));
-    const nameIn = draft('guild-name', el('input',{type:'text', placeholder:'Guild name', maxlength:'40'}));
-    const descIn = draft('guild-desc', el('textarea',{placeholder:'What is this guild about?', maxlength:'500'}));
-    createCard.appendChild(el('div',{class:'field'},[el('label',{},'Name'), nameIn]));
-    createCard.appendChild(el('div',{class:'field'},[el('label',{},'Description'), descIn]));
-    const foundBtn = el('button',{class:'btn', onclick: async ()=>{
-      const name = nameIn.value.trim();
-      const desc = descIn.value.trim();
-      if(name.length < 2){ alert('Give your guild a name (at least 2 characters).'); return; }
-      foundBtn.disabled = true;
-      const ok = await foundGuild(name, desc);
-      foundBtn.disabled = false;
-      if(ok){ clearDrafts('guild-name', 'guild-desc'); render(); }
-    }},'Found guild');
-    createCard.appendChild(foundBtn);
-    wrap.appendChild(createCard);
-    wrap.appendChild(el('div',{class:'divider'}));
-  } else {
-    wrap.appendChild(el('div',{class:'card'},[
-      el('p',{},'Create an account to found or join a guild.'),
-    ]));
-    wrap.appendChild(el('div',{class:'divider'}));
-  }
-
-  if(!state.guilds.length){
-    wrap.appendChild(el('p',{class:'empty-note'},'No guilds founded yet. Be the first.'));
-    return wrap;
-  }
-
-  state.guilds.forEach(g=>{
-    const totals = guildTotals(g.id);
-    const card = el('div',{class:'forum-post'});
-    card.appendChild(el('h4',{}, g.name));
-    card.appendChild(el('div',{class:'meta'}, 'Founded by '+founderName(g)+' · '+totals.memberCount+' members'));
-    if(g.description) card.appendChild(el('p',{}, g.description));
-    if(state.user.guildId !== g.id && !state.user.isGuest){
-      card.appendChild(el('button',{class:'btn secondary', style:'margin-top:8px;', onclick:()=>joinGuild(g.id)}, state.user.guildId ? 'Switch to this guild' : 'Join'));
-    }
-    wrap.appendChild(card);
-  });
-
-  return wrap;
-}
-
 function renderProfile(){
   if(state.viewingProfile && state.viewingProfile !== state.currentUser){
     return renderOtherProfile(state.viewingProfile);
@@ -5451,10 +5315,9 @@ function renderOwnProfile(){
     wrap.appendChild(el('p',{class:'bio-text', style:'margin:-18px 0 22px;'}, u.bio));
   }
 
-  const grid = el('div',{class:'grid grid-3'});
+  const grid = el('div',{class:'grid grid-2'});
   grid.appendChild(statCard('Reading Elo', u.readingElo));
   grid.appendChild(statCard('Debate Rank', u.debateRank ? '#'+u.debateRank : '—'));
-  grid.appendChild(statCard('Guild', u.guild || 'None'));
   wrap.appendChild(grid);
   wrap.appendChild(el('div',{style:'height:14px'}));
   if(u.placementTaken){
@@ -5552,8 +5415,7 @@ function renderOtherProfile(username){
   ]);
   wrap.appendChild(titleRow);
   const isPrivate = person.hiddenStats || (person.settings && person.settings.profileVisibility === 'private');
-  wrap.appendChild(el('p',{class:'section-sub'}, (isPrivate ? '' : (person.guild ? 'Guild: '+person.guild : 'No guild') + ' · ') +
-    (person.followers||[]).length + ' followers · ' + (person.following||[]).length + ' following'));
+  wrap.appendChild(el('p',{class:'section-sub'}, (person.followers||[]).length + ' followers · ' + (person.following||[]).length + ' following'));
 
   if(person.bio){
     wrap.appendChild(el('p',{class:'bio-text', style:'margin-top:-14px;margin-bottom:14px;max-width:520px;'}, person.bio));
@@ -5608,10 +5470,9 @@ function renderOtherProfile(username){
     return wrap;
   }
 
-  const grid = el('div',{class:'grid grid-3'});
+  const grid = el('div',{class:'grid grid-2'});
   grid.appendChild(statCard('Reading Elo', person.readingElo||0));
   grid.appendChild(statCard('Debate Rank', person.debateRank ? '#'+person.debateRank : '—'));
-  grid.appendChild(statCard('Guild', person.guild || 'None'));
   wrap.appendChild(grid);
   if(person.placementTaken){
     wrap.appendChild(el('div',{style:'height:14px'}));
