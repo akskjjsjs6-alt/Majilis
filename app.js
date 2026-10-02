@@ -1490,6 +1490,15 @@ function renderAuthOverlay(){
   }}, isLogin ? 'Log in' : 'Create account');
 
   card.appendChild(mainBtn);
+  if(!isLogin){
+    const goTo = (tab) => (e) => { e.preventDefault(); state.showAuth = false; navigateWithLoading(tab); };
+    card.appendChild(el('p',{style:'font-size:12px;line-height:1.5;color:var(--parchment-dim);margin:10px 0 0;text-align:center;'},[
+      'By signing up you agree to the ',
+      el('a',{href:'#', style:'color:var(--brass-bright);', onclick: goTo('rules')}, 'house rules'), ', ',
+      el('a',{href:'#', style:'color:var(--brass-bright);', onclick: goTo('terms')}, 'terms'), ' and ',
+      el('a',{href:'#', style:'color:var(--brass-bright);', onclick: goTo('privacy')}, 'privacy policy'), '.',
+    ]));
+  }
 
   const divider = el('div',{style:'display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--parchment-dim);font-size:12px;'},[
     el('div',{style:'flex:1;height:1px;background:var(--line);'}),
@@ -1629,7 +1638,7 @@ const NAV_GROUPS = () => [
 ];
 const TAB_TITLES = { motion:'Motion of the day', guide:'30-day guide', home:'Home', watch:'Watching live', majlis:'The Majlis', activity:'Activity', debate:'Debate', assessment:'Assessment', reading:'Reading', wiki:'Wiki', forum:'Forum',
   members:'Members', messages:'Messages', leaderboard:'Leaderboard', ranks:'Ranks', compass:'Compass',
-  reports:'Reports', notifications:'Notifications', profile:'Profile', settings:'Settings', privacy:'Privacy', terms:'Terms' };
+  reports:'Reports', notifications:'Notifications', profile:'Profile', settings:'Settings', privacy:'Privacy', terms:'Terms', rules:'House rules' };
 
 function brandMark(){
   const M_PATH = 'M 10,80 L 10,20 L 50,65 L 90,20 L 90,80';
@@ -1809,6 +1818,7 @@ function buildFooter(){
     founderLinks(),
     el('span', {class:'footer__links'}, [
       el('a', {onclick: () => navigateWithLoading('privacy')}, 'Privacy'),
+      el('a', {onclick: () => navigateWithLoading('rules')}, 'Rules'),
       el('a', {onclick: () => navigateWithLoading('terms')}, 'Terms'),
     ]),
   ]);
@@ -1835,6 +1845,7 @@ function renderTab(){
     case 'settings': return renderSettings();
     case 'privacy': return renderPrivacy();
     case 'terms': return renderTerms();
+    case 'rules': return renderRules();
     case 'reports': return renderReports();
     case 'majlis': return renderMajlis();
     case 'watch': return renderWatch();
@@ -2022,6 +2033,41 @@ function renderPrivacy(){
         'This permanently deletes your account, including your profile, debate history, and reading data. It cannot be undone.'),
       el('button',{class:'btn wine', onclick: deleteAccount}, 'Delete account'),
     ])
+  ]);
+}
+
+function renderRules(){
+  const section = (title, text) => el('div',{class:'card'},[
+    el('h3',{},title),
+    el('p',{style:'font-size:14px;line-height:1.6;color:var(--parchment);white-space:pre-line;'}, text),
+  ]);
+
+  return el('div',{},[
+    el('h2',{class:'section-title'},'House rules'),
+    el('p',{class:'section-sub'},'Majlis is a free place to debate. There is one rule that really matters.'),
+
+    section('The idea',
+      'Say what you think, as hard as you want. Swearing, heated arguments and unpopular opinions are all fine here. Nobody is going to take your debate away because it got loud or because someone disagreed with you.'),
+
+    section('The one line',
+      'No harassing, bullying or targeting one person.\n\nThat means no following someone around, piling on, sending them abuse again and again, or going after them for who they are. Argue with the idea, not by hounding the person. A heated exchange is a debate. A pile-on is not.'),
+
+    section('What is blocked automatically',
+      'Slurs, threats, and telling someone to die or to hurt themselves are blocked before they post. They are blocked because they are the usual tools of harassment, not because the topic is off limits. You can still argue about anything.'),
+
+    section('What happens if you cross the line',
+      'A moderator reviews the report. The first time is usually a warning. After that it can be a suspension, and repeat offenders are banned. Moderators can also remove a post or message.'),
+
+    section('How to report',
+      'Use the Report button on any post, message or profile. Reports go to the moderators and are looked at by a person.'),
+
+    section('Who to contact',
+      'Send a direct message to the site administrator on Majlis (@SafePlace2359, use the Messages page), or reach the founders through the TikTok links at the bottom of every page.'),
+
+    el('div',{class:'card'},[
+      el('p',{style:'font-size:13px;line-height:1.6;color:var(--parchment-dim);margin:0;'},
+        'These rules sit alongside our Terms and Privacy Policy. If you are under 13, please do not use Majlis.'),
+    ]),
   ]);
 }
 
