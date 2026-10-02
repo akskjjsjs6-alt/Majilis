@@ -2052,8 +2052,8 @@ function renderRules(){
     section('The one line',
       'No harassing, bullying or targeting one person.\n\nThat means no following someone around, piling on, sending them abuse again and again, or going after them for who they are. Argue with the idea, not by hounding the person. A heated exchange is a debate. A pile-on is not.'),
 
-    section('What is blocked automatically',
-      'Slurs, threats, and telling someone to die or to hurt themselves are blocked before they post. They are blocked because they are the usual tools of harassment, not because the topic is off limits. You can still argue about anything.'),
+    section('What gets flagged',
+      'Nothing is blocked before you post, and there is no list of banned words or banned opinions. The only things we look out for are threats, and telling someone to die or to hurt themselves. Those are flagged for the moderators, who review them and remove them. Everything else is allowed.'),
 
     section('What happens if you cross the line',
       'A moderator reviews the report. The first time is usually a warning. After that it can be a suspension, and repeat offenders are banned. Moderators can also remove a post or message.'),
