@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Majlis — Debate & Read</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- When you upload a new styles.css / questions.js / app.js, bump the ?v= number so browsers fetch the new copy. -->
+<meta name="theme-color" content="#07090a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Majlis">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@600&family=Poppins:wght@400;500;600;700;800&family=VT323&family=Nunito:wght@500;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@0,600;0,800;1,700;1,800&display=swap">
+<script>try { document.documentElement.setAttribute('data-theme', localStorage.getItem('majlis-theme') || 'dark'); } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }</script>
+<link rel="stylesheet" href="styles.css?v=30">
+</head>
+<body>
+<div id="splash-screen">
+  <div class="splash-ring-wrap">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="splashRingGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="blur2"/>
+          <feMerge>
+            <feMergeNode in="blur1"/>
+            <feMergeNode in="blur2"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="splashMGlow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur1"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur2"/>
+          <feMerge>
+            <feMergeNode in="blur1"/>
+            <feMergeNode in="blur2"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <circle class="splash-ring-base" cx="100" cy="100" r="85"/>
+      <circle class="splash-ring-progress" cx="100" cy="100" r="85"/>
+      <path class="splash-m-base" d="M 55,140 L 55,60 L 100,105 L 145,60 L 145,140"/>
+      <path class="splash-m-lit" d="M 55,140 L 55,60 L 100,105 L 145,60 L 145,140"/>
+    </svg>
+  </div>
+  <div class="splash-loading-text">LOADING&hellip;</div>
+</div>
+<div id="app"></div>
+<script>
+  window.__splashStart = Date.now();
+  window.hideSplash = function () {
+    var elapsed = Date.now() - window.__splashStart;
+    var wait = Math.max(0, 500 - elapsed); // small floor so the animation doesn't just flash — not an artificial multi-second wait
+    setTimeout(function () {
+      var splash = document.getElementById('splash-screen');
+      if (!splash) return;
+      document.body.classList.add('app-ready'); // reveal the app at the same moment the splash fades
+      splash.classList.add('splash-hide');
+      setTimeout(function () { splash.remove(); }, 650);
+    }, wait);
+  };
+  // Safety net: if something goes wrong and the app never signals ready, don't leave the splash stuck forever.
+  setTimeout(function () { if (document.getElementById('splash-screen')) window.hideSplash(); }, 8000);
+</script>
+<script src="questions.js?v=10"></script>
+<script src="majlis-characters.js?v=11"></script>
+<script src="guide.js?v=26"></script>
+<script src="guide-videos-a.js?v=28"></script>
+<script src="guide-videos-b.js?v=28"></script>
+<script src="guide-player.js?v=30"></script>
+<script src="extras.js?v=29"></script>
+<script src="app.js?v=28"></script>
+</body>
+</html>
