@@ -238,7 +238,7 @@
   }
   function pickVoice(){
     const vs = englishVoices();
-    if(!vs.length) return null;
+    if(!vs.length) return null;   // no English voice: the caller falls back to the device's default voice
     const want = LS.get('majlis-guide-voice', '');
     return vs.find(v => v.voiceURI === want) || vs.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
   }
@@ -269,90 +269,6 @@
     };
   }
 
-  /* ---------- narration from an audio file (e.g. an AI voice) ----------
-     Put audio/day-01.mp3 … audio/day-30.mp3 next to index.html and the player uses them automatically.
-     It lines the animation up with the recording by finding the pauses between sentences.
-     For exact timing, an optional audio/day-01.json can list when each sentence starts: {"sentences":[0,2.4,5.1,…]} */
-  function loadBytes(url){
-    return new Promise(res => {
-      try {
-        const x = new XMLHttpRequest();
-        x.open('GET', url); x.responseType = 'arraybuffer';
-        x.onload = () => res((x.status === 200 || (x.status === 0 && x.response && x.response.byteLength)) ? x.response : null);
-        x.onerror = () => res(null);
-        x.send();
-      } catch(e){ res(null); }
-    });
-  }
-  const audioCache = {};
-  function loadLessonAudio(day){
-    if(audioCache[day]) return audioCache[day];
-    const n = String(day).padStart(2, '0');
-    return (audioCache[day] = (async () => {
-      let bytes = null, type = 'audio/mpeg';
-      for(const [ext, t] of [['mp3', 'audio/mpeg'], ['m4a', 'audio/mp4'], ['wav', 'audio/wav']]){
-        bytes = await loadBytes('audio/day-' + n + '.' + ext); if(bytes && bytes.byteLength > 1000){ type = t; break; } bytes = null;
-      }
-      if(!bytes) return null;
-      let marks = null;
-      const j = await loadBytes('audio/day-' + n + '.json');
-      if(j){ try { const o = JSON.parse(new TextDecoder().decode(j)); if(Array.isArray(o.sentences)) marks = o.sentences.map(Number); } catch(e){} }
-      // loudness every 20 ms, for finding pauses and moving the mouth
-      let env = null, duration = 0;
-      try {
-        const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-        const buf = await new Ctx(1, 44100, 44100).decodeAudioData(bytes.slice(0));
-        duration = buf.duration;
-        const data = buf.getChannelData(0), hop = Math.round(buf.sampleRate * .02);
-        env = new Float32Array(Math.ceil(data.length / hop));
-        for(let f = 0; f < env.length; f++){ let sum = 0; const a = f * hop, z = Math.min(data.length, a + hop); for(let k = a; k < z; k++) sum += data[k] * data[k]; env[f] = Math.sqrt(sum / Math.max(1, z - a)); }
-      } catch(e){ env = null; }
-      return { url: URL.createObjectURL(new Blob([bytes], { type })), marks, env, duration };
-    })());
-  }
-  function speechLevel(env){
-    const v = Array.from(env).filter(x => x > 1e-4).sort((a, b) => a - b);
-    if(!v.length) return .01;
-    return Math.max(v[Math.floor(v.length * .15)] * 2.2, v[Math.floor(v.length * .7)] * .18);
-  }
-  // sentence start times: from the .json if there is one, else snap word-count guesses to the real pauses
-  function alignSentences(A, sentences){
-    const n = sentences.length;
-    if(A.marks && A.marks.length >= n) return A.marks.slice(0, n);
-    const dur = A.duration || 1;
-    if(!A.env) return sentences.reduce((acc, s, k) => (acc.push(k ? acc[k - 1] + 0 : 0), acc), []).map((_, k) => dur * k / n);
-    const env = A.env, th = speechLevel(env), fps = 50;
-    let first = 0, last = env.length - 1;
-    while(first < env.length && env[first] < th) first++;
-    while(last > 0 && env[last] < th) last--;
-    const gaps = [];   // pauses of 150 ms or more
-    for(let f = first, g = -1; f <= last; f++){
-      if(env[f] < th){ if(g < 0) g = f; }
-      else if(g >= 0){ if(f - g >= 8) gaps.push({ t: (g + f) / 2 / fps, end: f / fps, len: (f - g) / fps }); g = -1; }
-    }
-    const w = sentences.map(s => words(s) + 1.2), W = w.reduce((a, b) => a + b, 0);
-    const t0 = first / fps, t1 = (last + 1) / fps;
-    const out = [Math.max(0, t0 - .05)];
-    let acc = 0, gi = 0;
-    for(let k = 1; k < n; k++){
-      acc += w[k - 1];
-      const guess = t0 + (t1 - t0) * acc / W;
-      const prev = out[k - 1];
-      let best = null, bestScore = Infinity;
-      for(let g = gi; g < gaps.length; g++){
-        const gp = gaps[g];
-        if(gp.t <= prev + .4) continue;
-        const d = Math.abs(gp.t - guess);
-        if(d > Math.max(2.5, (t1 - t0) * .06)) { if(gp.t > guess) break; continue; }
-        const score = d - gp.len * 1.5;
-        if(score < bestScore){ bestScore = score; best = g; }
-      }
-      if(best != null){ out.push(Math.max(prev + .3, gaps[best].end - .08)); gi = best + 1; }
-      else out.push(Math.max(prev + .3, guess));
-    }
-    return out;
-  }
-
   /* ---------- the player ---------- */
   let current = null;   // only one lesson plays at a time
 
@@ -370,11 +286,6 @@
       boundaryWord: -1, beatStart: 0, lastFrame: 0, flapAt: 0, mouth: false, p: 0,
       speed: Number(LS.get('majlis-guide-speed', '1')) || 1, muted: LS.get('majlis-guide-muted', '0') === '1',
       cc: LS.get('majlis-guide-cc', '1') !== '0', voice: null, started: false };
-
-    // audio-file mode
-    const A = { state: 'loading', el: null, starts: null, sentIdx: [], th: .01, lastJ: -1 };
-    const allSent = [];   // every caption sentence in the lesson, in order
-    beats.forEach((b, bi) => { const c = (function(){ const shown = splitSentences(b.text), spoken = splitSentences(b.say || b.text); return shown.length === spoken.length ? shown : spoken; })(); c.forEach((t, k) => allSent.push({ beat: bi, k, text: t })); });
 
     const root = document.createElement('div');
     root.className = 'gv';
@@ -423,14 +334,14 @@
     function fmt(s){ s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 
     function fillVoices(){
-      if(A.state === 'ready') return;
       const vs = englishVoices();
       S.voice = pickVoice();
       voiceSel.innerHTML = '';
       if(!synth || !vs.length){
         voiceSel.disabled = true;
-        voiceSel.appendChild(new Option('No voices on this device', ''));
-        note.textContent = synth ? 'Your device has no English voice installed, so the video plays with captions.' : 'This browser can\'t read aloud, so the video plays with captions.';
+        voiceSel.appendChild(new Option('', ''));
+        voiceSel.options[0].text = synth ? 'Device default voice' : 'No voice available';
+        note.textContent = synth ? '' : 'This browser can\'t read aloud, so the video plays with captions.';
         return;
       }
       voiceSel.disabled = false; note.textContent = '';
@@ -536,7 +447,7 @@
     /* ----- narration ----- */
     function clearTimers(){ clearTimeout(S.timer); clearTimeout(S.watchdog); S.timer = S.watchdog = null; }
     function stopSpeech(){ S.token++; S.talking = false; clearTimers(); if(synth){ try { synth.cancel(); } catch(e){} } }
-    function useVoice(){ return !!(synth && !S.muted && englishVoices().length); }
+    function useVoice(){ return !!(synth && !S.muted); }
 
     function runSentence(){
       const b = beats[S.i];
@@ -549,7 +460,8 @@
       const done = () => { if(my !== S.token || !S.playing) return; clearTimers(); S.talking = false; S.sent++; S.timer = setTimeout(runSentence, 160); };
       if(useVoice()){
         const u = new SpeechSynthesisUtterance(line);
-        if(S.voice){ u.voice = S.voice; u.lang = S.voice.lang; } else u.lang = 'en-GB';
+        if(!S.voice) S.voice = pickVoice();   // voices can load after the player is built
+        if(S.voice){ u.voice = S.voice; u.lang = S.voice.lang; }   // else: the device's default voice
         u.rate = Math.min(2, Math.max(.5, 0.98 * S.speed)); u.pitch = 1; u.volume = 1;
         u.onstart = () => { if(my === S.token) S.sentStart = performance.now(); };
         u.onboundary = (e) => { if(my !== S.token || !e || e.name === 'sentence') return; S.boundaryWord = words(line.slice(0, (e.charIndex || 0) + 1)); };
@@ -566,7 +478,6 @@
       go(S.i + 1, true);
     }
     function finish(){
-      if(fileMode() && A.el) A.el.pause();
       stopSpeech();
       S.playing = false; S.ended = true;
       applyProgress(1); setProgressBar(1); paintCaption(1);
@@ -574,16 +485,6 @@
       if(typeof opts.onEnd === 'function') opts.onEnd();
     }
     function go(i, keepPlaying){
-      if(fileMode()){
-        const target = clamp(i, 0, beats.length - 1);
-        const animate = S.started && target !== S.i;
-        A.el.currentTime = Math.max(0, beatStartTime(target) - .02);
-        S.i = target; S.sent = 0; S.ended = false; A.lastJ = -1;
-        showBeat(S.i, animate);
-        if(!S.playing) applyProgress(S.started ? 1 : 0);
-        paintCaption(0); setProgressBar(); paintButtons();
-        return;
-      }
       stopSpeech();
       const target = clamp(i, 0, beats.length - 1);
       const animate = S.started && target !== S.i;
@@ -597,11 +498,8 @@
     function restartSentence(){ stopSpeech(); if(S.playing) runSentence(); }
 
     function play(){
-      if(A.state === 'loading'){ A.waiting = true; root.classList.add('is-loading'); return; }
-      root.classList.remove('is-loading');
       if(current && current !== api) current.pause();
       current = api;
-      if(fileMode()) return playFile();
       if(S.ended){ S.ended = false; S.started = true; go(0, false); }
       const first = !S.started;
       S.started = true;
@@ -613,22 +511,7 @@
       S.lastFrame = performance.now();
       requestAnimationFrame(loop);
     }
-    function playFile(){
-      const first = !S.started;
-      if(S.ended){ S.ended = false; A.el.currentTime = 0; S.i = -1; }
-      S.started = true; S.playing = true;
-      if(synth){ try { synth.cancel(); } catch(e){} }
-      if(first){ showBeat(0, false); setHost('walk', 'happy'); hostEl.classList.add('is-walkin'); setTimeout(() => hostEl.classList.remove('is-walkin'), 1300); }
-      A.el.playbackRate = S.speed; A.el.muted = S.muted;
-      const go = () => { const pr = A.el.play(); if(pr && pr.catch) pr.catch(() => { S.playing = false; paintButtons(); }); };
-      if(first) setTimeout(() => { if(S.playing) go(); }, 450); else go();
-      paintButtons();
-      S.lastFrame = performance.now();
-      requestAnimationFrame(loop);
-    }
     function pause(){
-      if(fileMode() && A.el) A.el.pause();
-      A.waiting = false; root.classList.remove('is-loading');
       if(!S.playing) return;
       S.playing = false;
       stopSpeech();
@@ -664,40 +547,15 @@
       now = now || performance.now();
       const dt = Math.min(.1, (now - S.lastFrame) / 1000); S.lastFrame = now;
       let p, sentFrac;
-      if(fileMode()){
-        const t = A.el.currentTime;
-        let j = 0; for(let k = 0; k < A.starts.length; k++){ if(A.starts[k] <= t + .01) j = k; else break; }
-        const sj = allSent[j];
-        if(sj.beat !== S.i){ const animate = S.started; S.i = sj.beat; showBeat(S.i, animate); }
-        S.sent = sj.k;
-        const tEnd = j + 1 < A.starts.length ? A.starts[j + 1] : audioTotal();
-        sentFrac = clamp((t - A.starts[j]) / Math.max(.2, tEnd - A.starts[j] - .25), 0, 1);
-        const mine = allSent.filter(x => x.beat === S.i);
-        const all = mine.reduce((n, x) => n + words(x.text), 0) || 1;
-        const before = mine.filter(x => x.k < sj.k).reduce((n, x) => n + words(x.text), 0);
-        p = clamp((before + sentFrac * words(sj.text)) / all, 0, 1);
-        // mouth follows the real loudness of the voice
-        const f = A.env ? A.env[Math.min(A.env.length - 1, Math.floor(t * 50))] : 1;
-        S.talking = !A.el.paused && !S.muted ? f > A.th : (!A.el.paused && sentFrac < .95);
-        S.mouth = S.talking && (f > A.th * 2.2 || ((now / 110) | 0) % 2 === 0);
-        const T = audioTotal();
-        fill.style.width = (t / T * 100).toFixed(2) + '%';
-        timeEl.textContent = fmt(t) + ' / ' + fmt(T);
-        applyProgress(Math.max(S.p, p));
-        paintCaption(sentFrac);
-      } else {
-        ({ p, sentFrac } = beatFraction());
-        applyProgress(Math.max(S.p, p));
-        paintCaption(sentFrac);
-        setProgressBar();
-      }
+      ({ p, sentFrac } = beatFraction());
+      applyProgress(Math.max(S.p, p));
+      paintCaption(sentFrac);
+      setProgressBar();
       // host: second pose halfway, mouth flaps while talking
       const H = HOST[beats[S.i].type] || ['stand', 'stand', 'happy'];
       if(!hostEl.classList.contains('is-walkin')) setHost(S.p > .5 ? H[1] : H[0], H[2]);
-      if(!fileMode()){
-        if(S.talking && now > S.flapAt){ S.mouth = !S.mouth; S.flapAt = now + (S.mouth ? 90 + Math.random() * 90 : 70 + Math.random() * 70); }
-        if(!S.talking) S.mouth = false;
-      }
+      if(S.talking && now > S.flapAt){ S.mouth = !S.mouth; S.flapAt = now + (S.mouth ? 90 + Math.random() * 90 : 70 + Math.random() * 70); }
+      if(!S.talking) S.mouth = false;
       // on a thinker scene the thinker takes over the talking once their speech bubble is up
       const guestTalks = beats[S.i].type === 'thinker' && S.p >= .28;
       hostEl.classList.toggle('is-talking', S.mouth && !guestTalks);
@@ -717,11 +575,11 @@
       if(!b || !root.contains(b) || canvas.contains(b)) return;
       const a = b.dataset.act;
       if(a === 'toggle'){ S.playing ? pause() : play(); }
-      else if(a === 'prev'){ S.started = true; go(S.playing && (S.sent > 0 || (fileMode() && A.el.currentTime - beatStartTime(S.i) > 1.5)) ? S.i : S.i - 1, true); }
+      else if(a === 'prev'){ S.started = true; go(S.playing && S.sent > 0 ? S.i : S.i - 1, true); }
       else if(a === 'next'){ S.started = true; go(S.i + 1, true); }
-      else if(a === 'mute'){ S.muted = !S.muted; LS.set('majlis-guide-muted', S.muted ? '1' : '0'); if(fileMode()) A.el.muted = S.muted; else restartSentence(); }
+      else if(a === 'mute'){ S.muted = !S.muted; LS.set('majlis-guide-muted', S.muted ? '1' : '0'); restartSentence(); }
       else if(a === 'cc'){ S.cc = !S.cc; LS.set('majlis-guide-cc', S.cc ? '1' : '0'); }
-      else if(a === 'speed'){ const L = [1, 1.15, 1.3, 1.5, 0.85]; S.speed = L[(L.indexOf(S.speed) + 1) % L.length] || 1; LS.set('majlis-guide-speed', String(S.speed)); if(fileMode()) A.el.playbackRate = S.speed; else restartSentence(); }
+      else if(a === 'speed'){ const L = [1, 1.15, 1.3, 1.5, 0.85]; S.speed = L[(L.indexOf(S.speed) + 1) % L.length] || 1; LS.set('majlis-guide-speed', String(S.speed)); restartSentence(); }
       else if(a === 'full'){
         if(document.fullscreenElement){ document.exitFullscreen && document.exitFullscreen(); }
         else if(stage.requestFullscreen) stage.requestFullscreen().catch(() => root.classList.toggle('is-theatre'));
@@ -742,48 +600,18 @@
     const track = $('.gv-track');
     track.addEventListener('click', e => {
       const r = track.getBoundingClientRect();
-      if(fileMode()){
-        const t = clamp((e.clientX - r.left) / r.width, 0, 1) * audioTotal();
-        let k = 0; beats.forEach((_, j) => { if(t >= beatStartTime(j)) k = j; });
-        S.started = true; go(k, true); A.el.currentTime = t; return;
-      }
       const t = (e.clientX - r.left) / r.width * total;
       let k = 0; starts.forEach((s, j) => { if(t >= s) k = j; });
       S.started = true; go(k, true);
     });
-
-    loadLessonAudio(lesson.day).then(file => {
-      if(!file){ A.state = 'none'; if(A.waiting){ A.waiting = false; play(); } return; }
-      A.el = new Audio(file.url); A.el.preload = 'auto';
-      A.starts = alignSentences(file, allSent.map(x => x.text));
-      A.env = file.env; A.th = file.env ? speechLevel(file.env) : .01;
-      A.duration = file.duration || 0;
-      A.el.addEventListener('loadedmetadata', () => { if(!A.duration) A.duration = A.el.duration; paintTicks(); });
-      A.el.addEventListener('ended', () => { if(A.state === 'ready' && S.playing) finish(); });
-      A.state = 'ready';
-      root.classList.add('has-file-voice');
-      voiceSel.closest('label').hidden = true;
-      note.textContent = 'Narrated by Majlis';
-      paintTicks();
-      if(A.waiting){ A.waiting = false; play(); }
-    });
-    const fileMode = () => A.state === 'ready';
-    function audioTotal(){ return fileMode() ? (A.duration || A.el.duration || total) : total; }
-    function beatStartTime(i){ const j = allSent.findIndex(x => x.beat === i); return j >= 0 ? A.starts[j] : 0; }
-    function paintTicks(){
-      if(!fileMode()) return;
-      const T = audioTotal();
-      $('.gv-track').querySelectorAll('i').forEach((t, k) => { t.style.left = (beatStartTime(k) / T * 100).toFixed(2) + '%'; });
-      timeEl.textContent = fmt(A.el.currentTime || 0) + ' / ' + fmt(T);
-    }
 
     // poster: the title scene, fully shown, behind the big play button
     showBeat(0, false); applyProgress(1); paintCaption(0); paintButtons();
     setTimeout(() => fx.draw(0, 0), 0);
 
     const api = { el: root, day: lesson.day, play, pause, go,
-      get state(){ return { i: S.i, playing: S.playing, ended: S.ended, beats: beats.length, total, p: S.p, voice: A.state === 'ready' ? 'file' : A.state === 'loading' ? 'loading' : 'browser', starts: A.starts }; },
-      destroy(){ pause(); stopSpeech(); if(A.el){ A.el.pause(); } if(current === api) current = null; } };
+      get state(){ return { i: S.i, playing: S.playing, ended: S.ended, beats: beats.length, total, p: S.p, voice: 'browser' }; },
+      destroy(){ pause(); stopSpeech(); if(current === api) current = null; } };
     root._gv = api;
     return api;
   }

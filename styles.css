@@ -2030,7 +2030,5 @@ footer a.footer__founder:hover { color: var(--neon); border-bottom-color: var(--
   .gv-world { transform: none !important; }
   .gv-scene.is-entering, .gv-scene.is-leaving, .gv-host__inner, .gv-wipe.is-go, .gv-grid, .gv-blob, .gv-qmark, .gv-orbit span, .gv-confetti i { animation: none !important; }
 }
-.gv.is-loading .gv-bigplay__btn { animation: gvSpin 1s linear infinite; }
-.gv.is-loading .gv-bigplay__lbl::after { content: ' · loading voice…'; }
 @keyframes gvSpin { to { transform: rotate(360deg); } }
 .gv-voice-lbl[hidden] { display: none; }
