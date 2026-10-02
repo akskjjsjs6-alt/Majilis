@@ -1445,6 +1445,14 @@ function renderAuthOverlay(){
     strengthWrap,
   ]));
 
+  const ageBox = el('input',{type:'checkbox', id:'auth-age', style:'margin:3px 8px 0 0;flex:none;', onchange:(e)=>{ state.ageConfirmed = !!e.target.checked; }});
+  ageBox.checked = !!state.ageConfirmed;
+  if(!isLogin){
+    card.appendChild(el('label',{for:'auth-age', style:'display:flex;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--parchment);margin:2px 0 12px;cursor:pointer;'},[
+      ageBox, 'I am 16 years old or older.',
+    ]));
+  }
+
   const errorBox = el('div',{style:'color:var(--wine);font-size:13px;margin-bottom:10px;min-height:16px;'});
   card.appendChild(errorBox);
 
@@ -1466,6 +1474,7 @@ function renderAuthOverlay(){
     // Signup flow
     const uErr = usernameError(u);
     if(uErr){ errorBox.textContent = uErr; return; }
+    if(!ageBox.checked){ errorBox.textContent = 'You must be 16 or older to create an account.'; return; }
     const pwErr = passwordProblem(p, u, em);
     if(pwErr){ errorBox.textContent = pwErr; return; }
 
@@ -1515,6 +1524,7 @@ function renderAuthOverlay(){
     await sb.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: window.location.origin + window.location.pathname } });
   }}, 'Discord'));
   card.appendChild(oauthRow);
+  card.appendChild(el('p',{style:'font-size:12px;line-height:1.5;color:var(--parchment-dim);margin:10px 0 0;text-align:center;'}, 'By continuing with Google or Discord, you confirm you are 16 or older.'));
 
   box.appendChild(card);
   box.appendChild(el('div',{style:'text-align:center;margin-top:16px;font-size:13px;color:var(--parchment-dim);'},[
@@ -2012,8 +2022,8 @@ function renderPrivacy(){
     section('8. Cookies & Local Storage',
       'Majlis uses browser local storage, not third-party tracking cookies, to keep you signed in and remember interface preferences such as light/dark mode. We do not use this data to track you across other websites.'),
 
-    section('9. Children\'s Privacy',
-      'Majlis is not directed at children under the age of 13 (or the minimum age required by your local law), and we do not knowingly collect personal information from children below that age.'),
+    section('9. Minimum Age',
+      'You must be at least 16 years old to use Majlis (or older, if your local law requires a higher minimum age). Majlis is not directed at anyone under 16, and we do not knowingly collect personal information from anyone below that age. If you are under 16, please do not create an account. If we learn that someone under 16 has an account, we will remove it.'),
 
     section('10. International Users',
       'If you access the Service from outside the region in which it is hosted, you understand that your information may be transferred to, stored, and processed in a different jurisdiction, which may have data protection laws that differ from those in your own.'),
@@ -2066,7 +2076,7 @@ function renderRules(){
 
     el('div',{class:'card'},[
       el('p',{style:'font-size:13px;line-height:1.6;color:var(--parchment-dim);margin:0;'},
-        'These rules sit alongside our Terms and Privacy Policy. If you are under 13, please do not use Majlis.'),
+        'These rules sit alongside our Terms and Privacy Policy. You must be 16 or older to use Majlis.'),
     ]),
   ]);
 }
@@ -2085,7 +2095,7 @@ function renderTerms(){
       'By creating an account or otherwise accessing or using Majlis ("the Service"), you agree to be bound by these Terms & Conditions ("Terms") and our Privacy Policy. If you do not agree to these Terms, you may not access or use the Service.'),
 
     section('2. Eligibility',
-      'You must be able to form a legally binding contract in your jurisdiction to use the Service. By using Majlis, you represent that you meet this requirement. If you are using Majlis on behalf of a minor or another individual, you are responsible for ensuring their compliance with these Terms.'),
+      'You must be at least 16 years old to use the Service, and you must be able to form a legally binding contract in your jurisdiction. By using Majlis, you represent that you meet this requirement. If you are using Majlis on behalf of a minor or another individual, you are responsible for ensuring their compliance with these Terms.'),
 
     section('3. Accounts & Registration',
       'To access certain features, you must create an account with a valid email address and confirm your email address. You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account. You agree to provide accurate information and to promptly update it if it changes. You agree not to impersonate any person or entity or misrepresent your affiliation with any person or entity.'),
