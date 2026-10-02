@@ -147,8 +147,9 @@ a { color: inherit; text-decoration: none; }
 .acct:hover, .acct.active { background: var(--surface-2); }
 .acct__who { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .acct__name { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.acct__sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-.acct__actions { display: flex; gap: 4px; }
+.acct__sub { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; }
+.acct__sub > span { white-space: nowrap; }
+.acct__actions { display: flex; gap: 4px; flex: none; }
 .acct__actions .icon-btn { width: 32px; height: 32px; border-color: transparent; }
 .sidebar__account:has(.sidebar__guest) { flex-direction: column; align-items: stretch; }
 .sidebar__guest { font-size: 12.5px; color: var(--muted); margin: 0 4px 10px; line-height: 1.45; }
@@ -1566,7 +1567,7 @@ footer a.footer__founder:hover { color: var(--neon); border-bottom-color: var(--
   background: var(--surface-2); border: 1px solid var(--line); margin-left: 6px; vertical-align: middle; line-height: 1.5; }
 .streak-chip .ico { display: inline-flex; }
 .streak-chip.is-lit { color: #ff9a3c; border-color: #ff9a3c66; background: #ff9a3c1a; }
-.acct__sub .streak-chip { font-size: 10.5px; margin-left: 5px; }
+.acct__sub .streak-chip { font-size: 10.5px; margin-left: 0; }
 .topbar__streak { background: none; border: 0; padding: 0 2px; cursor: pointer; display: inline-flex; align-items: center; }
 .topbar__streak .streak-chip { margin: 0; font-size: 12.5px; }
 

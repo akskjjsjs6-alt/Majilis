@@ -1342,6 +1342,24 @@ function passwordStrength(p){
   return { idx, pct: Math.round((idx/5)*100), ...levels[idx] };
 }
 
+// The password test for new accounts. Returns what's wrong with the password, or null if it passes.
+const COMMON_PASSWORDS = ['password', 'passw0rd', 'qwerty', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm', 'letmein', 'welcome', 'iloveyou', 'admin', 'monkey', 'dragon', 'football',
+  'baseball', 'abc123', '123456', '12345678', '123456789', '1234567890', '111111', '000000', 'login', 'princess', 'sunshine', 'master', 'shadow', 'superman', 'whatever', 'majlis'];
+function passwordProblem(p, username, email){
+  if(!p || p.length < 10) return 'Use at least 10 characters.';
+  const low = p.toLowerCase();
+  const plain = low.replace(/[^a-z0-9]/g, '');
+  if(COMMON_PASSWORDS.some(w => plain === w || (plain.length <= w.length + 3 && plain.includes(w)))) return 'That password is too common. Try a few unrelated words.';
+  if(/^(.)\1+$/.test(p)) return 'Don\'t repeat one character.';
+  if(new Set(low.split('')).size < 5) return 'Mix in more different characters.';
+  const u = String(username || '').toLowerCase(), mail = String(email || '').toLowerCase().split('@')[0];
+  if(u.length >= 3 && low.includes(u)) return 'Don\'t put your username in your password.';
+  if(mail.length >= 4 && low.includes(mail)) return 'Don\'t put your email in your password.';
+  const kinds = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter(r => r.test(p)).length;
+  if(p.length < 16 && kinds < 3) return 'Add capitals, numbers or symbols, or make it longer (16+ characters).';
+  return null;
+}
+
 // Everything that needs to happen once someone is signed in (password, signup, or OAuth redirect).
 async function afterSignIn(authUser){
   // Your own profile and everyone else's load at the same time.
@@ -1386,7 +1404,7 @@ function renderAuthOverlay(){
   // draft() keeps what you've typed if the page re-renders behind the dialog (e.g. a new forum post arrives).
   const userIn = draft('auth-username', el('input',{type:'text', placeholder:'e.g. sam_reads', maxlength:'20', autocomplete:'username'}));
   const emailIn = draft('auth-email', el('input',{type:'email', placeholder:'you@example.com', autocomplete:'email'}));
-  const passIn = draft('auth-password', el('input',{type: state.showPassword ? 'text' : 'password', placeholder: isLogin ? 'Password' : 'At least 8 characters', autocomplete: isLogin ? 'current-password' : 'new-password'}));
+  const passIn = draft('auth-password', el('input',{type: state.showPassword ? 'text' : 'password', placeholder: isLogin ? 'Password' : 'At least 10 characters', autocomplete: isLogin ? 'current-password' : 'new-password'}));
   const passToggle = el('button', {class: 'pw-toggle', onclick: () => {
     state.showPassword = !state.showPassword;
     passIn.type = state.showPassword ? 'text' : 'password';
@@ -1421,8 +1439,9 @@ function renderAuthOverlay(){
         seg.classList.toggle('filled', i < s.idx);
         seg.style.setProperty('--seg-color', s.color);
       });
-      strengthLabel.textContent = s.label;
-      strengthLabel.style.color = s.color;
+      const problem = passwordProblem(passIn.value, userIn.value, emailIn.value);
+      strengthLabel.textContent = !passIn.value ? '' : problem ? s.label + ' · ' + problem : s.label + ' · Looks good';
+      strengthLabel.style.color = problem && passIn.value ? 'var(--wine)' : s.color;
     });
   }
 
@@ -1453,7 +1472,8 @@ function renderAuthOverlay(){
     // Signup flow
     const uErr = usernameError(u);
     if(uErr){ errorBox.textContent = uErr; return; }
-    if(p.length < 8){ errorBox.textContent = 'Password must be at least 8 characters.'; return; }
+    const pwErr = passwordProblem(p, u, em);
+    if(pwErr){ errorBox.textContent = pwErr; return; }
 
     mainBtn.disabled = true; mainBtn.textContent = 'Creating account...';
     const { data: taken } = await sb.from('profiles_public').select('username').ilike('username', u).maybeSingle();
@@ -1691,7 +1711,7 @@ function buildMobileNav(){
       avatarNode(u, 36),
       el('span',{class:'acct__who'},[
         el('span',{class:'acct__name'}, u.name),
-        el('span',{class:'acct__sub'}, [(u.debateRank ? 'Rank '+u.debateRank : 'Unranked') + ' · Elo ' + (u.readingElo || 0), streakChip()]),
+        el('span',{class:'acct__sub'}, [el('span',{}, (u.debateRank ? 'Rank '+u.debateRank : 'Unranked')), el('span',{}, 'Elo ' + (u.readingElo || 0)), streakChip()]),
       ]),
     ]));
     acct.appendChild(el('div',{class:'acct__actions'},[
