@@ -4,8 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Majlis — Debate & Read</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js"></script>
+<script>if (!window.supabase) { document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"><\/script>'); }</script>
 <!-- When you upload a new styles.css / questions.js / app.js, bump the ?v= number so browsers fetch the new copy. -->
+<meta name="description" content="Debate anyone, keep a reading log, and learn philosophy, politics and theology in 20 minutes a day. Free, open and built for real arguments.">
+<link rel="canonical" href="https://akskjjsjs6-alt.github.io/Majilis/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Majlis">
+<meta property="og:title" content="Majlis: Read, Reason, Debate">
+<meta property="og:description" content="Debate anyone, keep a reading log, and learn philosophy, politics and theology in 20 minutes a day.">
+<meta property="og:url" content="https://akskjjsjs6-alt.github.io/Majilis/">
+<meta property="og:image" content="https://akskjjsjs6-alt.github.io/Majilis/icons/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Majlis: Read, Reason, Debate">
+<meta name="twitter:description" content="Debate anyone, keep a reading log, and learn philosophy, politics and theology in 20 minutes a day.">
+<meta name="twitter:image" content="https://akskjjsjs6-alt.github.io/Majilis/icons/icon-512.png">
 <meta name="theme-color" content="#07090a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/favicon-64.png">
@@ -75,8 +88,16 @@
 <script src="guide-videos-a.js?v=28"></script>
 <script src="guide-videos-b.js?v=28"></script>
 <script src="guide-player.js?v=31"></script>
+<script>
+  // If the sign-in library couldn't load from either source (offline, blocked network), say so instead of a blank page.
+  if (!window.supabase) {
+    window.hideSplash = function () {};
+    var sp = document.getElementById('splash-screen');
+    if (sp) sp.innerHTML = '<div style="max-width:340px;margin:auto;padding:24px;text-align:center;font-family:system-ui,sans-serif;color:#e8efe9"><h2 style="margin:0 0 10px">Majlis can\'t load right now</h2><p style="opacity:.75;line-height:1.5;margin:0 0 18px">Check your internet connection, then try again. If it keeps happening, a network filter may be blocking the site.</p><button onclick="location.reload()" style="background:#00ff66;color:#031;border:0;border-radius:10px;padding:12px 20px;font-weight:700;font-size:15px;cursor:pointer">Try again</button></div>';
+  }
+</script>
 <script src="topics.js?v=1"></script>
 <script src="extras.js?v=29"></script>
-<script src="app.js?v=30"></script>
+<script src="app.js?v=31"></script>
 </body>
 </html>
