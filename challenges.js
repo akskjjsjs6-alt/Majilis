@@ -11,7 +11,13 @@
   const CH = { list: [], at: 0, loading: false, error: '' };
   const REC = {};   // user id -> { ready, loading, at, wins, losses, form, h2h }
 
-  const idName = (id) => { try { return idToUsernameMap()[id] || null; } catch(e){ return null; } };
+  let nameCache = null, nameCacheAt = 0;   // the id->name map is rebuilt at most once a second, not once per row
+  const idName = (id) => {
+    try {
+      if(!nameCache || Date.now() - nameCacheAt > 1000){ nameCache = idToUsernameMap(); nameCacheAt = Date.now(); }
+      return nameCache[id] || null;
+    } catch(e){ return null; }
+  };
   const wrapText = (t) => (window.MajlisFilters ? MajlisFilters.wrap(t) : t);
   const randomTopic = () => (window.MajlisTopics ? MajlisTopics.at(Math.floor(Math.random() * 1e9)) : 'Is a hot dog a sandwich?');
   const isGuest = () => !state.user || state.user.isGuest || !state.user.id;
@@ -71,7 +77,7 @@
     const { data, error } = await sb.from('challenges').select('*').order('created_at', { ascending: false }).limit(200);
     CH.loading = false; CH.at = Date.now();
     CH.error = error ? 'Couldn\'t load challenges right now.' : '';
-    CH.list = data || [];
+    CH.list = Array.isArray(data) ? data : [];
     // a challenge may come from someone who joined after this page loaded
     if(CH.list.some(c => !idName(c.challenger_id)) && typeof loadAllProfiles === 'function') await loadAllProfiles();
     if(state.tab === 'challenges') render();
