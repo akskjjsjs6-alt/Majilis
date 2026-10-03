@@ -4797,7 +4797,7 @@ function renderChatMessages(log, debate){
     const mine = m.author === state.currentUser;
     log.appendChild(el('div',{class:'msg '+(mine?'me':'them'), style: m.pending ? 'opacity:0.6;' : ''},[
       el('span',{class:'tag'}, m.author),
-      m.text
+      (window.MajlisFilters ? MajlisFilters.wrap(m.text) : m.text)
     ]));
   });
   if(debate._rivalTyping){
@@ -4922,7 +4922,7 @@ function renderThreadDetail(p){
   const box = el('div',{class:'thread-detail'});
   box.appendChild(el('h3',{style:'margin:0;'}, p.title));
   box.appendChild(el('div',{class:'meta'}, nameWithTag(p.author, '', ' · '+timeAgo(p.createdAt)+' · '+p.category)));
-  box.appendChild(el('div',{class:'t-detail-body'}, p.body));
+  box.appendChild(el('div',{class:'t-detail-body'}, (window.MajlisFilters ? MajlisFilters.wrap(p.body) : p.body)));
   if(p.author !== state.currentUser && state.users[p.author] && (state.user && !state.user.isGuest)){
     box.appendChild(el('button',{class:'report-link', title:'Report this thread', onclick:(e)=>{ e.stopPropagation(); openReport(p.author, { type:'forum_post', id:p.id, preview:p.title }); }}, [icon('flag', 13), 'Report']));
   }
@@ -4937,7 +4937,7 @@ function renderThreadDetail(p){
         avatarNode(r.author, 30),
         el('div',{style:'flex:1;'},[
           el('div',{class:'meta'}, nameWithTag(r.author, '', ' · '+timeAgo(r.createdAt))),
-          el('div',{class:'r-body'}, r.body),
+          el('div',{class:'r-body'}, (window.MajlisFilters ? MajlisFilters.wrap(r.body) : r.body)),
         ]),
       ]);
       if(r.author !== state.currentUser && state.users[r.author] && (state.user && !state.user.isGuest)){
@@ -5050,7 +5050,7 @@ function renderForum(){
       el('div',{class:'t-main'},[
         el('div',{class:'t-title-line'},[
           el('span',{class:'cat-chip'}, p.category),
-          el('span',{class:'t-title'}, p.title),
+          el('span',{class:'t-title'}, (window.MajlisFilters ? MajlisFilters.wrap(p.title) : p.title)),
         ]),
         el('div',{class:'t-meta'}, nameWithTag(p.author, 'by ', ' · '+timeAgo(p.createdAt))),
       ]),
@@ -5205,18 +5205,39 @@ function compassMap(section, focus, dots, farthest){
     el('div',{class:'compass-quad q-bl'}), el('div',{class:'compass-quad q-br'}),
     el('div',{class:'compass-crosshair-v'}), el('div',{class:'compass-crosshair-h'}),
   ]);
+
+  // Hover (or keyboard focus) on a dot shows who it is and their ideology on this map.
+  const tip = el('div',{class:'opp-tip', role:'tooltip'});
+  const showTip = (person, p) => {
+    let ideo = '';
+    try { ideo = ideologyLabel(person, section); } catch(e){}
+    tip.innerHTML = '';
+    tip.appendChild(el('div',{class:'opp-tip__user'}, '@' + person.username + (person.username === state.currentUser ? ' (you)' : '')));
+    if(person.name && person.name !== person.username) tip.appendChild(el('div',{class:'opp-tip__name'}, person.name));
+    if(ideo) tip.appendChild(el('div',{class:'opp-tip__ideo'}, ideo));
+    tip.style.left = p.x + '%';
+    tip.style.top = (100 - p.y) + '%';
+    tip.dataset.h = p.x < 24 ? 'l' : (p.x > 76 ? 'r' : 'c');      // keep it inside the map on the edges
+    tip.dataset.v = (100 - p.y) < 24 ? 'b' : 't';
+    tip.classList.add('show');
+  };
+  const hideTip = () => tip.classList.remove('show');
+
   (dots || []).slice(0, 150).forEach(x => {
     const p = clampDot(x.compass[section]);
     const cls = 'opp-dot' + (farthest && farthest === x ? ' is-far' : '') + (x.username === state.currentUser ? ' is-me' : '');
-    const dot = el('button',{class: cls, title: x.name, 'aria-label': x.name, style:'left:' + p.x + '%;top:' + (100 - p.y) + '%;', onclick:()=>viewProfile(x.username)});
+    const dot = el('button',{class: cls, 'aria-label': '@' + x.username, style:'left:' + p.x + '%;top:' + (100 - p.y) + '%;', onclick:()=>viewProfile(x.username),
+      onmouseenter:()=>showTip(x, p), onmouseleave:hideTip, onfocus:()=>showTip(x, p), onblur:hideTip});
     if(x.username === state.currentUser) dot.appendChild(el('span',{class:'opp-dot__label'}, 'You'));
     map.appendChild(dot);
   });
   if(focus && focus.compass){
     const fp = clampDot(focus.compass[section]);
-    map.appendChild(el('span',{class:'opp-dot is-focus', style:'left:' + fp.x + '%;top:' + (100 - fp.y) + '%;'},
+    map.appendChild(el('span',{class:'opp-dot is-focus', style:'left:' + fp.x + '%;top:' + (100 - fp.y) + '%;',
+      onmouseenter:()=>showTip(focus, fp), onmouseleave:hideTip},
       el('span',{class:'opp-dot__label'}, focus.username === state.currentUser ? 'You' : focus.name)));
   }
+  map.appendChild(tip);
   return el('div',{class:'opposites__mapwrap'},[
     el('div',{class:'opposites__axis is-top'}, def.yLabels[0]), map, el('div',{class:'opposites__axis is-bottom'}, def.yLabels[1]),
     el('div',{class:'opposites__axis is-left'}, def.xLabels[0]), el('div',{class:'opposites__axis is-right'}, def.xLabels[1]),
@@ -5303,7 +5324,7 @@ function renderCompassSection(section){
   const label = ideologyLabel(me, section);
   text.appendChild(el('h3',{class:'opposites__title'}, 'You\'re ' + (/^[aeiou]/i.test(label) ? 'an ' : 'a ') + label + '. Here\'s who disagrees with you most.'));
   text.appendChild(el('p',{class:'opposites__sub'}, crowd.length
-    ? 'Every dot is someone on Majlis (' + crowd.length + ' on this map). Tap a dot to see who it is. The furthest from you make the best debates.'
+    ? 'Every dot is someone on Majlis (' + crowd.length + ' on this map). Hover over a dot to see who it is, or click it to open their profile. The furthest from you make the best debates.'
     : 'Nobody else has mapped their views yet.'));
   ranked.slice(0, 3).forEach(({ x }) => text.appendChild(el('div',{class:'opposite-row'},[
     avatarNode(x, 34),
@@ -5368,7 +5389,7 @@ function renderOwnProfile(){
     wrap.appendChild(el('div',{class:'profile-badges'},[el('div',{class:'eyebrow'},['Badges ', streakChip()]), badgeRow(state.currentUser, 'lg')]));
   }
   if(u.bio){
-    wrap.appendChild(el('p',{class:'bio-text', style:'margin:-18px 0 22px;'}, u.bio));
+    wrap.appendChild(el('p',{class:'bio-text', style:'margin:-18px 0 22px;'}, (window.MajlisFilters ? MajlisFilters.wrap(u.bio) : u.bio)));
   }
 
   const grid = el('div',{class:'grid grid-2'});
@@ -5474,7 +5495,7 @@ function renderOtherProfile(username){
   wrap.appendChild(el('p',{class:'section-sub'}, (person.followers||[]).length + ' followers · ' + (person.following||[]).length + ' following'));
 
   if(person.bio){
-    wrap.appendChild(el('p',{class:'bio-text', style:'margin-top:-14px;margin-bottom:14px;max-width:520px;'}, person.bio));
+    wrap.appendChild(el('p',{class:'bio-text', style:'margin-top:-14px;margin-bottom:14px;max-width:520px;'}, (window.MajlisFilters ? MajlisFilters.wrap(person.bio) : person.bio)));
   }
   if(person.aiRetired){
     wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:-6px;margin-bottom:14px;'}, 'This AI rival has retired.'));
@@ -5633,6 +5654,8 @@ function renderSettings(){
     el('button',{class:'btn secondary', onclick:()=>startTour()}, 'Show me the tour'),
   ]));
 
+  if(window.MajlisFilters) wrap.appendChild(MajlisFilters.settingsCard(() => render()));
+
   const photoCard = el('div',{class:'card'});
   photoCard.appendChild(el('h3',{},'Profile picture'));
   const fileIn = el('input',{type:'file', accept:'image/*', style:'display:none;', onchange:(e)=>handleAvatarUpload(e.target.files[0])});
@@ -5763,7 +5786,7 @@ function buildMemberList(){
         el('button',{class:'user-link', onclick:()=>viewProfile(person.username)}, person.name),
         el('div',{style:'font-size:12px;color:var(--parchment-dim);'}, '@'+person.username +
           (areFriends(state.currentUser, person.username) ? ' · Friends' : '')),
-        person.bio ? el('div',{class:'member-bio'}, person.bio) : null,
+        person.bio ? el('div',{class:'member-bio'}, (window.MajlisFilters ? MajlisFilters.wrap(person.bio) : person.bio)) : null,
       ]),
     ]);
     const actions = el('div',{class:'member-actions'});
@@ -5877,7 +5900,7 @@ function renderMessages(){
     const msgs = getConversation(activeUser);
     msgs.forEach(m=>{
       msgsBox.appendChild(el('div',{class:'dm-bubble '+(m.from===state.currentUser?'me':'them'), style: m.pending ? 'opacity:0.6;' : ''},[
-        el('div',{}, m.text),
+        el('div',{}, (window.MajlisFilters ? MajlisFilters.wrap(m.text) : m.text)),
         el('div',{class:'dm-bubble-time'}, timeAgo(m.ts)),
       ]));
     });
@@ -5958,7 +5981,7 @@ function renderWiki(){
     card.appendChild(el('h4',{}, w.title));
     card.appendChild(el('div',{class:'meta'}, 'by '+w.author));
     card.appendChild(el('p',{style:'font-style:italic;color:var(--parchment-dim);'}, w.summary));
-    card.appendChild(el('p',{style:'white-space:pre-line;'}, w.body));
+    card.appendChild(el('p',{style:'white-space:pre-line;'}, (window.MajlisFilters ? MajlisFilters.wrap(w.body) : w.body)));
     if(w.author !== state.currentUser && state.users[w.author] && (state.user && !state.user.isGuest)){
       card.appendChild(el('button',{class:'report-link', onclick:()=>openReport(w.author, { type:'wiki', id:w.id, preview:w.title })}, [icon('flag', 13), 'Report article']));
     }
@@ -5992,6 +6015,7 @@ function renderWiki(){
   }
   render();
   if(window.hideSplash) window.hideSplash();
+  if(window.MajlisFilters) MajlisFilters.init(() => render());
 })();
 
 /* ================= SERVER CHECK =================
