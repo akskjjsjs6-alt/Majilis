@@ -250,6 +250,7 @@ function subscribeToInbox(){
       state.user.notifications = state.user.notifications || [];
       if(state.user.notifications.some(x=>x.id===n.id)) return;
       state.user.notifications.unshift({ id: n.id, read: n.read, ts: new Date(n.created_at).getTime(), type: n.type, text: n.text, from: idToUsername[n.from_id] || null });
+      if(n.type === 'challenge' && window.MajlisChallenges) MajlisChallenges.onNotification(n);
       render();
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'follows', filter: 'following_id=eq.'+state.user.id }, async () => {
@@ -1007,6 +1008,7 @@ async function removeAvatar(){
 function navigateWithLoading(tabId) {
   if(tabId !== 'watch' && watch && watch.id) stopWatching();
   if(tabId === 'reading' || tabId === 'debate' || tabId === 'assessment') warmFunctions();
+  if(tabId === 'challenges' && window.MajlisChallenges) MajlisChallenges.load();
   if(tabId === 'debate' || tabId === 'majlis' || tabId === 'watch') refreshIceServers();
   if(tabId === 'reports' && canModerate()) loadReports().then(() => { if(state.tab === 'reports') render(); });
   if(tabId !== 'reports' && canModerate() && Date.now() - (state._reportCountAt || 0) > 60000){ state._reportCountAt = Date.now(); refreshOpenReportCount().then(render); }
@@ -1640,7 +1642,7 @@ function icon(name, size){
    Desktop: a sidebar (navigation + your account) and a slim top bar (search, alerts).
    Tablet/phone: the sidebar slides in from the left, and phones get a tab bar along the bottom. */
 const NAV_GROUPS = () => [
-  ['Play', [['home','Home','home'],['motion','Motion of the day','megaphone'],['majlis','The Majlis','majlis'],['debate','Debate','debate'],['assessment','Assessment','target']]],
+  ['Play', [['home','Home','home'],['motion','Motion of the day','megaphone'],['majlis','The Majlis','majlis'],['debate','Debate','debate'],['challenges','Challenges','bolt'],['assessment','Assessment','target']]],
   ['Read', [['guide','30-day guide','scroll'],['reading','Reading','book'],['wiki','Wiki','library']]],
   ['Community', [['forum','Forum','forum'],['members','Members','users'],['messages','Messages','mail'],['notifications','Notifications','bell']]],
   ['Standings', [['leaderboard','Leaderboard','trophy'],['ranks','Ranks','ranks'],['compass','Compass','compass']]],
@@ -1648,7 +1650,7 @@ const NAV_GROUPS = () => [
 ];
 const TAB_TITLES = { motion:'Motion of the day', guide:'30-day guide', home:'Home', watch:'Watching live', majlis:'The Majlis', activity:'Activity', debate:'Debate', assessment:'Assessment', reading:'Reading', wiki:'Wiki', forum:'Forum',
   members:'Members', messages:'Messages', leaderboard:'Leaderboard', ranks:'Ranks', compass:'Compass',
-  reports:'Reports', notifications:'Notifications', profile:'Profile', settings:'Settings', privacy:'Privacy', terms:'Terms', rules:'House rules' };
+  reports:'Reports', notifications:'Notifications', profile:'Profile', settings:'Settings', privacy:'Privacy', terms:'Terms', rules:'House rules', challenges:'Challenges' };
 
 function brandMark(){
   const M_PATH = 'M 10,80 L 10,20 L 50,65 L 90,20 L 90,80';
@@ -1856,6 +1858,7 @@ function renderTab(){
     case 'privacy': return renderPrivacy();
     case 'terms': return renderTerms();
     case 'rules': return renderRules();
+    case 'challenges': return window.MajlisChallenges ? MajlisChallenges.renderPage() : render404();
     case 'reports': return renderReports();
     case 'majlis': return renderMajlis();
     case 'watch': return renderWatch();
@@ -5332,7 +5335,7 @@ function renderCompassSection(section){
       el('button',{class:'user-link', onclick:()=>viewProfile(x.username)}, x.name),
       el('div',{class:'opposite-row__meta'}, ideologyLabel(x, section) + (x.archetype ? ' · ' + x.archetype : '')),
     ]),
-    el('button',{class:'btn secondary', onclick:()=>openDM(x.username)}, 'Challenge'),
+    el('button',{class:'btn secondary', onclick:()=>(x.isAi || !window.MajlisChallenges) ? openDM(x.username) : MajlisChallenges.openModal(x.username)}, 'Challenge'),
   ])));
   panel.appendChild(text);
   panel.appendChild(compassMap(section, me, crowd, ranked.length ? ranked[0].x : null));
@@ -5392,10 +5395,12 @@ function renderOwnProfile(){
     wrap.appendChild(el('p',{class:'bio-text', style:'margin:-18px 0 22px;'}, (window.MajlisFilters ? MajlisFilters.wrap(u.bio) : u.bio)));
   }
 
-  const grid = el('div',{class:'grid grid-2'});
+  const grid = el('div',{class:'grid grid-3'});
   grid.appendChild(statCard('Reading Elo', u.readingElo));
   grid.appendChild(statCard('Debate Rank', u.debateRank ? '#'+u.debateRank : '—'));
+  grid.appendChild(statCard('Record', window.MajlisChallenges ? MajlisChallenges.recordStat(u) : '—'));
   wrap.appendChild(grid);
+  if(window.MajlisChallenges){ const rr = MajlisChallenges.recordRow(u); if(rr) wrap.appendChild(rr); }
   wrap.appendChild(el('div',{style:'height:14px'}));
   if(u.placementTaken){
     const rankCard = el('div',{class:'card'});
@@ -5532,6 +5537,7 @@ function renderOtherProfile(username){
       class: isFollowing(username) ? 'btn secondary' : 'btn',
       onclick: ()=>toggleFollow(username)
     }, isFollowing(username) ? 'Following' : 'Follow'));
+    if(!person.isAi && window.MajlisChallenges) actionRow.appendChild(el('button',{class:'btn', onclick:()=>MajlisChallenges.openModal(username)}, 'Challenge'));
     actionRow.appendChild(el('button',{class:'btn secondary', onclick:()=>openDM(username)}, 'Message'));
     actionRow.appendChild(el('button',{class:'btn secondary', style:'color:var(--wine);border-color:var(--wine);', onclick:()=>toggleBlock(username)}, 'Block'));
     actionRow.appendChild(el('button',{class:'btn secondary', onclick:()=>openReport(username, { type:'profile' })}, [icon('flag', 15), 'Report']));
@@ -5547,10 +5553,12 @@ function renderOtherProfile(username){
     return wrap;
   }
 
-  const grid = el('div',{class:'grid grid-2'});
+  const grid = el('div',{class:'grid grid-3'});
   grid.appendChild(statCard('Reading Elo', person.readingElo||0));
   grid.appendChild(statCard('Debate Rank', person.debateRank ? '#'+person.debateRank : '—'));
+  grid.appendChild(statCard('Record', (person.hiddenStats || !window.MajlisChallenges) ? '—' : MajlisChallenges.recordStat(person)));
   wrap.appendChild(grid);
+  if(!person.hiddenStats && window.MajlisChallenges){ const rr = MajlisChallenges.recordRow(person); if(rr) wrap.appendChild(rr); }
   if(person.placementTaken){
     wrap.appendChild(el('div',{style:'height:14px'}));
     const rankCard = el('div',{class:'card'});
@@ -5833,7 +5841,8 @@ function renderNotifications(){
       item.style.cursor = 'pointer';
       item.addEventListener('click', async ()=>{
         await markNotifRead(n);
-        if(n.type === 'dm' && n.from){ openDM(n.from); }
+        if(n.type === 'challenge' && window.MajlisChallenges){ MajlisChallenges.openFromNotification(n); }
+        else if(n.type === 'dm' && n.from){ openDM(n.from); }
         else if(n.from){ viewProfile(n.from); }
         else { render(); }
       });
