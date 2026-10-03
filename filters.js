@@ -4,14 +4,14 @@
    A hidden message shows "Hidden by your filter" with a Show button, so nothing is ever lost.
    Your choices live in this browser only (localStorage). The word lists for swearing and slurs
    come from the database (filter_terms), so they stay in one place.
-   To change what's hidden by default for new visitors, edit DEFAULTS below.
+   Nothing is hidden by default. To change that for new visitors, edit DEFAULTS below.
    ===================================================================== */
 (function(){
   'use strict';
 
   const PREFS_KEY = 'majlis-filters';
   const TERMS_KEY = 'majlis-filter-terms';
-  const DEFAULTS = { swearing: false, slurs: true, words: [] };   // slurs are hidden (click to show) until you turn it off
+  const DEFAULTS = { swearing: false, slurs: false, words: [] };   // nothing is hidden unless a person turns a filter on
 
   function readJSON(key){ try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch(e){ return null; } }
   function writeJSON(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
