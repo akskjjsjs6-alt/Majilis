@@ -2470,16 +2470,16 @@ function statCard(label, value){
    to each result (political, economic, social, philosophy, religion). Saved on this device. */
 function matchStoreKey(){ return 'majlis-matches-' + (state.user && state.user.id || 'guest'); }
 function loadSavedMatches(){
-  try { const m = JSON.parse(localStorage.getItem(matchStoreKey()) || 'null'); return m && Array.isArray(m.list) ? m : null; } catch(e){ return null; }
+  try { const m = JSON.parse(localStorage.getItem(matchStoreKey()) || 'null'); return m && m.v === 2 && Array.isArray(m.list) ? m : null; } catch(e){ return null; }
 }
 function matchCategories(u){
   if(!u || !u.compass || !u.ideologies) return [];
-  const pos = (p) => ' (left-to-right ' + Math.round(p.x) + '/100, bottom-to-top ' + Math.round(p.y) + '/100)';
-  const cats = [
-    { key: 'political', title: 'Political', summary: (u.ideologies.political.label || '') + pos(u.compass.political) + '. ' + (u.ideologies.political.reasoning || '') },
-    { key: 'economic', title: 'Economic', summary: (u.ideologies.economic.label || '') + pos(u.compass.economic) + '. ' + (u.ideologies.economic.reasoning || '') },
-    { key: 'social', title: 'Social', summary: (u.ideologies.social.label || '') + pos(u.compass.social) + '. ' + (u.ideologies.social.reasoning || '') },
-  ];
+  const mapCat = (key, title) => {
+    const d = COMPASS_DEFS[key], p = u.compass[key];
+    return { key, title, axes: { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1] },
+      summary: (u.ideologies[key].label || '') + ' (x ' + Math.round(p.x) + '/100, y ' + Math.round(p.y) + '/100). ' + (u.ideologies[key].reasoning || '') };
+  };
+  const cats = [mapCat('political', 'Political'), mapCat('economic', 'Economic'), mapCat('social', 'Social')];
   if(u.archetype && !/not yet/i.test(u.archetype)) cats.push({ key: 'philosophy', title: 'Philosophy', summary: u.archetype + '. ' + (u.archetypeReasoning || '') });
   if(u.religion && u.religion !== 'Prefer not to say') cats.push({ key: 'religion', title: 'Religion', summary: u.religion + (u.denomination ? ', ' + u.denomination : '') + '. ' + (u.denominationReasoning || '') });
   return cats;
@@ -2495,10 +2495,11 @@ async function fetchMatches(){
     if(data && data.error) throw new Error(data.error);
     if(error || !data || !Array.isArray(data.matches)) throw new Error(error ? 'The server call failed (' + (error.message || 'no details') + ')' : 'no matches');
     const titles = {}; categories.forEach(c => titles[c.key] = c.title);
-    const list = data.matches.filter(m => titles[m.key] && Array.isArray(m.people) && m.people.length)
-      .map(m => ({ key: m.key, title: titles[m.key], people: m.people }));
+    const seen = {};
+    const list = data.matches.filter(m => titles[m.key] && m.name && !seen[m.key] && (seen[m.key] = 1))
+      .map(m => ({ key: m.key, title: titles[m.key], name: m.name, label: m.label || '', why: m.why || '', x: m.x, y: m.y }));
     if(!list.length) throw new Error('empty');
-    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ at: Date.now(), list })); } catch(e){}
+    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ v: 2, at: Date.now(), list })); } catch(e){}
   } catch(e){
     console.warn('matches unavailable', e);
     state.matchesFailed = String(e && e.message || 'unknown').slice(0, 200);
@@ -2515,8 +2516,13 @@ function stopThink(id){
 }
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
-  const node = el('div',{class:'judge-stage'});
-  node.appendChild(el('div',{class:'judge-head'},[
+  const node = el('div',{class:'judge-stage think-stage'});
+  const radar = el('div',{class:'think-radar', 'aria-hidden':'true'});
+  [[22,30],[68,24],[40,66],[74,70],[56,46],[28,52]].forEach(([x,y], i) => radar.appendChild(el('span',{class:'think-blip', style:'left:'+x+'%;top:'+y+'%;animation-delay:'+(i*0.55)+'s'})));
+  radar.appendChild(el('div',{class:'think-sweep'}));
+  radar.appendChild(el('div',{class:'think-core'}));
+  const left = el('div',{class:'think-main'});
+  left.appendChild(el('div',{class:'judge-head'},[
     el('div',{class:'judge-orb', html:
       '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="judge-orb__track"/><circle cx="60" cy="60" r="54" class="judge-orb__arc"/>' +
       '<path d="M 38,78 L 38,42 L 60,66 L 82,42 L 82,78" class="judge-orb__m"/></svg>'}),
@@ -2526,10 +2532,12 @@ function thinkStage(id, cfg){
       el('div',{class:'judge-phase'}, cfg.steps[0]),
     ]),
   ]));
-  const list = el('div',{class:'judge-steps'});
+  const list = el('div',{class:'judge-steps think-steps'});
   cfg.steps.forEach(label => list.appendChild(el('div',{class:'judge-step'},[el('span',{class:'judge-step__icon'}), el('span',{}, label)])));
-  node.appendChild(list);
-  node.appendChild(el('div',{class:'judge-bar'},[el('div',{class:'judge-bar__fill'})]));
+  left.appendChild(list);
+  node.appendChild(el('div',{class:'think-grid'},[left, radar]));
+  node.appendChild(el('div',{class:'judge-bar think-bar'},[el('div',{class:'judge-bar__fill'})]));
+  node.appendChild(el('div',{class:'think-pct'}, '0%'));
   const t0 = Date.now(), per = cfg.secondsPerStep || 4;
   const tick = () => {
     const secs = (Date.now() - t0) / 1000;
@@ -2539,7 +2547,9 @@ function thinkStage(id, cfg){
       row.classList.toggle('is-active', i === active);
     });
     node.querySelector('.judge-phase').textContent = cfg.steps[active] + '…';
-    node.querySelector('.judge-bar__fill').style.width = Math.round(96 * (1 - Math.exp(-secs / (per * cfg.steps.length * 0.7)))) + '%';
+    const p = Math.round(96 * (1 - Math.exp(-secs / (per * cfg.steps.length * 0.7))));
+    node.querySelector('.judge-bar__fill').style.width = p + '%';
+    node.querySelector('.think-pct').textContent = p + '%';
   };
   tick();
   thinkStages[id] = { node, timer: setInterval(tick, 250) };
@@ -2576,12 +2586,37 @@ function portraitNode(name){
   return box;
 }
 
+// A small map: you (green) and the match, joined by a line, with a closeness score.
+function matchMap(cat){
+  const me = state.user.compass && state.user.compass[cat.key];
+  const d = COMPASS_DEFS[cat.key];
+  if(!me || !d || cat.x == null || cat.y == null) return null;
+  const at = (p) => 'left:' + Math.max(4, Math.min(96, p.x)) + '%;top:' + Math.max(4, Math.min(96, 100 - p.y)) + '%;';
+  const map = el('div',{class:'match-map'});
+  map.appendChild(el('span',{class:'mm-axis mm-l'}, d.xLabels[0]));
+  map.appendChild(el('span',{class:'mm-axis mm-r'}, d.xLabels[1]));
+  map.appendChild(el('span',{class:'mm-axis mm-t'}, d.yLabels[1]));
+  map.appendChild(el('span',{class:'mm-axis mm-b'}, d.yLabels[0]));
+  const x1 = Math.max(4, Math.min(96, me.x)), y1 = Math.max(4, Math.min(96, 100 - me.y));
+  const x2 = Math.max(4, Math.min(96, cat.x)), y2 = Math.max(4, Math.min(96, 100 - cat.y));
+  map.appendChild(el('div',{class:'mm-line', html:'<svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/></svg>'}));
+  map.appendChild(el('div',{class:'mm-dot mm-you', style: at(me)}, [el('i',{}), el('b',{}, 'You')]));
+  const them = el('div',{class:'mm-dot mm-them', style: at(cat)}, [el('i',{}), el('b',{}, cat.name.length <= 15 ? cat.name : cat.name.split(' ').slice(-1)[0])]);
+  map.appendChild(them);
+  return map;
+}
+function closeness(cat){
+  const me = state.user.compass && state.user.compass[cat.key];
+  if(!me || cat.x == null) return null;
+  return Math.max(0, Math.round(100 - Math.hypot(me.x - cat.x, me.y - cat.y) / 1.414));
+}
+
 function matchesCard(){
   if(state.matchesLoading){
     const cats = matchCategories(state.user);
     return thinkStage('matches', {
       kicker: 'AI MATCHMAKER', title: 'Finding your real-life matches', secondsPerStep: 5,
-      steps: ['Reading your results'].concat(cats.map(c => 'Searching for ' + c.title.toLowerCase() + ' matches'), ['Picking the closest fits']),
+      steps: ['Reading your results'].concat(cats.map(c => 'Searching for your ' + c.title.toLowerCase() + ' match'), ['Placing everyone on the map']),
     });
   }
   stopThink('matches');
@@ -2592,19 +2627,22 @@ function matchesCard(){
   }
   const saved = loadSavedMatches();
   if(!saved){
-    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now (' + state.matchesFailed + '). Try again in a moment.' : 'See which well-known people your results are closest to.'));
+    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now (' + state.matchesFailed + '). Try again in a moment.' : 'See which well-known person is closest to each of your results.'));
     card.appendChild(el('button',{class:'btn', onclick: fetchMatches}, state.matchesFailed ? 'Try again' : 'Find my matches'));
     return card;
   }
   saved.list.forEach(cat => {
-    card.appendChild(el('div',{class:'match-cat'}, cat.title));
-    const row = el('div',{class:'match-row'});
-    cat.people.forEach(p => row.appendChild(el('div',{class:'match-person', title: p.why},[
-      portraitNode(p.name),
-      el('div',{class:'match-name'}, p.name),
-      el('div',{class:'match-why'}, p.why),
-    ])));
-    card.appendChild(row);
+    const map = matchMap(cat), close = closeness(cat);
+    const info = el('div',{class:'match-info'},[
+      el('div',{class:'match-cat'}, cat.title),
+      el('div',{class:'match-who'},[
+        portraitNode(cat.name),
+        el('div',{},[el('div',{class:'match-name'}, cat.name), cat.label ? el('div',{class:'match-label'}, cat.label) : null]),
+      ]),
+      cat.why ? el('p',{class:'match-why'}, cat.why) : null,
+      close != null ? el('div',{class:'match-close'},[el('b',{}, close + '%'), ' close on this map']) : null,
+    ]);
+    card.appendChild(el('div',{class:'match-item' + (map ? '' : ' no-map')}, [info, map]));
   });
   card.appendChild(el('p',{class:'field-caption',style:'margin:14px 0 8px;'},'AI estimate based on public views, just for fun.'));
   card.appendChild(el('button',{class:'btn secondary', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh'));
