@@ -2492,7 +2492,8 @@ async function fetchMatches(){
   state.matchesLoading = true; state.matchesFailed = false; render();
   try {
     const { data, error } = await sb.functions.invoke('ai-matches', { body: { categories }, region: FN_REGION });
-    if(error || !data || data.error || !Array.isArray(data.matches)) throw new Error('no matches');
+    if(data && data.error) throw new Error(data.error);
+    if(error || !data || !Array.isArray(data.matches)) throw new Error(error ? 'The server call failed (' + (error.message || 'no details') + ')' : 'no matches');
     const titles = {}; categories.forEach(c => titles[c.key] = c.title);
     const list = data.matches.filter(m => titles[m.key] && Array.isArray(m.people) && m.people.length)
       .map(m => ({ key: m.key, title: titles[m.key], people: m.people }));
@@ -2500,7 +2501,7 @@ async function fetchMatches(){
     try { localStorage.setItem(matchStoreKey(), JSON.stringify({ at: Date.now(), list })); } catch(e){}
   } catch(e){
     console.warn('matches unavailable', e);
-    state.matchesFailed = true;
+    state.matchesFailed = String(e && e.message || 'unknown').slice(0, 200);
   }
   state.matchesLoading = false;
   render();
@@ -2517,7 +2518,7 @@ function matchesCard(){
     return card;
   }
   if(!saved){
-    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now. Try again in a moment.' : 'See which well-known people your political, economic, social, philosophy and religion results are closest to.'));
+    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now (' + state.matchesFailed + '). Try again in a moment.' : 'See which well-known people your political, economic, social, philosophy and religion results are closest to.'));
     card.appendChild(el('button',{class:'btn', onclick: fetchMatches}, state.matchesFailed ? 'Try again' : 'Find my matches'));
     return card;
   }
