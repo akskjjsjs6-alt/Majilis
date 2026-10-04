@@ -2517,10 +2517,32 @@ function stopThink(id){
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
   const node = el('div',{class:'judge-stage think-stage'});
-  const radar = el('div',{class:'think-radar', 'aria-hidden':'true'});
-  [[22,30],[68,24],[40,66],[74,70],[56,46],[28,52]].forEach(([x,y], i) => radar.appendChild(el('span',{class:'think-blip', style:'left:'+x+'%;top:'+y+'%;animation-delay:'+(i*0.55)+'s'})));
-  radar.appendChild(el('div',{class:'think-sweep'}));
-  radar.appendChild(el('div',{class:'think-core'}));
+  const card = (cls, x, y, tint) => '<g class="tk-card ' + cls + '"><rect x="' + x + '" y="' + y + '" width="46" height="58" rx="9" class="tk-card__bg ' + tint + '"/>' +
+    '<circle cx="' + (x + 23) + '" cy="' + (y + 19) + '" r="9" class="tk-card__head ' + tint + '"/><path d="M' + (x + 8) + ' ' + (y + 46) + ' q15 -17 30 0" class="tk-card__body ' + tint + '"/>' +
+    '<rect x="' + (x + 11) + '" y="' + (y + 50) + '" width="24" height="3" rx="1.5" class="tk-card__line"/>' +
+    '<g class="tk-tick"><circle cx="' + (x + 40) + '" cy="' + (y + 4) + '" r="9" fill="#00e676"/><path d="M' + (x + 35.5) + ' ' + (y + 4) + ' l3 3.2 l6 -6.4" fill="none" stroke="#04110a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g></g>';
+  const star = (x, y, d) => '<path class="tk-star" style="animation-delay:' + d + 's" d="M' + x + ' ' + (y - 6) + ' L' + (x + 1.8) + ' ' + (y - 1.8) + ' L' + (x + 6) + ' ' + y + ' L' + (x + 1.8) + ' ' + (y + 1.8) + ' L' + x + ' ' + (y + 6) + ' L' + (x - 1.8) + ' ' + (y + 1.8) + ' L' + (x - 6) + ' ' + y + ' L' + (x - 1.8) + ' ' + (y - 1.8) + ' Z"/>';
+  const radar = el('div',{class:'think-scene', 'aria-hidden':'true', html:
+    '<svg viewBox="0 0 250 230">' +
+    '<ellipse class="tk-shadow" cx="125" cy="214" rx="64" ry="8"/>' +
+    card('tk-c1', 6, 34, 'is-g') + card('tk-c2', 196, 22, 'is-b') + card('tk-c3', 200, 112, 'is-g') +
+    star(40, 130, 0) + star(214, 92, 0.7) + star(30, 18, 1.4) + star(176, 14, 0.3) +
+    '<g class="tk-buddy"><ellipse cx="46" cy="170" rx="17" ry="15" class="tk-buddy__body"/><circle cx="40" cy="167" r="2.6" fill="#04110a"/><circle cx="52" cy="167" r="2.6" fill="#04110a"/>' +
+    '<path d="M41 174 q5 5 10 0" fill="none" stroke="#04110a" stroke-width="2" stroke-linecap="round"/><path d="M34 158 q-3 -8 3 -10" class="tk-buddy__ear"/><path d="M58 158 q3 -8 -3 -10" class="tk-buddy__ear"/></g>' +
+    '<g class="tk-robot">' +
+      '<line x1="125" y1="52" x2="125" y2="70" class="tk-limb"/><circle cx="125" cy="48" r="6" class="tk-ant"/>' +
+      '<rect x="89" y="70" width="72" height="54" rx="17" class="tk-head"/>' +
+      '<rect x="99" y="80" width="52" height="32" rx="11" class="tk-face"/>' +
+      '<g class="tk-eyes"><ellipse cx="112" cy="95" rx="6" ry="7.5"/><ellipse cx="138" cy="95" rx="6" ry="7.5"/></g>' +
+      '<path d="M116 106 q9 7 18 0" class="tk-mouth"/>' +
+      '<rect x="97" y="128" width="56" height="52" rx="15" class="tk-body"/>' +
+      '<path d="M112 160 L112 144 L125 154 L138 144 L138 160" class="tk-chestM"/>' +
+      '<line x1="98" y1="142" x2="80" y2="164" class="tk-limb"/>' +
+      '<g class="tk-arm"><line x1="152" y1="142" x2="176" y2="152" class="tk-limb"/><circle cx="190" cy="146" r="15" class="tk-lens"/><line x1="201" y1="157" x2="214" y2="172" class="tk-handle"/></g>' +
+      '<rect x="105" y="182" width="14" height="22" rx="7" class="tk-body"/><rect x="131" y="182" width="14" height="22" rx="7" class="tk-body"/>' +
+    '</g>' +
+    '<g class="tk-bubble"><rect x="150" y="2" width="46" height="24" rx="12"/><circle cx="162" cy="14" r="2.6"/><circle cx="173" cy="14" r="2.6"/><circle cx="184" cy="14" r="2.6"/></g>' +
+    '</svg>'});
   const left = el('div',{class:'think-main'});
   left.appendChild(el('div',{class:'judge-head'},[
     el('div',{class:'judge-orb', html:
