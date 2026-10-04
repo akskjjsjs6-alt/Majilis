@@ -89,8 +89,14 @@
     await load();
     return true;
   }
+  let accepting = false;   // a second click while the first is still working does nothing
   async function accept(id){
     if(isGuest()){ openAuth('signup'); return; }
+    if(accepting) return;
+    accepting = true;
+    try { await acceptNow(id); } finally { accepting = false; }
+  }
+  async function acceptNow(id){
     const { data, error } = await sb.rpc('accept_challenge', { p_id: id });
     if(error){ alert(friendlyDbError(error, 'Couldn\'t accept that challenge.')); await load(); return; }
     toast('Challenge accepted. Your debate is ready.');

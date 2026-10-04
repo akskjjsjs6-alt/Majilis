@@ -5095,7 +5095,7 @@ function renderLeaderboard(){
   }
   const wrap = el('div',{});
   wrap.appendChild(el('h2',{class:'section-title'},'Leaderboard'));
-  wrap.appendChild(el('p',{class:'section-sub'},'Active user rankings for reading and debating.'));
+  wrap.appendChild(el('p',{class:'section-sub'},'Top 50 for reading and debating.'));
   
   // People who hid themselves from the leaderboard or made their profile private are left out.
   const accounts = Object.values(state.users).filter(u=>!u.isGuest && !u.hiddenStats && (!u.settings || u.settings.showOnLeaderboard !== false));
@@ -5106,7 +5106,7 @@ function renderLeaderboard(){
 
   const grid = el('div',{class:'grid grid-2'});
   const debateCard = el('div',{class:'card'},[el('h3',{},'Top Debaters')]);
-  [...accounts].sort((a,b)=>(b.debatePoints||0)-(a.debatePoints||0)).forEach((u,i)=>{
+  [...accounts].sort((a,b)=>(b.debatePoints||0)-(a.debatePoints||0)).slice(0,50).forEach((u,i)=>{
     debateCard.appendChild(el('div',{class:'book-row'},[
       leaderboardNameCell(u, i),
       el('div',{class:'points-tag'}, u.debateRank ? 'Rank '+u.debateRank : 'Unranked')
@@ -5115,7 +5115,7 @@ function renderLeaderboard(){
   grid.appendChild(debateCard);
 
   const readingCard = el('div',{class:'card'},[el('h3',{},'Top Readers')]);
-  [...accounts].sort((a,b)=>(b.readingElo||0)-(a.readingElo||0)).forEach((u,i)=>{
+  [...accounts].sort((a,b)=>(b.readingElo||0)-(a.readingElo||0)).slice(0,50).forEach((u,i)=>{
     readingCard.appendChild(el('div',{class:'book-row'},[
       leaderboardNameCell(u, i),
       el('div',{class:'points-tag'}, 'Elo '+(u.readingElo||0))
@@ -5786,7 +5786,9 @@ function buildMemberList(){
     card.appendChild(el('p',{class:'empty-note'}, all.length ? 'No members match your search.' : 'No other members yet — invite some friends.'));
     return card;
   }
-  filtered.forEach(person=>{
+  const MEMBER_CAP = 100;   // drawing thousands of rows at once freezes the page; search finds anyone
+  if(filtered.length > MEMBER_CAP) card.appendChild(el('p',{class:'field-caption'}, 'Showing the first ' + MEMBER_CAP + ' of ' + filtered.length + ' members. Search to find anyone else.'));
+  filtered.slice(0, MEMBER_CAP).forEach(person=>{
     const blockedByMe = isBlocked(person.username);
     const row = el('div',{class:'member-row'},[
       avatarNode(person, 42),
@@ -6005,6 +6007,10 @@ function renderWiki(){
 
 /* ================= INIT ================= */
 (async function start(){
+  // If the server is slow, show the site after 6 s anyway and fill it in when the data arrives.
+  let shown = false;
+  const showNow = () => { if(shown) return; shown = true; render(); if(window.hideSplash) window.hideSplash(); };
+  const slowTimer = setTimeout(showNow, 6000);
   try {
     // Session, profiles, wiki and forum all load at the same time (was one after another).
     const [{ data }] = await Promise.all([sb.auth.getSession(), loadAllProfiles(), loadWikiFromSupabase(), loadForumFromSupabase()]);
@@ -6022,8 +6028,9 @@ function renderWiki(){
   } catch(e){
     console.error('Startup failed', e);
   }
-  render();
-  if(window.hideSplash) window.hideSplash();
+  clearTimeout(slowTimer);
+  shown = false;
+  showNow();
   if(window.MajlisFilters) MajlisFilters.init(() => render());
 })();
 
