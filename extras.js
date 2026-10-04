@@ -441,8 +441,7 @@ const BADGE_FAMILIES = [
 function computeBadges(s){
   const out = [];
   if(!s) return out;
-  if(s.role === 'admin') out.push({ key: 'role', name: 'Admin', icon: 'shield', color: '#00ff66', desc: 'Runs Majlis', tier: 9 });
-  else if(s.role === 'mod') out.push({ key: 'role', name: 'Moderator', icon: 'shield', color: '#6fd3ff', desc: 'Keeps Majlis civil', tier: 8 });
+  if(s.role === 'mod') out.push({ key: 'role', name: 'Moderator', icon: 'shield', color: '#6fd3ff', desc: 'Keeps Majlis civil', tier: 8 });
   BADGE_FAMILIES.forEach(f => {
     const n = Number(s[f.stat]) || 0;
     let ti = -1; f.tiers.forEach(([min], i) => { if(n >= min) ti = i; });

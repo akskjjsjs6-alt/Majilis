@@ -5596,13 +5596,18 @@ function connectionsList(usernames, emptyText, opts={}){
   return box;
 }
 
+// The site's owner (the admin account) carries a [Founder] tag next to their name on their profile.
+function founderTag(u){
+  return u && u.role === 'admin' ? el('span',{class:'founder-tag', title:'Founder of Majlis'}, '[Founder]') : null;
+}
+
 function renderOwnProfile(){
   const wrap = el('div',{});
   const u = state.user;
   wrap.appendChild(el('div',{class:'profile-header-row'},[
     avatarNode(u, 76),
     el('div',{},[
-      el('h2',{class:'section-title', style:'margin:0;'}, u.name + (u.isGuest ? ' (guest)' : '')),
+      el('h2',{class:'section-title', style:'margin:0;'}, [u.name + (u.isGuest ? ' (guest)' : ''), founderTag(u)]),
     ]),
   ]));
   wrap.appendChild(el('p',{class:'section-sub'}, u.isGuest
@@ -5711,7 +5716,7 @@ function renderOtherProfile(username){
   const titleRow = el('div',{class:'profile-header-row'},[
     avatarNode(person, 76),
     el('div',{class:'name-with-avatar'},[
-      el('h2',{class:'section-title', style:'margin:0;'}, person.name),
+      el('h2',{class:'section-title', style:'margin:0;'}, [person.name, founderTag(person)]),
       areFriends(state.currentUser, username) ? el('span',{class:'friend-badge'},'Friends') : null,
     ]),
   ]);
