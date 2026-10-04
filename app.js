@@ -141,7 +141,24 @@ async function loadCurrentUserProfile(authUser){
     u.email = authUser.email;
     state.currentUser = profile.username;
     state.user = u;
+    claimNetwork(authUser.id);
   } catch(e){ console.warn('loadCurrentUserProfile failed', e); }
+}
+
+// One account per network: the server remembers which IP each account came from. A second account
+// from the same IP is removed and the person is signed out with an explanation.
+let networkClaimed = null;
+async function claimNetwork(userId){
+  if(networkClaimed === userId) return;
+  networkClaimed = userId;
+  try {
+    const { data } = await sb.functions.invoke('claim-ip', { body: {}, region: FN_REGION });
+    if(data && data.blocked){
+      try { await sb.auth.signOut(); } catch(e){}
+      alert('This network already has a Majlis account, and only one account is allowed per network. The account you just made was removed. If this is a mistake (for example a shared school or workplace connection), contact the Majlis team.');
+      location.reload();
+    }
+  } catch(e){ networkClaimed = null; console.warn('network check unavailable', e); }
 }
 
 // Pull every wiki article from Supabase (shared by everyone) into state.wiki.
