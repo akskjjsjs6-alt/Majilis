@@ -2465,6 +2465,73 @@ function statCard(label, value){
   ]);
 }
 
+/* ================= WHO YOU MATCH IN REAL LIFE =================
+   After the assessment, the AI names well-known public figures whose public views are closest
+   to each result (political, economic, social, philosophy, religion). Saved on this device. */
+function matchStoreKey(){ return 'majlis-matches-' + (state.user && state.user.id || 'guest'); }
+function loadSavedMatches(){
+  try { const m = JSON.parse(localStorage.getItem(matchStoreKey()) || 'null'); return m && Array.isArray(m.list) ? m : null; } catch(e){ return null; }
+}
+function matchCategories(u){
+  if(!u || !u.compass || !u.ideologies) return [];
+  const pos = (p) => ' (left-to-right ' + Math.round(p.x) + '/100, bottom-to-top ' + Math.round(p.y) + '/100)';
+  const cats = [
+    { key: 'political', title: 'Political', summary: (u.ideologies.political.label || '') + pos(u.compass.political) + '. ' + (u.ideologies.political.reasoning || '') },
+    { key: 'economic', title: 'Economic', summary: (u.ideologies.economic.label || '') + pos(u.compass.economic) + '. ' + (u.ideologies.economic.reasoning || '') },
+    { key: 'social', title: 'Social', summary: (u.ideologies.social.label || '') + pos(u.compass.social) + '. ' + (u.ideologies.social.reasoning || '') },
+  ];
+  if(u.archetype && !/not yet/i.test(u.archetype)) cats.push({ key: 'philosophy', title: 'Philosophy', summary: u.archetype + '. ' + (u.archetypeReasoning || '') });
+  if(u.religion && u.religion !== 'Prefer not to say') cats.push({ key: 'religion', title: 'Religion', summary: u.religion + (u.denomination ? ', ' + u.denomination : '') + '. ' + (u.denominationReasoning || '') });
+  return cats;
+}
+async function fetchMatches(){
+  const u = state.user;
+  if(!u || u.isGuest || !u.id || state.matchesLoading) return;
+  const categories = matchCategories(u);
+  if(!categories.length) return;
+  state.matchesLoading = true; state.matchesFailed = false; render();
+  try {
+    const { data, error } = await sb.functions.invoke('ai-matches', { body: { categories }, region: FN_REGION });
+    if(error || !data || data.error || !Array.isArray(data.matches)) throw new Error('no matches');
+    const titles = {}; categories.forEach(c => titles[c.key] = c.title);
+    const list = data.matches.filter(m => titles[m.key] && Array.isArray(m.people) && m.people.length)
+      .map(m => ({ key: m.key, title: titles[m.key], people: m.people }));
+    if(!list.length) throw new Error('empty');
+    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ at: Date.now(), list })); } catch(e){}
+  } catch(e){
+    console.warn('matches unavailable', e);
+    state.matchesFailed = true;
+  }
+  state.matchesLoading = false;
+  render();
+}
+function matchesCard(){
+  const card = el('div',{class:'card'},[el('h3',{},'Who you match in real life')]);
+  if(!state.user || state.user.isGuest){
+    card.appendChild(el('p',{class:'section-sub'},'Create an account to see which well-known people your results are closest to.'));
+    return card;
+  }
+  const saved = loadSavedMatches();
+  if(state.matchesLoading){
+    card.appendChild(el('p',{class:'section-sub'},'The AI is finding your matches…'));
+    return card;
+  }
+  if(!saved){
+    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now. Try again in a moment.' : 'See which well-known people your political, economic, social, philosophy and religion results are closest to.'));
+    card.appendChild(el('button',{class:'btn', onclick: fetchMatches}, state.matchesFailed ? 'Try again' : 'Find my matches'));
+    return card;
+  }
+  card.appendChild(el('p',{class:'field-caption',style:'margin:0 0 10px;'},'Closest public figures by their publicly stated views. An AI estimate for fun, not a claim that they\'d agree on everything.'));
+  saved.list.forEach(cat => {
+    card.appendChild(el('h4',{style:'margin:14px 0 6px;'}, cat.title));
+    cat.people.forEach(p => card.appendChild(el('div',{style:'margin:0 0 6px;font-size:14px;line-height:1.45;'},[
+      el('b',{}, p.name), el('span',{style:'color:var(--parchment-dim);'}, ' — ' + p.why)
+    ])));
+  });
+  card.appendChild(el('button',{class:'btn secondary',style:'margin-top:10px;', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh matches'));
+  return card;
+}
+
 function renderAssessment(){
   const wrap = el('div',{});
   wrap.appendChild(el('h2',{class:'section-title'},'Placement Assessment'));
@@ -2488,6 +2555,7 @@ function renderAssessment(){
         render();
       }}, 'Retake Assessment'),
     ]));
+    if(state.user.compass) wrap.appendChild(matchesCard());
     return wrap;
   }
 
@@ -2871,7 +2939,9 @@ async function finishAssessment(position, viewText){
   clearDrafts('assessment-position', 'assessment-case');
   state.quiz.active = false;
   state.tab = 'assessment';
+  try { localStorage.removeItem(matchStoreKey()); } catch(e){}   // a retake changes your results, so the old matches are stale
   render();
+  if(signedIn) fetchMatches();   // the AI names who you match in real life; the card fills in when it's ready
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
@@ -5312,6 +5382,7 @@ function renderCompass(){
   }
   ['political', 'economic', 'social'].forEach(sec => wrap.appendChild(renderCompassSection(sec)));
   wrap.appendChild(card);
+  wrap.appendChild(matchesCard());
   return wrap;
 }
 
