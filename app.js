@@ -2506,30 +2506,108 @@ async function fetchMatches(){
   state.matchesLoading = false;
   render();
 }
+/* A reusable "the AI is working" screen (same look as the debate judge). Steps tick over on a timer
+   and the last one holds until stopThink() is called, so a slow answer never looks frozen. */
+const thinkStages = {};
+function stopThink(id){
+  const t = thinkStages[id];
+  if(t){ clearInterval(t.timer); delete thinkStages[id]; }
+}
+function thinkStage(id, cfg){
+  if(thinkStages[id]) return thinkStages[id].node;
+  const node = el('div',{class:'judge-stage'});
+  node.appendChild(el('div',{class:'judge-head'},[
+    el('div',{class:'judge-orb', html:
+      '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="judge-orb__track"/><circle cx="60" cy="60" r="54" class="judge-orb__arc"/>' +
+      '<path d="M 38,78 L 38,42 L 60,66 L 82,42 L 82,78" class="judge-orb__m"/></svg>'}),
+    el('div',{},[
+      el('div',{class:'judge-kicker'}, cfg.kicker),
+      el('div',{class:'judge-title'}, cfg.title),
+      el('div',{class:'judge-phase'}, cfg.steps[0]),
+    ]),
+  ]));
+  const list = el('div',{class:'judge-steps'});
+  cfg.steps.forEach(label => list.appendChild(el('div',{class:'judge-step'},[el('span',{class:'judge-step__icon'}), el('span',{}, label)])));
+  node.appendChild(list);
+  node.appendChild(el('div',{class:'judge-bar'},[el('div',{class:'judge-bar__fill'})]));
+  const t0 = Date.now(), per = cfg.secondsPerStep || 4;
+  const tick = () => {
+    const secs = (Date.now() - t0) / 1000;
+    const active = Math.min(cfg.steps.length - 1, Math.floor(secs / per));
+    node.querySelectorAll('.judge-step').forEach((row, i) => {
+      row.classList.toggle('is-done', i < active);
+      row.classList.toggle('is-active', i === active);
+    });
+    node.querySelector('.judge-phase').textContent = cfg.steps[active] + '…';
+    node.querySelector('.judge-bar__fill').style.width = Math.round(96 * (1 - Math.exp(-secs / (per * cfg.steps.length * 0.7)))) + '%';
+  };
+  tick();
+  thinkStages[id] = { node, timer: setInterval(tick, 250) };
+  return node;
+}
+
+// Portraits come from Wikipedia (free). Anyone without one gets their initials.
+const portraitCache = {};
+function portraitSaved(name){ try { return JSON.parse(localStorage.getItem('majlis-portrait-' + name) || 'null'); } catch(e){ return null; } }
+function loadPortrait(name, done){
+  if(name in portraitCache){ done(portraitCache[name]); return; }
+  const saved = portraitSaved(name);
+  if(saved && saved.at > Date.now() - 30 * 86400000){ portraitCache[name] = saved.url; done(saved.url); return; }
+  fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name.replace(/ /g, '_')) + '?redirect=true', { signal: AbortSignal.timeout(8000) })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      const url = j && j.type === 'standard' && j.thumbnail && /^https:\/\/upload\.wikimedia\.org\//.test(j.thumbnail.source) ? j.thumbnail.source : null;
+      portraitCache[name] = url;
+      try { localStorage.setItem('majlis-portrait-' + name, JSON.stringify({ at: Date.now(), url })); } catch(e){}
+      done(url);
+    })
+    .catch(() => { portraitCache[name] = null; done(null); });
+}
+function portraitNode(name){
+  const initials = name.split(/\s+/).filter(w => /^[A-Za-zÀ-ɏ]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  const box = el('div',{class:'match-photo'}, initials);
+  loadPortrait(name, url => {
+    if(!url) return;
+    const img = new Image();
+    img.alt = ''; img.referrerPolicy = 'no-referrer';
+    img.onload = () => { box.textContent = ''; box.appendChild(img); };
+    img.src = url;
+  });
+  return box;
+}
+
 function matchesCard(){
-  const card = el('div',{class:'card'},[el('h3',{},'Who you match in real life')]);
+  if(state.matchesLoading){
+    const cats = matchCategories(state.user);
+    return thinkStage('matches', {
+      kicker: 'AI MATCHMAKER', title: 'Finding your real-life matches', secondsPerStep: 5,
+      steps: ['Reading your results'].concat(cats.map(c => 'Searching for ' + c.title.toLowerCase() + ' matches'), ['Picking the closest fits']),
+    });
+  }
+  stopThink('matches');
+  const card = el('div',{class:'card match-card'},[el('h3',{},'Who you match in real life')]);
   if(!state.user || state.user.isGuest){
     card.appendChild(el('p',{class:'section-sub'},'Create an account to see which well-known people your results are closest to.'));
     return card;
   }
   const saved = loadSavedMatches();
-  if(state.matchesLoading){
-    card.appendChild(el('p',{class:'section-sub'},'The AI is finding your matches…'));
-    return card;
-  }
   if(!saved){
-    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now (' + state.matchesFailed + '). Try again in a moment.' : 'See which well-known people your political, economic, social, philosophy and religion results are closest to.'));
+    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now (' + state.matchesFailed + '). Try again in a moment.' : 'See which well-known people your results are closest to.'));
     card.appendChild(el('button',{class:'btn', onclick: fetchMatches}, state.matchesFailed ? 'Try again' : 'Find my matches'));
     return card;
   }
-  card.appendChild(el('p',{class:'field-caption',style:'margin:0 0 10px;'},'Closest public figures by their publicly stated views. An AI estimate for fun, not a claim that they\'d agree on everything.'));
   saved.list.forEach(cat => {
-    card.appendChild(el('h4',{style:'margin:14px 0 6px;'}, cat.title));
-    cat.people.forEach(p => card.appendChild(el('div',{style:'margin:0 0 6px;font-size:14px;line-height:1.45;'},[
-      el('b',{}, p.name), el('span',{style:'color:var(--parchment-dim);'}, ' — ' + p.why)
+    card.appendChild(el('div',{class:'match-cat'}, cat.title));
+    const row = el('div',{class:'match-row'});
+    cat.people.forEach(p => row.appendChild(el('div',{class:'match-person', title: p.why},[
+      portraitNode(p.name),
+      el('div',{class:'match-name'}, p.name),
+      el('div',{class:'match-why'}, p.why),
     ])));
+    card.appendChild(row);
   });
-  card.appendChild(el('button',{class:'btn secondary',style:'margin-top:10px;', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh matches'));
+  card.appendChild(el('p',{class:'field-caption',style:'margin:14px 0 8px;'},'AI estimate based on public views, just for fun.'));
+  card.appendChild(el('button',{class:'btn secondary', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh'));
   return card;
 }
 
@@ -2688,6 +2766,15 @@ function renderAssessment(){
     return wrap;
   }
 
+  if(state.quiz.section === 'written' && state.quiz.analysing){
+    wrap.appendChild(thinkStage('assessment', {
+      kicker: 'AI ANALYSIS', title: 'Mapping where you stand', secondsPerStep: 4,
+      steps: ['Reading your answers', 'Placing you on the economic map', 'Placing you on the political map', 'Placing you on the social map',
+              'Studying your philosophy', 'Looking at your religious outlook', 'Grading your written case', 'Saving your results'],
+    }));
+    return wrap;
+  }
+
   if(state.quiz.section === 'written'){
     wrap.appendChild(el('p',{class:'section-sub'},
       'State a position you hold and make your strongest case for it, in your own words. This decides your starting rank (1–10): the AI looks for clear reasons, evidence or examples, and whether you deal with the best objection to your view. Length alone doesn\'t help.'));
@@ -2707,9 +2794,10 @@ function renderAssessment(){
         alert('Write a bit more — at least a few sentences.');
         return;
       }
-      submitBtn.disabled = true; submitBtn.textContent = 'Analysing...';
-      await finishAssessment(position, viewText);
-      if(document.body.contains(submitBtn)){ submitBtn.disabled = false; submitBtn.textContent = 'Submit & get ranked'; }
+      state.quiz.analysing = true;
+      render();
+      try { await finishAssessment(position, viewText); }
+      finally { state.quiz.analysing = false; stopThink('assessment'); render(); }
     }}, 'Submit & get ranked');
     card.appendChild(submitBtn);
     wrap.appendChild(card);
