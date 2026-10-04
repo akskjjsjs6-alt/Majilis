@@ -2178,4 +2178,9 @@ footer a.footer__founder:hover { color: var(--neon); border-bottom-color: var(--
 @media (max-width: 640px) { .think-scene { width: 200px; height: 184px; order: -1; } }
 @media (prefers-reduced-motion: reduce) { .think-scene svg * { animation: none !important; } .tk-tick { opacity: 1; } }
 
-.founder-tag { margin-left: 8px; font-size: 0.55em; font-weight: 700; letter-spacing: 0.04em; color: var(--jg, #00e676); vertical-align: middle; white-space: nowrap; }
+
+.role-tag { margin-left: 7px; font-size: 0.62em; font-weight: 700; letter-spacing: 0.04em; vertical-align: middle; white-space: nowrap; }
+h2 .role-tag { font-size: 0.5em; }
+.role-founder { color: #22d3ee; text-shadow: 0 0 10px rgba(34,211,238,0.45); }
+.role-admin { color: #ff4d5e; }
+.role-mod { color: #b57bff; }

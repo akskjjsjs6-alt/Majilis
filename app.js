@@ -1174,7 +1174,7 @@ const FORUM_CATEGORIES = ['Discussion', 'Question', 'Debate', 'Off-topic'];
 
 // Display names without exposing whether an account is an AI rival.
 function nameWithTag(username, prefix, suffix){
-  return el('span',{},[ (prefix||'') + username, badgeRow(username, 'xs'), suffix || '' ]);
+  return el('span',{},[ (prefix||'') + username, roleTag(username), badgeRow(username, 'xs'), suffix || '' ]);
 }
 
 // When someone opens the Forum, give the AI rivals a chance to post (the server allows one run every 8 minutes).
@@ -5018,7 +5018,7 @@ function renderChatMessages(log, debate){
   debate.chatLog.forEach(m=>{
     const mine = m.author === state.currentUser;
     log.appendChild(el('div',{class:'msg '+(mine?'me':'them'), style: m.pending ? 'opacity:0.6;' : ''},[
-      el('span',{class:'tag'}, m.author),
+      el('span',{class:'tag'}, [m.author, roleTag(m.author)]),
       (window.MajlisFilters ? MajlisFilters.wrap(m.text) : m.text)
     ]));
   });
@@ -5352,7 +5352,7 @@ function leaderboardNameCell(u, i){
     el('div',{style:'display:flex;align-items:center;gap:10px;'},[
       el('span',{}, i+1+'.'),
       avatarNode(u, 28),
-      el('button',{class:'user-link', onclick:()=>viewProfile(u.username)}, u.name),
+      el('button',{class:'user-link', onclick:()=>viewProfile(u.username)}, u.name), roleTag(u),
     ])
   ];
   if(!isMe && !state.user.isGuest){
@@ -5596,9 +5596,18 @@ function connectionsList(usernames, emptyText, opts={}){
   return box;
 }
 
-// The site's owner (the admin account) carries a [Founder] tag next to their name on their profile.
-function founderTag(u){
-  return u && u.role === 'admin' ? el('span',{class:'founder-tag', title:'Founder of Majlis'}, '[Founder]') : null;
+// [Founder] (the owner's account only, cyan), [Admin] (red) and [Moderator] (purple) next to a name.
+const FOUNDER_USERNAMES = ['safeplace2359'];
+function roleTag(who){
+  const u = typeof who === 'string' ? state.users[who] : who;
+  if(!u) return null;
+  const uname = String(u.username || '').toLowerCase();
+  let kind = null, text = null;
+  if(FOUNDER_USERNAMES.includes(uname)){ kind = 'founder'; text = '[Founder]'; }
+  else if(u.role === 'admin'){ kind = 'admin'; text = '[Admin]'; }
+  else if(u.role === 'mod'){ kind = 'mod'; text = '[Moderator]'; }
+  if(!kind) return null;
+  return el('span',{class:'role-tag role-' + kind, title: kind === 'founder' ? 'Founder of Majlis' : kind === 'admin' ? 'Administrator' : 'Moderator'}, text);
 }
 
 function renderOwnProfile(){
@@ -5607,7 +5616,7 @@ function renderOwnProfile(){
   wrap.appendChild(el('div',{class:'profile-header-row'},[
     avatarNode(u, 76),
     el('div',{},[
-      el('h2',{class:'section-title', style:'margin:0;'}, [u.name + (u.isGuest ? ' (guest)' : ''), founderTag(u)]),
+      el('h2',{class:'section-title', style:'margin:0;'}, [u.name + (u.isGuest ? ' (guest)' : ''), roleTag(u)]),
     ]),
   ]));
   wrap.appendChild(el('p',{class:'section-sub'}, u.isGuest
@@ -5716,7 +5725,7 @@ function renderOtherProfile(username){
   const titleRow = el('div',{class:'profile-header-row'},[
     avatarNode(person, 76),
     el('div',{class:'name-with-avatar'},[
-      el('h2',{class:'section-title', style:'margin:0;'}, [person.name, founderTag(person)]),
+      el('h2',{class:'section-title', style:'margin:0;'}, [person.name, roleTag(person)]),
       areFriends(state.currentUser, username) ? el('span',{class:'friend-badge'},'Friends') : null,
     ]),
   ]);
@@ -6018,7 +6027,7 @@ function buildMemberList(){
     const row = el('div',{class:'member-row'},[
       avatarNode(person, 42),
       el('div',{},[
-        el('button',{class:'user-link', onclick:()=>viewProfile(person.username)}, person.name),
+        el('span',{},[el('button',{class:'user-link', onclick:()=>viewProfile(person.username)}, person.name), roleTag(person)]),
         el('div',{style:'font-size:12px;color:var(--parchment-dim);'}, '@'+person.username +
           (areFriends(state.currentUser, person.username) ? ' · Friends' : '')),
         person.bio ? el('div',{class:'member-bio'}, (window.MajlisFilters ? MajlisFilters.wrap(person.bio) : person.bio)) : null,
@@ -6125,7 +6134,7 @@ function renderMessages(){
     const lastTheirs = getConversation(activeUser).filter(m => m.from === activeUser && m.id).pop();
     threadWrap.appendChild(el('div',{class:'dm-thread-header'},[
       avatarNode(person, 32),
-      el('button',{class:'user-link', onclick:()=>viewProfile(activeUser)}, person.name),
+      el('span',{},[el('button',{class:'user-link', onclick:()=>viewProfile(activeUser)}, person.name), roleTag(person)]),
       el('div',{class:'dm-thread-header__tools'},[
         el('button',{class:'report-link', title:'Report ' + person.name, onclick:()=>openReport(activeUser, lastTheirs ? { type:'message', id:lastTheirs.id, preview:lastTheirs.text } : { type:'profile' })}, [icon('flag', 13), 'Report']),
         blockedByMe ? null : el('button',{class:'report-link', onclick:()=>toggleBlock(activeUser)}, 'Block'),
