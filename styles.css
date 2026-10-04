@@ -2177,3 +2177,5 @@ footer a.footer__founder:hover { color: var(--neon); border-bottom-color: var(--
 @keyframes tkDot { 0%,100% { transform: translateY(0); opacity: 0.4; } 50% { transform: translateY(-3px); opacity: 1; } }
 @media (max-width: 640px) { .think-scene { width: 200px; height: 184px; order: -1; } }
 @media (prefers-reduced-motion: reduce) { .think-scene svg * { animation: none !important; } .tk-tick { opacity: 1; } }
+
+.founder-tag { margin-left: 8px; font-size: 0.55em; font-weight: 700; letter-spacing: 0.04em; color: var(--jg, #00e676); vertical-align: middle; white-space: nowrap; }
