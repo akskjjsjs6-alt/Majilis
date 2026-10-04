@@ -165,7 +165,7 @@ function takeCard(t, compact){
     el('button',{class:'take__vote' + (t.voted ? ' is-on' : ''), type:'button', title: mine ? 'Your take' : (t.voted ? 'Remove your upvote' : 'Upvote this take'),
       onclick:()=>toggleTakeVote(t)}, [el('span',{class:'take__arrow'}, '▲'), el('b',{}, String(t.votes))]),
     el('div',{class:'take__main'},[
-      el('div',{class:'take__who'},[ el('button',{class:'user-link', onclick:()=>viewProfile(t.username)}, t.name), badgeRow(t.username, 'xs'),
+      el('div',{class:'take__who'},[ el('button',{class:'user-link', onclick:()=>viewProfile(t.username)}, t.name), roleTag(t.username), badgeRow(t.username, 'xs'),
         el('span',{class:'take__side'}, t.side === 'for' ? 'For' : 'Against'), compact ? null : el('span',{class:'take__time'}, timeAgo(t.ts)) ]),
       el('div',{class:'take__body'}, t.body),
       mine && !compact ? el('div',{class:'take__tools'},[
