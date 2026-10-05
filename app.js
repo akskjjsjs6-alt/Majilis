@@ -2530,9 +2530,11 @@ async function fetchMatches(){
     const titles = {}; categories.forEach(c => titles[c.key] = c.title);
     const seen = {};
     const list = data.matches.filter(m => titles[m.key] && m.name && !seen[m.key] && (seen[m.key] = 1))
-      .map(m => ({ key: m.key, title: titles[m.key], name: m.name, label: m.label || '', why: m.why || '', x: m.x, y: m.y }));
+      .map(m => ({ key: m.key, title: titles[m.key], name: m.name, label: m.label || '', why: m.why || '', x: m.x, y: m.y,
+        photo: typeof m.photo === 'string' && m.photo.startsWith('data:image/') ? m.photo : null, pnote: m.pnote || '' }));
     if(!list.length) throw new Error('empty');
-    const countries = Array.isArray(data.countries) ? data.countries.filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).slice(0, 3) : [];
+    const countries = Array.isArray(data.countries) ? data.countries.filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).slice(0, 3)
+      .map(c => ({ name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })) : [];
     try { localStorage.setItem(matchStoreKey(), JSON.stringify({ v: 2, at: Date.now(), list, countries })); } catch(e){}
     if(state.cardPending){ state.cardPending = false; state.showCard = true; }   // the result card pops up once, right after the test
   } catch(e){
@@ -2615,6 +2617,7 @@ function thinkStage(id, cfg){
 
 // Portraits come from Wikipedia (free). Anyone without one gets their initials.
 const portraitCache = {};
+try { Object.keys(localStorage).filter(k => k.startsWith('majlis-portrait-') && /"url":null/.test(localStorage.getItem(k) || '')).forEach(k => localStorage.removeItem(k)); } catch(e){}   // forget old "no photo" notes
 function portraitSaved(name){ try { return JSON.parse(localStorage.getItem('majlis-portrait-' + name) || 'null'); } catch(e){ return null; } }
 const WIKI_IMG = /^https:\/\/upload\.wikimedia\.org\//;
 function wikiThumb(j){ return j && j.thumbnail && WIKI_IMG.test(j.thumbnail.source || '') ? j.thumbnail.source : null; }
@@ -2623,10 +2626,12 @@ function wikiThumb(j){ return j && j.thumbnail && WIKI_IMG.test(j.thumbnail.sour
 async function fetchPortraitUrl(name){
   const get = (url) => fetch(url, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null);
   const pick = (j) => { const pages = j && j.query && j.query.pages; if(!pages) return null; const list = Object.values(pages).sort((a, b) => (a.index || 0) - (b.index || 0)); for(const p of list){ const t = wikiThumb(p); if(t) return t; } return null; };
-  try { const j = await get('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name.replace(/ /g, '_')) + '?redirect=true'); if(j && j.type === 'standard'){ const t = wikiThumb(j); if(t) return t; } } catch(e){ if(e && e.name === 'TimeoutError') throw e; }
+  let failed = 0;
+  try { const j = await get('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name.replace(/ /g, '_')) + '?redirect=true'); if(j && j.type === 'standard'){ const t = wikiThumb(j); if(t) return t; } } catch(e){ failed++; }
   const q = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=320';
-  try { const t = pick(await get(q + '&redirects=1&titles=' + encodeURIComponent(name))); if(t) return t; } catch(e){}
-  try { const t = pick(await get(q + '&generator=search&gsrlimit=1&gsrsearch=' + encodeURIComponent(name))); if(t) return t; } catch(e){}
+  try { const t = pick(await get(q + '&redirects=1&titles=' + encodeURIComponent(name))); if(t) return t; } catch(e){ failed++; }
+  try { const t = pick(await get(q + '&generator=search&gsrlimit=1&gsrsearch=' + encodeURIComponent(name))); if(t) return t; } catch(e){ failed++; }
+  if(failed === 3) throw new Error('Wikipedia unreachable');   // the connection failed, so do not remember "no photo"
   return null;
 }
 function loadPortrait(name, done){
@@ -2640,16 +2645,18 @@ function loadPortrait(name, done){
     done(url);
   }).catch(() => { portraitCache[name] = null; done(null); });   // a network failure is not saved
 }
-function portraitNode(name){
-  const initials = name.split(/\s+/).filter(w => /^[A-Za-zÀ-ɏ]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+function portraitNode(name, photo, note){
+  const initials = name.split(/\s+/).filter(w => /^[A-Za-z\u00C0-\u024F]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
   const box = el('div',{class:'match-photo'}, initials);
-  loadPortrait(name, url => {
-    if(!url) return;
+  const show = (url) => {
     const img = new Image();
     img.alt = ''; img.referrerPolicy = 'no-referrer';
     img.onload = () => { box.textContent = ''; box.appendChild(img); };
     img.src = url;
-  });
+  };
+  if(photo){ show(photo); return box; }          // the server already sent the picture
+  if(note) box.title = note;
+  loadPortrait(name, url => { if(url) show(url); });   // otherwise ask Wikipedia from this browser
   return box;
 }
 
@@ -2671,7 +2678,7 @@ function axisRows(u){
 function flagNode(c){
   const img = new Image();
   img.className = 'rc-flag'; img.alt = c.name; img.referrerPolicy = 'no-referrer'; img.loading = 'lazy';
-  img.src = 'https://flagcdn.com/w80/' + c.code + '.png';
+  img.src = c.flag || ('https://flagcdn.com/w80/' + c.code + '.png');
   img.onerror = () => { const f = el('span',{class:'rc-flag rc-flag--code'}, c.code.toUpperCase()); img.replaceWith(f); };
   return img;
 }
@@ -2724,7 +2731,7 @@ function buildResultCard(){
       (u.religion && u.religion !== 'Prefer not to say') ? [el('span',{}, u.religion + (u.denomination ? ', ' + u.denomination : ''))] : [])),
   ]));
 
-  const photo = portraitNode(top.name);
+  const photo = portraitNode(top.name, top.photo, top.pnote);
   card.appendChild(el('div',{class:'rc-match'},[
     top.close != null ? ringNode(top.close, photo) : photo,
     el('div',{class:'rc-match__text'},[
@@ -2740,7 +2747,7 @@ function buildResultCard(){
   if(others.length){
     card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Also sound like'));
     card.appendChild(el('div',{class:'rc-trio'}, others.map(p => el('div',{class:'rc-chip', title: p.why},[
-      portraitNode(p.name),
+      portraitNode(p.name, p.photo, p.pnote),
       el('div',{class:'rc-chip__name'}, p.name),
       el('div',{class:'rc-chip__sub'}, p.close != null ? p.close + '% · ' + p.title : p.title),
     ]))));
@@ -2826,7 +2833,7 @@ function matchesCard(){
     const info = el('div',{class:'match-info'},[
       el('div',{class:'match-cat'}, cat.title),
       el('div',{class:'match-who'},[
-        portraitNode(cat.name),
+        portraitNode(cat.name, cat.photo, cat.pnote),
         el('div',{},[el('div',{class:'match-name'}, cat.name), cat.label ? el('div',{class:'match-label'}, cat.label) : null]),
       ]),
       cat.why ? el('p',{class:'match-why'}, cat.why) : null,
