@@ -5798,16 +5798,18 @@ function connectionsList(usernames, emptyText, opts={}){
 
 // [Founder] (the owner's account only, cyan), [Admin] (red) and [Moderator] (purple) next to a name.
 const FOUNDER_USERNAMES = ['safeplace2359'];
+const COFOUNDER_USERNAMES = ['adnanmohammad'];   // same colour as the Founder tag, still a moderator in the database
 function roleTag(who){
   const u = typeof who === 'string' ? state.users[who] : who;
   if(!u) return null;
   const uname = String(u.username || '').toLowerCase();
   let kind = null, text = null;
   if(FOUNDER_USERNAMES.includes(uname)){ kind = 'founder'; text = '[Founder]'; }
+  else if(COFOUNDER_USERNAMES.includes(uname)){ kind = 'founder'; text = '[CO-FOUNDER]'; }
   else if(u.role === 'admin'){ kind = 'admin'; text = '[Admin]'; }
   else if(u.role === 'mod'){ kind = 'mod'; text = '[Moderator]'; }
   if(!kind) return null;
-  return el('span',{class:'role-tag role-' + kind, title: kind === 'founder' ? 'Founder of Majlis' : kind === 'admin' ? 'Administrator' : 'Moderator'}, text);
+  return el('span',{class:'role-tag role-' + kind, title: kind === 'founder' ? (text === '[Founder]' ? 'Founder of Majlis' : 'Co-founder of Majlis') : kind === 'admin' ? 'Administrator' : 'Moderator'}, text);
 }
 
 function renderOwnProfile(){
