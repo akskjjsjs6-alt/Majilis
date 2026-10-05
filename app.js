@@ -2663,6 +2663,32 @@ function flagNode(c){
   img.onerror = () => { const f = el('span',{class:'rc-flag rc-flag--code'}, c.code.toUpperCase()); img.replaceWith(f); };
   return img;
 }
+// Six-point radar: the further a point is from the middle, the more strongly you lean that way.
+function radarSvg(rows){
+  const cx = 180, cy = 140, R = 74, n = rows.length;
+  const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+  const pt = (i, f) => [cx + Math.cos(ang(i)) * R * f, cy + Math.sin(ang(i)) * R * f];
+  let svg = '<svg viewBox="0 0 360 285" role="img" aria-label="Your six axes"><defs><radialGradient id="rcFill"><stop offset="0" stop-color="#00e676" stop-opacity=".55"/><stop offset="1" stop-color="#00b0ff" stop-opacity=".25"/></radialGradient></defs>';
+  [0.34, 0.67, 1].forEach(f => { svg += '<polygon class="rc-grid-ring" points="' + rows.map((_, i) => pt(i, f).map(v => v.toFixed(1)).join(',')).join(' ') + '"/>'; });
+  rows.forEach((_, i) => { const [x, y] = pt(i, 1); svg += '<line class="rc-spoke" x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>'; });
+  const pts = rows.map((r, i) => pt(i, Math.max(0.08, (r.pct - 50) / 50)));
+  svg += '<polygon class="rc-shape" points="' + pts.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ') + '"/>';
+  pts.forEach((p, i) => { svg += '<circle class="rc-vertex" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4.5" fill="' + rows[i].color + '"/>'; });
+  rows.forEach((r, i) => {
+    const [x, y] = pt(i, 1.28), c = Math.cos(ang(i));
+    const anchor = Math.abs(c) < 0.2 ? 'middle' : (c > 0 ? 'start' : 'end');
+    svg += '<text class="rc-lab" x="' + x.toFixed(1) + '" y="' + (y - 2).toFixed(1) + '" text-anchor="' + anchor + '">' + r.name + '</text>' +
+           '<text class="rc-labv" x="' + x.toFixed(1) + '" y="' + (y + 12).toFixed(1) + '" text-anchor="' + anchor + '" fill="' + r.color + '">' + r.pct + '%</text>';
+  });
+  return svg + '</svg>';
+}
+function ringNode(pct, inner){
+  const r = 52, c = 2 * Math.PI * r;
+  const wrap = el('div',{class:'rc-ring'});
+  wrap.appendChild(el('div',{class:'rc-ring__svg', html:'<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="' + r + '" class="rc-ring__track"/><circle cx="60" cy="60" r="' + r + '" class="rc-ring__arc" stroke-dasharray="' + (c * pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 60 60)"/></svg>'}));
+  wrap.appendChild(inner);
+  return wrap;
+}
 function buildResultCard(){
   const u = state.user, saved = loadSavedMatches();
   if(!u || !saved || !u.compass) return null;
@@ -2676,49 +2702,44 @@ function buildResultCard(){
 
   card.appendChild(el('div',{class:'rc-head'},[
     el('div',{class:'rc-logo'},[el('span',{class:'rc-logo__m', html:'<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>'}), 'Majlis']),
-    el('span',{class:'rc-rule'}), el('span',{class:'rc-kicker'}, 'My result'),
+    el('span',{class:'rc-pill'}, 'Your result'),
   ]));
-  card.appendChild(el('div',{class:'rc-eyebrow'}, 'Your position'));
-  card.appendChild(el('h2',{class:'rc-title'}, ideo('political')));
-  card.appendChild(el('p',{class:'rc-sub'}, [ideo('economic'), ' · ', ideo('social')].join('')));
+  card.appendChild(el('div',{class:'rc-hero'},[
+    el('div',{class:'rc-eyebrow'}, 'You sit with the'),
+    el('h2',{class:'rc-title'}, ideo('political')),
+    el('div',{class:'rc-tags'},[el('span',{}, ideo('economic')), el('span',{}, ideo('social'))].concat(
+      (u.archetype && !/not yet/i.test(u.archetype)) ? [el('span',{}, u.archetype)] : [],
+      (u.religion && u.religion !== 'Prefer not to say') ? [el('span',{}, u.religion + (u.denomination ? ', ' + u.denomination : ''))] : [])),
+  ]));
 
-  const photoCard = el('div',{class:'rc-panel rc-top'},[
-    portraitNode(top.name),
-    top.close != null ? el('div',{class:'rc-big'}, top.close + '%') : null,
-    el('div',{class:'rc-eyebrow'}, 'Most compatible'),
-    el('div',{class:'rc-name'}, top.name),
-    el('div',{class:'rc-label'}, top.label),
-  ]);
-  const axes = el('div',{class:'rc-panel rc-axes'},[el('div',{class:'rc-eyebrow'}, 'Your 6 axes')]);
-  axisRows(u).forEach(r => axes.appendChild(el('div',{class:'rc-axis'},[
-    el('span',{class:'rc-axis__icon', style:'background:' + r.color + ';', title: r.title}, r.letter),
-    el('span',{class:'rc-axis__name'}, r.name),
-    el('span',{class:'rc-axis__bar'},[el('i',{style:'width:' + r.pct + '%;background:' + r.color + ';'})]),
-    el('span',{class:'rc-axis__pct', style:'color:' + r.color + ';'}, r.pct + '%'),
-  ])));
-  const extras = [];
-  if(u.archetype && !/not yet/i.test(u.archetype)) extras.push(['Philosophy', u.archetype]);
-  if(u.religion && u.religion !== 'Prefer not to say') extras.push(['Religion', u.religion + (u.denomination ? ', ' + u.denomination : '')]);
-  extras.forEach(([k, v]) => axes.appendChild(el('div',{class:'rc-extra'},[el('span',{}, k), el('b',{}, v)])));
-  card.appendChild(el('div',{class:'rc-grid'},[photoCard, axes]));
+  const photo = portraitNode(top.name);
+  card.appendChild(el('div',{class:'rc-match'},[
+    top.close != null ? ringNode(top.close, photo) : photo,
+    el('div',{class:'rc-match__text'},[
+      el('div',{class:'rc-eyebrow'}, 'Closest in spirit'),
+      el('div',{class:'rc-name'}, top.name),
+      el('div',{class:'rc-label'}, top.label),
+      top.close != null ? el('div',{class:'rc-pct'},[el('b',{}, top.close + '%'), ' match']) : null,
+    ]),
+  ]));
 
-  const lower = [];
+  card.appendChild(el('div',{class:'rc-radar', html: radarSvg(axisRows(u))}));
+
   if(others.length){
-    const box = el('div',{class:'rc-panel'},[el('div',{class:'rc-eyebrow'}, 'Other personalities')]);
-    others.forEach(p => box.appendChild(el('div',{class:'rc-person'},[
+    card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Also sound like'));
+    card.appendChild(el('div',{class:'rc-trio'}, others.map(p => el('div',{class:'rc-chip', title: p.why},[
       portraitNode(p.name),
-      el('div',{class:'rc-person__text'},[el('div',{class:'rc-person__name'}, p.name), el('div',{class:'rc-person__sub'}, p.close != null ? p.title : p.label)]),
-      p.close != null ? el('b',{class:'rc-person__pct'}, p.close + '%') : null,
-    ])));
-    lower.push(box);
+      el('div',{class:'rc-chip__name'}, p.name),
+      el('div',{class:'rc-chip__sub'}, p.close != null ? p.close + '% · ' + p.title : p.title),
+    ]))));
   }
   if(saved.countries && saved.countries.length){
-    const box = el('div',{class:'rc-panel'},[el('div',{class:'rc-eyebrow'}, 'Nearby countries')]);
-    saved.countries.forEach(c => box.appendChild(el('div',{class:'rc-country'},[flagNode(c), el('span',{class:'rc-country__name'}, c.name), el('b',{class:'rc-person__pct'}, c.pct + '%')])));
-    lower.push(box);
+    card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Closest nations'));
+    card.appendChild(el('div',{class:'rc-trio'}, saved.countries.map(c => el('div',{class:'rc-chip'},[
+      flagNode(c), el('div',{class:'rc-chip__name'}, c.name), el('div',{class:'rc-chip__sub'}, c.pct + '%'),
+    ]))));
   }
-  if(lower.length) card.appendChild(el('div',{class:'rc-grid rc-lower'}, lower));
-  card.appendChild(el('div',{class:'rc-foot'},[el('span',{}, 'Discover your profile'), el('b',{}, 'Majlis')]));
+  card.appendChild(el('div',{class:'rc-foot'}, 'Find where you stand at Majlis'));
   return card;
 }
 function renderResultOverlay(){
