@@ -2762,7 +2762,7 @@ function renderAssessment(){
 
     const card = el('div',{class:'card'});
     card.appendChild(el('div',{class:'quiz-q'}, item.q));
-    const optsWrap = el('div',{class:'quiz-opts'});
+    const optsWrap = el('div',{class:'quiz-opts' + (item.dir ? ' quiz-likert' : '')});
     item.opts.forEach((opt)=>{
       optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>{
         state.quiz.answers.push({section: state.quiz.section, axis: item.axis || null, q: item.q, choice: opt});
@@ -2919,12 +2919,13 @@ function computeAxisPair(answers, section){
     if(!q) return;
     const optIndex = q.opts.indexOf(a.choice);
     if(optIndex === -1) return;
-    const value = -3 + optIndex*2; // 0->-3, 1->-1, 2->1, 3->3
+    // Agree/disagree statements: Strongly disagree = -3 ... Strongly agree = +3, flipped when the statement points to the low end.
+    const value = (optIndex - 2) * 1.5 * (q.dir || 1);
     if(q.axis==='x'){ xSum += value; xCount++; } else { ySum += value; yCount++; }
   });
   return {
-    x: axisScoreToPct(xSum, xCount || 15),
-    y: axisScoreToPct(ySum, yCount || 15),
+    x: axisScoreToPct(xSum, xCount || 8),
+    y: axisScoreToPct(ySum, yCount || 8),
   };
 }
 
@@ -2960,11 +2961,12 @@ function deriveArchetype(answers){
   const freeWillAnswer = philAnswers.find(a=>/free will/i.test(a.q));
   const moralityAnswer = philAnswers.find(a=>/morality discovered/i.test(a.q));
 
-  if(epistemic <= -8) return 'Empiricist';
+  const avg = epistemic / (philAnswers.length || 1);   // about -1 (very sceptical) to +2 (very rationalist)
+  if(avg <= -0.18) return 'Empiricist';
   if(moralityAnswer && /Invented/i.test(moralityAnswer.choice)) return 'Existentialist';
   if(freeWillAnswer && /incoherent/i.test(freeWillAnswer.choice)) return 'Skeptic';
-  if(epistemic >= 20) return 'Rationalist';
-  if(epistemic >= 8) return 'Utilitarian';
+  if(avg >= 0.44) return 'Rationalist';
+  if(avg >= 0.18) return 'Utilitarian';
   return 'Stoic';
 }
 

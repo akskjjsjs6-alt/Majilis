@@ -2204,3 +2204,8 @@ h2 .role-tag { font-size: 0.5em; }
 .fold__body { padding: 0 2px 18px; }
 .fold__body > .card { border: 0; background: none; box-shadow: none; padding: 0; margin: 0; }
 .fold__body > .card > h3:first-child { display: none; }
+
+/* Agree / disagree answers sit in one row */
+.quiz-likert { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.quiz-likert .quiz-opt { text-align: center; padding: 14px 6px; font-size: 13px; line-height: 1.25; }
+@media (max-width: 640px) { .quiz-likert { grid-template-columns: 1fr; } .quiz-likert .quiz-opt { text-align: left; padding: 12px 14px; font-size: 14px; } }
