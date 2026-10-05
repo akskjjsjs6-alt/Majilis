@@ -2493,7 +2493,7 @@ function matchCategories(u){
   if(!u || !u.compass || !u.ideologies) return [];
   const mapCat = (key, title) => {
     const d = COMPASS_DEFS[key], p = u.compass[key];
-    return { key, title, axes: { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1] },
+    return { key, title, axes: { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1] }, me: { x: Math.round(p.x), y: Math.round(p.y) },
       summary: (u.ideologies[key].label || '') + ' (x ' + Math.round(p.x) + '/100, y ' + Math.round(p.y) + '/100). ' + (u.ideologies[key].reasoning || '') };
   };
   const cats = [mapCat('political', 'Political'), mapCat('economic', 'Economic'), mapCat('social', 'Social')];
@@ -2683,7 +2683,7 @@ function matchesCard(){
         el('div',{},[el('div',{class:'match-name'}, cat.name), cat.label ? el('div',{class:'match-label'}, cat.label) : null]),
       ]),
       cat.why ? el('p',{class:'match-why'}, cat.why) : null,
-      close != null ? el('div',{class:'match-close'},[el('b',{}, close + '%'), ' close on this map']) : null,
+      close != null ? el('div',{class:'match-close'},[el('b',{}, close + '%'), close >= 80 ? ' close on this map' : ' on this map (the closest we could find)']) : null,
     ]);
     card.appendChild(el('div',{class:'match-item' + (map ? '' : ' no-map')}, [info, map]));
   });
