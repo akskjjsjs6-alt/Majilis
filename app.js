@@ -2625,24 +2625,28 @@ function portraitNode(name){
   return box;
 }
 
-// A small map: you (green) and the match, joined by a line, with a closeness score.
+// A small map: you (green) and the match, joined by a line. Axis names sit outside the box so nothing overlaps.
 function matchMap(cat){
   const me = state.user.compass && state.user.compass[cat.key];
   const d = COMPASS_DEFS[cat.key];
   if(!me || !d || cat.x == null || cat.y == null) return null;
-  const at = (p) => 'left:' + Math.max(4, Math.min(96, p.x)) + '%;top:' + Math.max(4, Math.min(96, 100 - p.y)) + '%;';
-  const map = el('div',{class:'match-map'});
-  map.appendChild(el('span',{class:'mm-axis mm-l'}, d.xLabels[0]));
-  map.appendChild(el('span',{class:'mm-axis mm-r'}, d.xLabels[1]));
-  map.appendChild(el('span',{class:'mm-axis mm-t'}, d.yLabels[1]));
-  map.appendChild(el('span',{class:'mm-axis mm-b'}, d.yLabels[0]));
-  const x1 = Math.max(4, Math.min(96, me.x)), y1 = Math.max(4, Math.min(96, 100 - me.y));
-  const x2 = Math.max(4, Math.min(96, cat.x)), y2 = Math.max(4, Math.min(96, 100 - cat.y));
-  map.appendChild(el('div',{class:'mm-line', html:'<svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/></svg>'}));
-  map.appendChild(el('div',{class:'mm-dot mm-you', style: at(me)}, [el('i',{}), el('b',{}, 'You')]));
-  const them = el('div',{class:'mm-dot mm-them', style: at(cat)}, [el('i',{}), el('b',{}, cat.name.length <= 15 ? cat.name : cat.name.split(' ').slice(-1)[0])]);
-  map.appendChild(them);
-  return map;
+  const pt = (p) => ({ x: Math.max(10, Math.min(90, p.x)), y: Math.max(10, Math.min(90, 100 - p.y)) });
+  const a = pt(me), b = pt(cat);
+  // The name tag goes on the side with room, and above or below depending on which dot is higher.
+  const tag = (name, p, other) => el('div',{class:'mm-dot', style:'left:' + p.x + '%;top:' + p.y + '%;'},[
+    el('i',{}),
+    el('b',{class:(p.x > 55 ? 'to-left' : 'to-right') + (p.y > other.y ? ' below' : ' above')}, name),
+  ]);
+  const box = el('div',{class:'match-map'});
+  box.appendChild(el('div',{class:'mm-line', html:'<svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'"/></svg>'}));
+  const you = tag('You', a, b); you.classList.add('mm-you');
+  const them = tag(cat.name.length <= 15 ? cat.name : cat.name.split(' ').slice(-1)[0], b, a); them.classList.add('mm-them');
+  box.appendChild(you); box.appendChild(them);
+  return el('div',{class:'match-map-wrap'},[
+    el('div',{class:'mm-top'}, d.yLabels[1]),
+    el('div',{class:'mm-mid'},[el('span',{class:'mm-side'}, d.xLabels[0]), box, el('span',{class:'mm-side'}, d.xLabels[1])]),
+    el('div',{class:'mm-bottom'}, d.yLabels[0]),
+  ]);
 }
 function closeness(cat){
   const me = state.user.compass && state.user.compass[cat.key];
@@ -5900,110 +5904,99 @@ function segControl(options, currentValue, onChange){
   ));
 }
 
+// Saves name and bio together with one request.
+async function saveProfileBasics(newName, newBio){
+  const name = ((newName || '').trim().slice(0, 40)) || state.user.username;
+  const bio = (newBio || '').trim().slice(0, 280);
+  const prev = { name: state.user.name, bio: state.user.bio };
+  state.user.name = name; state.user.bio = bio;
+  delete state.drafts['settings-name']; delete state.drafts['settings-bio'];
+  state.settingsSaved = 'Saved';
+  render();
+  setTimeout(() => { if(state.settingsSaved){ state.settingsSaved = ''; render(); } }, 3000);
+  if(!state.user.isGuest && state.user.id){
+    const { error } = await sb.from('profiles').update({ name, bio }).eq('id', state.user.id);
+    if(error){ state.user.name = prev.name; state.user.bio = prev.bio; state.settingsSaved = ''; render(); alert('Your profile couldn\'t be saved — please try again.'); }
+  }
+}
+
+// A closed-by-default section, so the page shows only what most people need.
+function settingsFold(title, hint, body){
+  const d = el('details',{class:'fold'});
+  d.appendChild(el('summary',{},[el('span',{class:'fold__title'}, title), hint ? el('span',{class:'fold__hint'}, hint) : null]));
+  d.appendChild(el('div',{class:'fold__body'}, body));
+  d.addEventListener('toggle', () => { state.openFolds = state.openFolds || {}; state.openFolds[title] = d.open; });
+  if(state.openFolds && state.openFolds[title]) d.open = true;
+  return d;
+}
+
 function renderSettings(){
-  const wrap = el('div',{});
+  const wrap = el('div',{class:'settings-page'});
   const u = state.user;
   u.settings = u.settings || { profileVisibility:'public', showOnLeaderboard:true, allowFollowers:true };
 
   wrap.appendChild(el('h2',{class:'section-title'},'Settings'));
-  wrap.appendChild(el('p',{class:'section-sub'},'Manage your photo, display name, and who can see your activity.'));
-  wrap.appendChild(installCard());
-  if(!u.isGuest) wrap.appendChild(el('div',{class:'card'},[
-    el('h3',{}, 'Tour'), el('p',{}, 'A 30-second walk through the main parts of Majlis.'),
-    el('button',{class:'btn secondary', onclick:()=>startTour()}, 'Show me the tour'),
-  ]));
+  wrap.appendChild(el('p',{class:'section-sub'},'Your profile and who can see it.'));
 
-  if(window.MajlisFilters) wrap.appendChild(MajlisFilters.settingsCard(() => render()));
-
-  const photoCard = el('div',{class:'card'});
-  photoCard.appendChild(el('h3',{},'Profile picture'));
+  // ---- Profile: photo, name and bio together ----
   const fileIn = el('input',{type:'file', accept:'image/*', style:'display:none;', onchange:(e)=>handleAvatarUpload(e.target.files[0])});
-  const photoActions = el('div',{class:'avatar-upload-actions'},[
-    el('button',{class:'btn secondary', onclick:()=>fileIn.click()}, u.avatar ? 'Change photo' : 'Upload photo'),
-    u.avatar ? el('button',{class:'btn secondary', style:'color:var(--wine);border-color:var(--wine);', onclick:removeAvatar}, 'Remove photo') : null,
-  ]);
-  photoCard.appendChild(el('div',{class:'avatar-upload-row'},[avatarNode(u, 84), photoActions, fileIn]));
-  photoCard.appendChild(el('p',{style:'font-size:12px;color:var(--parchment-dim);margin:0;'}, u.isGuest ? 'Create an account to set a profile picture.' : 'JPG or PNG, cropped to a square automatically.'));
-  wrap.appendChild(photoCard);
-  wrap.appendChild(el('div',{style:'height:18px'}));
-
-  const nameCard = el('div',{class:'card'});
-  nameCard.appendChild(el('h3',{},'Display name'));
   const nameIn = draft('settings-name', el('input',{type:'text', maxlength:'40'}), u.name);
-  nameCard.appendChild(el('div',{class:'field'},[el('label',{},'Name shown to others'), nameIn]));
-  nameCard.appendChild(el('button',{class:'btn secondary', onclick:()=>updateDisplayName(nameIn.value)}, 'Save name'));
-  wrap.appendChild(nameCard);
-  wrap.appendChild(el('div',{style:'height:18px'}));
+  const bioIn = draft('settings-bio', el('textarea',{placeholder:'A line or two about you', style:'min-height:72px;', maxlength:'280'}), u.bio||'');
+  const profile = el('div',{class:'card'},[
+    el('div',{class:'avatar-upload-row'},[
+      avatarNode(u, 64),
+      el('div',{class:'avatar-upload-actions'},[
+        el('button',{class:'btn secondary', onclick:()=>fileIn.click()}, u.avatar ? 'Change photo' : 'Upload photo'),
+        u.avatar ? el('button',{class:'linkbtn', onclick:removeAvatar}, 'Remove') : null,
+      ]),
+      fileIn,
+    ]),
+    u.isGuest ? el('p',{class:'field-caption'}, 'Create an account to set a photo.') : null,
+    el('div',{class:'field'},[el('label',{},'Name'), nameIn]),
+    el('div',{class:'field'},[el('label',{},'Bio'), bioIn]),
+    el('div',{style:'display:flex;align-items:center;gap:12px;'},[
+      el('button',{class:'btn', onclick:()=>saveProfileBasics(nameIn.value, bioIn.value)}, 'Save'),
+      el('span',{class:'field-caption', style:'margin:0;'}, state.settingsSaved || ''),
+    ]),
+  ]);
+  wrap.appendChild(profile);
 
-  const bioCard = el('div',{class:'card'});
-  bioCard.appendChild(el('h3',{},'Bio'));
-  const bioIn = draft('settings-bio', el('textarea',{placeholder:'Tell people a bit about yourself...', style:'min-height:90px;', maxlength:'280'}), u.bio||'');
-  bioCard.appendChild(el('div',{class:'field'},[el('label',{},'Shown on your profile (280 chars)'), bioIn]));
-  bioCard.appendChild(el('button',{class:'btn secondary', onclick:()=>updateBio(bioIn.value)}, 'Save bio'));
-  wrap.appendChild(bioCard);
-  wrap.appendChild(el('div',{style:'height:18px'}));
-
-  const themeCard = el('div',{class:'card'});
-  themeCard.appendChild(el('h3',{},'Appearance'));
-  themeCard.appendChild(el('div',{class:'settings-row'},[
-    el('div',{},[el('div',{class:'settings-label'},'Theme'), el('div',{class:'settings-desc'},'Change how Majlis looks. Everything stays in the same place, only the style changes.')]),
+  // ---- Privacy: three switches, one line each ----
+  const row = (label, desc, ctl) => el('div',{class:'settings-row'},[el('div',{},[el('div',{class:'settings-label'}, label), el('div',{class:'settings-desc'}, desc)]), ctl]);
+  wrap.appendChild(el('div',{class:'card'},[
+    el('h3',{},'Privacy'),
+    row('Profile', 'Private shows only your name.', segControl([['public','Public'],['private','Private']], u.settings.profileVisibility, (v)=>updateSetting('profileVisibility', v))),
+    row('Leaderboard', 'Show your rankings publicly.', segControl([[true,'On'],[false,'Off']], u.settings.showOnLeaderboard, (v)=>updateSetting('showOnLeaderboard', v))),
+    row('New followers', 'Let people follow you.', segControl([[true,'On'],[false,'Off']], u.settings.allowFollowers, (v)=>updateSetting('allowFollowers', v))),
   ]));
-  themeCard.appendChild(el('div',{class:'theme-picker'}, THEME_LABELS.map(([key, label]) =>
+
+  // ---- Everything else is tucked away ----
+  const folds = el('div',{class:'folds'});
+
+  const themeBody = [el('div',{class:'theme-picker'}, THEME_LABELS.map(([key, label]) =>
     el('button',{class:'theme-swatch' + (state.theme === key ? ' is-on' : ''), 'data-swatch': key, onclick:()=>setTheme(key), 'aria-pressed': state.theme === key ? 'true' : 'false'},[
       el('span',{class:'theme-swatch__preview'},[el('span',{class:'theme-swatch__bar'}), el('span',{class:'theme-swatch__m', html:'<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>'})]),
       el('span',{class:'theme-swatch__name'}, label),
-    ]))));
-  wrap.appendChild(themeCard);
-  wrap.appendChild(el('div',{style:'height:18px'}));
+    ])))];
+  folds.appendChild(settingsFold('Appearance', 'Theme', themeBody));
 
-  const blockedCard = el('div',{class:'card'});
-  blockedCard.appendChild(el('h3',{},'Blocked accounts'));
+  if(window.MajlisFilters) folds.appendChild(settingsFold('What you see', 'Hide words you don\'t want to see', [MajlisFilters.settingsCard(() => render())]));
+
   const blockedList = u.blocked || [];
-  if(!blockedList.length){
-    blockedCard.appendChild(el('p',{class:'empty-note'},'You haven\'t blocked anyone.'));
-  } else {
-    blockedList.forEach(bu=>{
-      const person = state.users[bu];
-      blockedCard.appendChild(el('div',{class:'book-row'},[
-        el('div',{style:'display:flex;align-items:center;gap:10px;'},[avatarNode(person||bu, 28), el('span',{}, person?person.name:bu)]),
-        el('button',{class:'btn secondary', style:'padding:4px 12px;font-size:12px;', onclick:()=>toggleBlock(bu)},'Unblock'),
-      ]));
-    });
-  }
-  wrap.appendChild(blockedCard);
-  wrap.appendChild(el('div',{style:'height:18px'}));
+  const blockedBody = blockedList.length ? blockedList.map(bu => {
+    const person = state.users[bu];
+    return el('div',{class:'book-row'},[
+      el('div',{style:'display:flex;align-items:center;gap:10px;'},[avatarNode(person||bu, 28), el('span',{}, person?person.name:bu)]),
+      el('button',{class:'btn secondary', style:'padding:4px 12px;font-size:12px;', onclick:()=>toggleBlock(bu)},'Unblock'),
+    ]);
+  }) : [el('p',{class:'empty-note'},'You haven\'t blocked anyone.')];
+  folds.appendChild(settingsFold('Blocked accounts', blockedList.length ? String(blockedList.length) : '', blockedBody));
 
-  const privacyCard = el('div',{class:'card'});
-  privacyCard.appendChild(el('h3',{},'Privacy'));
+  const appBody = [installCard()];
+  if(!u.isGuest) appBody.push(el('div',{style:'margin-top:12px;'},[el('button',{class:'btn secondary', onclick:()=>startTour()}, 'Show me the tour')]));
+  folds.appendChild(settingsFold('App and tour', '', appBody));
 
-  privacyCard.appendChild(el('div',{class:'settings-row'},[
-    el('div',{},[
-      el('div',{class:'settings-label'},'Profile visibility'),
-      el('div',{class:'settings-desc'},'Public profiles show your stats and debate history to anyone. Private profiles show only your name and connection counts.'),
-    ]),
-    segControl([['public','Public'],['private','Private']], u.settings.profileVisibility, (v)=>updateSetting('profileVisibility', v)),
-  ]));
-
-  privacyCard.appendChild(el('div',{class:'settings-row'},[
-    el('div',{},[
-      el('div',{class:'settings-label'},'Show on leaderboard'),
-      el('div',{class:'settings-desc'},'Turn this off to keep your reading and debate rankings out of the public Leaderboard page.'),
-    ]),
-    segControl([[true,'On'],[false,'Off']], u.settings.showOnLeaderboard, (v)=>updateSetting('showOnLeaderboard', v)),
-  ]));
-
-  privacyCard.appendChild(el('div',{class:'settings-row'},[
-    el('div',{},[
-      el('div',{class:'settings-label'},'Allow new followers'),
-      el('div',{class:'settings-desc'},'Turn this off to stop new people from following you. Existing followers are unaffected.'),
-    ]),
-    segControl([[true,'On'],[false,'Off']], u.settings.allowFollowers, (v)=>updateSetting('allowFollowers', v)),
-  ]));
-
-  wrap.appendChild(privacyCard);
-  wrap.appendChild(el('div',{style:'height:18px'}));
-  wrap.appendChild(el('button',{class:'btn secondary', onclick:()=>navigateWithLoading('profile')}, '← Back to profile'));
-
+  wrap.appendChild(folds);
   return wrap;
 }
 
