@@ -2604,19 +2604,29 @@ function thinkStage(id, cfg){
 // Portraits come from Wikipedia (free). Anyone without one gets their initials.
 const portraitCache = {};
 function portraitSaved(name){ try { return JSON.parse(localStorage.getItem('majlis-portrait-' + name) || 'null'); } catch(e){ return null; } }
+const WIKI_IMG = /^https:\/\/upload\.wikimedia\.org\//;
+function wikiThumb(j){ return j && j.thumbnail && WIKI_IMG.test(j.thumbnail.source || '') ? j.thumbnail.source : null; }
+// Three tries, because the AI's name is not always the exact article title: the article summary, then the
+// article by title (following redirects), then a search for the name.
+async function fetchPortraitUrl(name){
+  const get = (url) => fetch(url, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null);
+  const pick = (j) => { const pages = j && j.query && j.query.pages; if(!pages) return null; const list = Object.values(pages).sort((a, b) => (a.index || 0) - (b.index || 0)); for(const p of list){ const t = wikiThumb(p); if(t) return t; } return null; };
+  try { const j = await get('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name.replace(/ /g, '_')) + '?redirect=true'); if(j && j.type === 'standard'){ const t = wikiThumb(j); if(t) return t; } } catch(e){ if(e && e.name === 'TimeoutError') throw e; }
+  const q = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail&pithumbsize=320';
+  try { const t = pick(await get(q + '&redirects=1&titles=' + encodeURIComponent(name))); if(t) return t; } catch(e){}
+  try { const t = pick(await get(q + '&generator=search&gsrlimit=1&gsrsearch=' + encodeURIComponent(name))); if(t) return t; } catch(e){}
+  return null;
+}
 function loadPortrait(name, done){
   if(name in portraitCache){ done(portraitCache[name]); return; }
   const saved = portraitSaved(name);
-  if(saved && saved.at > Date.now() - 30 * 86400000){ portraitCache[name] = saved.url; done(saved.url); return; }
-  fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(name.replace(/ /g, '_')) + '?redirect=true', { signal: AbortSignal.timeout(8000) })
-    .then(r => r.ok ? r.json() : null)
-    .then(j => {
-      const url = j && j.type === 'standard' && j.thumbnail && /^https:\/\/upload\.wikimedia\.org\//.test(j.thumbnail.source) ? j.thumbnail.source : null;
-      portraitCache[name] = url;
-      try { localStorage.setItem('majlis-portrait-' + name, JSON.stringify({ at: Date.now(), url })); } catch(e){}
-      done(url);
-    })
-    .catch(() => { portraitCache[name] = null; done(null); });
+  // A found photo is kept for 30 days; "no photo found" only for a day, so a bad moment doesn't stick.
+  if(saved && saved.at > Date.now() - (saved.url ? 30 : 1) * 86400000){ portraitCache[name] = saved.url; done(saved.url); return; }
+  fetchPortraitUrl(name).then(url => {
+    portraitCache[name] = url;
+    try { localStorage.setItem('majlis-portrait-' + name, JSON.stringify({ at: Date.now(), url })); } catch(e){}
+    done(url);
+  }).catch(() => { portraitCache[name] = null; done(null); });   // a network failure is not saved
 }
 function portraitNode(name){
   const initials = name.split(/\s+/).filter(w => /^[A-Za-zÀ-ɏ]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
