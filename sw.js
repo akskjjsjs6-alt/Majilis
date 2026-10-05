@@ -1,7 +1,7 @@
 /* Majlis service worker — lets the site install as an app and open even with a bad connection.
    Network first: you always get the newest version when online; the saved copy is only used offline.
    It never touches Supabase or anything on another website. */
-const CACHE = 'majlis-shell-v62';
+const CACHE = 'majlis-shell-v63';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './extras.js', './topics.js', './filters.js', './challenges.js', './guide.js', './guide-videos-a.js', './guide-videos-b.js', './guide-player.js', './questions.js', './majlis-characters.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', (e) => {
