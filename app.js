@@ -82,6 +82,7 @@ function applyProfileRow(p){
   // AI rivals: retired ones leave the leaderboard and search.
   u.isAi = !!p.is_ai;
   u.aiRetired = !!p.ai_retired;
+  u.suspended = !!p.suspended;   // banned accounts disappear from the lists (moderators still find them in the mod tools)
   if(u.aiRetired) u.settings.showOnLeaderboard = false;
   return u;
 }
@@ -2306,7 +2307,7 @@ function renderHome(){
   if(!u.isGuest) dossier.appendChild(el('button',{class:'linkbtn', onclick: goToOwnProfile}, ['Full profile', icon('arrow', 14)]));
   side.appendChild(dossier);
 
-  const accounts = Object.values(state.users).filter(x => !x.isGuest && !x.hiddenStats && (!x.settings || x.settings.showOnLeaderboard !== false))
+  const accounts = Object.values(state.users).filter(x => !x.isGuest && !x.suspended && !x.hiddenStats && (!x.settings || x.settings.showOnLeaderboard !== false))
     .sort((a, b) => (b.debatePoints || 0) - (a.debatePoints || 0)).slice(0, 5);
   if(accounts.length){
     const lb = el('section',{class:'dossier'});
@@ -5517,7 +5518,7 @@ function renderLeaderboard(){
   wrap.appendChild(el('p',{class:'section-sub'},'Top 50 for reading and debating.'));
   
   // People who hid themselves from the leaderboard or made their profile private are left out.
-  const accounts = Object.values(state.users).filter(u=>!u.isGuest && !u.hiddenStats && (!u.settings || u.settings.showOnLeaderboard !== false));
+  const accounts = Object.values(state.users).filter(u=>!u.isGuest && !u.suspended && !u.hiddenStats && (!u.settings || u.settings.showOnLeaderboard !== false));
   if(!accounts.length){
     wrap.appendChild(el('p',{class:'empty-note'},'No registered accounts available on leaderboard.'));
     return wrap;
@@ -5613,7 +5614,7 @@ function renderRanks(){
 
 // Everyone who has mapped their views and isn't hidden or blocked.
 function compassCrowd(){
-  return Object.values(state.users).filter(x => x.compass && !x.isGuest && !x.hiddenStats && !x.aiRetired && x.username !== state.currentUser && !isBlocked(x.username));
+  return Object.values(state.users).filter(x => x.compass && !x.isGuest && !x.hiddenStats && !x.aiRetired && !x.suspended && x.username !== state.currentUser && !isBlocked(x.username));
 }
 
 // Keep dots inside the map's rounded edges.
@@ -5804,12 +5805,12 @@ function roleTag(who){
   if(!u) return null;
   const uname = String(u.username || '').toLowerCase();
   let kind = null, text = null;
-  if(FOUNDER_USERNAMES.includes(uname)){ kind = 'founder'; text = '[Founder]'; }
+  if(FOUNDER_USERNAMES.includes(uname)){ kind = 'founder'; text = '[FOUNDER]'; }
   else if(COFOUNDER_USERNAMES.includes(uname)){ kind = 'founder'; text = '[CO-FOUNDER]'; }
-  else if(u.role === 'admin'){ kind = 'admin'; text = '[Admin]'; }
-  else if(u.role === 'mod'){ kind = 'mod'; text = '[Moderator]'; }
+  else if(u.role === 'admin'){ kind = 'admin'; text = '[ADMIN]'; }
+  else if(u.role === 'mod'){ kind = 'mod'; text = '[MODERATOR]'; }
   if(!kind) return null;
-  return el('span',{class:'role-tag role-' + kind, title: kind === 'founder' ? (text === '[Founder]' ? 'Founder of Majlis' : 'Co-founder of Majlis') : kind === 'admin' ? 'Administrator' : 'Moderator'}, text);
+  return el('span',{class:'role-tag role-' + kind, title: kind === 'founder' ? (text === '[FOUNDER]' ? 'Founder of Majlis' : 'Co-founder of Majlis') : kind === 'admin' ? 'Administrator' : 'Moderator'}, text);
 }
 
 function renderOwnProfile(){
@@ -6203,7 +6204,7 @@ function renderMembers(){
 
 function buildMemberList(){
   const q = (state.memberSearch||'').toLowerCase().trim();
-  const all = Object.values(state.users).filter(u=>!u.isGuest && !u.aiRetired && u.username!==state.currentUser);
+  const all = Object.values(state.users).filter(u=>!u.isGuest && !u.aiRetired && !u.suspended && u.username!==state.currentUser);
   const filtered = q ? all.filter(u => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)) : all;
 
   const card = el('div',{class:'card'});
