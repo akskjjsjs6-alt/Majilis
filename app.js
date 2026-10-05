@@ -2830,6 +2830,38 @@ function matchesCard(){
   return card;
 }
 
+// Steps one question back in the assessment and forgets that answer, so it can be answered again.
+function quizBack(){
+  const q = state.quiz;
+  const SEC = ['philosophy','economic','political','social'];
+  const BANK = { philosophy: PHIL_QUESTIONS, economic: ECONOMIC_QUESTIONS, political: POLITICAL_QUESTIONS, social: SOCIAL_QUESTIONS };
+  const last = q.answers[q.answers.length - 1];
+  if(q.section === 'written'){
+    if(last && last.section === 'religion-detail'){ q.answers.pop(); q.section = 'religion-followup'; q.index = q.answers.filter(x => x.section === 'religion-detail').length; }
+    else if(last && last.section === 'religion'){ q.answers.pop(); q.section = 'religion-pick'; q.religion = null; }
+    else { q.section = 'religion-pick'; }   // religion was skipped
+  } else if(q.section === 'religion-followup'){
+    if(q.index > 0){ q.answers.pop(); q.index -= 1; }
+    else { q.answers.pop(); q.section = 'religion-pick'; q.religion = null; }
+  } else if(q.section === 'religion-pick'){
+    if(!last) return;
+    q.answers.pop(); q.section = 'social'; q.index = SOCIAL_QUESTIONS.length - 1;
+  } else if(SEC.includes(q.section)){
+    if(q.index > 0){ q.answers.pop(); q.index -= 1; }
+    else {
+      const prev = SEC[SEC.indexOf(q.section) - 1];
+      if(!prev) return;
+      q.answers.pop(); q.section = prev; q.index = BANK[prev].length - 1;
+    }
+  }
+  render();
+}
+function quizBackButton(){
+  const q = state.quiz;
+  if(q.section === 'philosophy' && q.index === 0) return null;   // nothing before the first question
+  return el('button',{class:'linkbtn quiz-back', onclick: quizBack}, '← Back');
+}
+
 function renderAssessment(){
   const wrap = el('div',{});
   wrap.appendChild(el('h2',{class:'section-title'},'Placement Assessment'));
@@ -2892,6 +2924,7 @@ function renderAssessment(){
 
     wrap.appendChild(el('p',{class:'section-sub'},
       SECTION_LABEL[state.quiz.section]+' — question '+displayIndex+' of '+displayTotal));
+    { const b = quizBackButton(); if(b) wrap.appendChild(b); }
 
     const track = el('div',{class:'progress-track'});
     track.appendChild(el('div',{class:'progress-fill', style:'width:'+Math.round((displayIndex/displayTotal)*100)+'%'}));
@@ -2925,6 +2958,7 @@ function renderAssessment(){
 
   if(state.quiz.section === 'religion-pick'){
     wrap.appendChild(el('p',{class:'section-sub'}, 'Optional — helps the AI understand your worldview more precisely. Skip if you\'d rather not say.'));
+    wrap.appendChild(quizBackButton());
     const card = el('div',{class:'card'});
     card.appendChild(el('div',{class:'quiz-q'}, 'Which best describes your religious or spiritual identity?'));
     const optsWrap = el('div',{class:'quiz-opts'});
@@ -2956,6 +2990,7 @@ function renderAssessment(){
     const displayTotal = bank.length;
 
     wrap.appendChild(el('p',{class:'section-sub'}, state.quiz.religion+' — question '+displayIndex+' of '+displayTotal));
+    wrap.appendChild(quizBackButton());
     const track = el('div',{class:'progress-track'});
     track.appendChild(el('div',{class:'progress-fill', style:'width:'+Math.round((displayIndex/displayTotal)*100)+'%'}));
     wrap.appendChild(track);
@@ -2995,6 +3030,7 @@ function renderAssessment(){
   }
 
   if(state.quiz.section === 'written'){
+    wrap.appendChild(quizBackButton());
     wrap.appendChild(el('p',{class:'section-sub'},
       'State a position you hold and make your strongest case for it, in your own words. This decides your starting rank (1–10): the AI looks for clear reasons, evidence or examples, and whether you deal with the best objection to your view. Length alone doesn\'t help.'));
     const card = el('div',{class:'card'});
