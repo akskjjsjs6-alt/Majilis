@@ -2958,13 +2958,16 @@ function deriveArchetype(answers){
     if(optIndex === -1) return;
     epistemic += (2 - optIndex);
   });
-  const freeWillAnswer = philAnswers.find(a=>/free will/i.test(a.q));
-  const moralityAnswer = philAnswers.find(a=>/morality discovered/i.test(a.q));
-
+  const pickedLast = (tag) => {
+    const bank = PHIL_QUESTIONS.find(q => q.tag === tag);
+    const ans = bank && philAnswers.find(a => a.q === bank.q);
+    return !!(ans && bank.opts.indexOf(ans.choice) === bank.opts.length - 1);
+  };
+  const moralityInvented = pickedLast('morality'), freeWillIncoherent = pickedLast('freewill');
   const avg = epistemic / (philAnswers.length || 1);   // about -1 (very sceptical) to +2 (very rationalist)
   if(avg <= -0.18) return 'Empiricist';
-  if(moralityAnswer && /Invented/i.test(moralityAnswer.choice)) return 'Existentialist';
-  if(freeWillAnswer && /incoherent/i.test(freeWillAnswer.choice)) return 'Skeptic';
+  if(moralityInvented) return 'Existentialist';
+  if(freeWillIncoherent) return 'Skeptic';
   if(avg >= 0.44) return 'Rationalist';
   if(avg >= 0.18) return 'Utilitarian';
   return 'Stoic';
