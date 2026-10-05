@@ -1304,6 +1304,10 @@ function renderNow(){
   if(state.showAuth){
     app.appendChild(renderAuthOverlay());
   }
+  if(state.showCard){
+    const ov = renderResultOverlay();
+    if(ov) app.appendChild(ov);
+  }
 
   if(focusKey){
     const again = app.querySelector('[data-key="'+CSS.escape(focusKey)+'"]');
@@ -2516,7 +2520,9 @@ async function fetchMatches(){
     const list = data.matches.filter(m => titles[m.key] && m.name && !seen[m.key] && (seen[m.key] = 1))
       .map(m => ({ key: m.key, title: titles[m.key], name: m.name, label: m.label || '', why: m.why || '', x: m.x, y: m.y }));
     if(!list.length) throw new Error('empty');
-    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ v: 2, at: Date.now(), list })); } catch(e){}
+    const countries = Array.isArray(data.countries) ? data.countries.filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).slice(0, 3) : [];
+    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ v: 2, at: Date.now(), list, countries })); } catch(e){}
+    if(state.cardPending){ state.cardPending = false; state.showCard = true; }   // the result card pops up once, right after the test
   } catch(e){
     console.warn('matches unavailable', e);
     state.matchesFailed = String(e && e.message || 'unknown').slice(0, 200);
@@ -2625,6 +2631,104 @@ function portraitNode(name){
   return box;
 }
 
+/* ================= RESULT CARD (shown once after the test) ================= */
+const AXIS_COLORS = { economic: ['#ff9f43', '#ff6b6b'], political: ['#00e676', '#00b0ff'], social: ['#b57bff', '#ff6bd6'] };
+function axisRows(u){
+  const rows = [];
+  [['economic','E','Economic'],['political','P','Political'],['social','S','Social']].forEach(([key, letter, title]) => {
+    const d = COMPASS_DEFS[key], p = u.compass && u.compass[key];
+    if(!d || !p) return;
+    [['x', d.xLabels], ['y', d.yLabels]].forEach(([ax, labels], i) => {
+      const v = Math.max(0, Math.min(100, Math.round(p[ax])));
+      const high = v >= 50;
+      rows.push({ letter, title, color: AXIS_COLORS[key][i], name: labels[high ? 1 : 0], pct: high ? v : 100 - v });
+    });
+  });
+  return rows;
+}
+function flagNode(c){
+  const img = new Image();
+  img.className = 'rc-flag'; img.alt = c.name; img.referrerPolicy = 'no-referrer'; img.loading = 'lazy';
+  img.src = 'https://flagcdn.com/w80/' + c.code + '.png';
+  img.onerror = () => { const f = el('span',{class:'rc-flag rc-flag--code'}, c.code.toUpperCase()); img.replaceWith(f); };
+  return img;
+}
+function buildResultCard(){
+  const u = state.user, saved = loadSavedMatches();
+  if(!u || !saved || !u.compass) return null;
+  const people = saved.list.map(p => Object.assign({}, p, { close: closeness(p) }));
+  const ranked = people.slice().sort((a, b) => (b.close == null ? -1 : b.close) - (a.close == null ? -1 : a.close));
+  const top = ranked[0];
+  if(!top) return null;
+  const others = ranked.slice(1, 4);
+  const ideo = (k) => (u.ideologies && u.ideologies[k] && u.ideologies[k].label) || deriveQuadrantIdeology(k, u.compass[k]);
+  const card = el('div',{class:'rc'});
+
+  card.appendChild(el('div',{class:'rc-head'},[
+    el('div',{class:'rc-logo'},[el('span',{class:'rc-logo__m', html:'<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>'}), 'Majlis']),
+    el('span',{class:'rc-rule'}), el('span',{class:'rc-kicker'}, 'My result'),
+  ]));
+  card.appendChild(el('div',{class:'rc-eyebrow'}, 'Your position'));
+  card.appendChild(el('h2',{class:'rc-title'}, ideo('political')));
+  card.appendChild(el('p',{class:'rc-sub'}, [ideo('economic'), ' · ', ideo('social')].join('')));
+
+  const photoCard = el('div',{class:'rc-panel rc-top'},[
+    portraitNode(top.name),
+    top.close != null ? el('div',{class:'rc-big'}, top.close + '%') : null,
+    el('div',{class:'rc-eyebrow'}, 'Most compatible'),
+    el('div',{class:'rc-name'}, top.name),
+    el('div',{class:'rc-label'}, top.label),
+  ]);
+  const axes = el('div',{class:'rc-panel rc-axes'},[el('div',{class:'rc-eyebrow'}, 'Your 6 axes')]);
+  axisRows(u).forEach(r => axes.appendChild(el('div',{class:'rc-axis'},[
+    el('span',{class:'rc-axis__icon', style:'background:' + r.color + ';', title: r.title}, r.letter),
+    el('span',{class:'rc-axis__name'}, r.name),
+    el('span',{class:'rc-axis__bar'},[el('i',{style:'width:' + r.pct + '%;background:' + r.color + ';'})]),
+    el('span',{class:'rc-axis__pct', style:'color:' + r.color + ';'}, r.pct + '%'),
+  ])));
+  const extras = [];
+  if(u.archetype && !/not yet/i.test(u.archetype)) extras.push(['Philosophy', u.archetype]);
+  if(u.religion && u.religion !== 'Prefer not to say') extras.push(['Religion', u.religion + (u.denomination ? ', ' + u.denomination : '')]);
+  extras.forEach(([k, v]) => axes.appendChild(el('div',{class:'rc-extra'},[el('span',{}, k), el('b',{}, v)])));
+  card.appendChild(el('div',{class:'rc-grid'},[photoCard, axes]));
+
+  const lower = [];
+  if(others.length){
+    const box = el('div',{class:'rc-panel'},[el('div',{class:'rc-eyebrow'}, 'Other personalities')]);
+    others.forEach(p => box.appendChild(el('div',{class:'rc-person'},[
+      portraitNode(p.name),
+      el('div',{class:'rc-person__text'},[el('div',{class:'rc-person__name'}, p.name), el('div',{class:'rc-person__sub'}, p.close != null ? p.title : p.label)]),
+      p.close != null ? el('b',{class:'rc-person__pct'}, p.close + '%') : null,
+    ])));
+    lower.push(box);
+  }
+  if(saved.countries && saved.countries.length){
+    const box = el('div',{class:'rc-panel'},[el('div',{class:'rc-eyebrow'}, 'Nearby countries')]);
+    saved.countries.forEach(c => box.appendChild(el('div',{class:'rc-country'},[flagNode(c), el('span',{class:'rc-country__name'}, c.name), el('b',{class:'rc-person__pct'}, c.pct + '%')])));
+    lower.push(box);
+  }
+  if(lower.length) card.appendChild(el('div',{class:'rc-grid rc-lower'}, lower));
+  card.appendChild(el('div',{class:'rc-foot'},[el('span',{}, 'Discover your profile'), el('b',{}, 'Majlis')]));
+  return card;
+}
+function renderResultOverlay(){
+  const card = buildResultCard();
+  if(!card){ state.showCard = false; return null; }
+  const close = () => { state.showCard = false; render(); };
+  const back = el('div',{class:'rc-back', role:'dialog', 'aria-modal':'true', 'aria-label':'Your result'});
+  back.addEventListener('click', (e) => { if(e.target === back) close(); });
+  back.appendChild(el('div',{class:'rc-wrap'},[
+    el('button',{class:'rc-x', 'aria-label':'Close', onclick: close}, '×'),
+    card,
+    el('div',{class:'rc-actions'},[
+      el('button',{class:'btn', onclick: close}, 'Done'),
+      el('button',{class:'btn secondary', onclick:()=>{ state.showCard = false; state.tab = 'compass'; render(); }}, 'Open my compass'),
+    ]),
+    el('p',{class:'field-caption', style:'text-align:center;margin:8px 0 0;'}, 'Take a screenshot to share it. You can open this card again from your Compass page.'),
+  ]));
+  return back;
+}
+
 // A small map: you (green) and the match, joined by a line. Axis names sit outside the box so nothing overlaps.
 function matchMap(cat){
   const me = state.user.compass && state.user.compass[cat.key];
@@ -2688,7 +2792,10 @@ function matchesCard(){
     card.appendChild(el('div',{class:'match-item' + (map ? '' : ' no-map')}, [info, map]));
   });
   card.appendChild(el('p',{class:'field-caption',style:'margin:14px 0 8px;'},'AI estimate based on public views, just for fun.'));
-  card.appendChild(el('button',{class:'btn secondary', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh'));
+  card.appendChild(el('div',{style:'display:flex;gap:10px;flex-wrap:wrap;'},[
+    el('button',{class:'btn secondary', onclick:()=>{ state.showCard = true; render(); }}, 'View result card'),
+    el('button',{class:'linkbtn', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh'),
+  ]));
   return card;
 }
 
@@ -3116,7 +3223,7 @@ async function finishAssessment(position, viewText){
   state.tab = 'assessment';
   try { localStorage.removeItem(matchStoreKey()); } catch(e){}   // a retake changes your results, so the old matches are stale
   render();
-  if(signedIn) fetchMatches();   // the AI names who you match in real life; the card fills in when it's ready
+  if(signedIn){ state.cardPending = true; fetchMatches(); }   // the AI names who you match in real life; the result card opens once when it's ready
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
