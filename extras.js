@@ -89,7 +89,7 @@ async function loadMotion(force){
   motion.loading = false;
   if(error){ motion.error = 'Takes couldn\'t be loaded. (Has the Update 26 SQL been run?)'; return; }
   motion.error = '';
-  motion.takes = (data || []).map(t => ({ id: t.id, userId: t.user_id, username: t.username, name: t.name, side: t.side, body: t.body,
+  motion.takes = (data || []).filter(t => !(typeof isBannedUser === 'function' && isBannedUser(t.username))).map(t => ({ id: t.id, userId: t.user_id, username: t.username, name: t.name, side: t.side, body: t.body,
     ts: new Date(t.created_at).getTime(), votes: Number(t.votes) || 0, voted: !!t.voted }));
   motion.loaded = true; motion.day = utcDay(); motion.at = Date.now();
 }
