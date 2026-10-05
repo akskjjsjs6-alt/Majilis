@@ -479,7 +479,7 @@ document.documentElement.setAttribute('data-theme', state.theme);
    stored a big copy of every user in localStorage — clean that up. */
 try { localStorage.removeItem('majlis_state_v1'); } catch(e) {}
 
-const THEMES = ['dark', 'light', 'mint', 'glass', 'esports', 'retro'];
+const THEMES = ['dark', 'light', 'mint', 'glass', 'esports', 'retro', 'kawaii', 'shonen', 'doge', 'sigma', 'vapor', 'lofi'];
 function setTheme(name) {
   state.theme = THEMES.includes(name) ? name : 'dark';
   try { localStorage.setItem('majlis-theme', state.theme); } catch(e) {}
@@ -488,7 +488,7 @@ function setTheme(name) {
 }
 // The quick sun/moon button flips between dark and light (Retro is picked in Settings).
 function toggleTheme() { setTheme(state.theme === 'dark' ? 'light' : 'dark'); }
-const THEME_LABELS = [['dark','Neon'],['light','Light'],['mint','Mint'],['glass','Glass'],['esports','Esports'],['retro','Retro']];
+const THEME_LABELS = [['dark','Neon'],['light','Light'],['mint','Mint'],['glass','Glass'],['esports','Esports'],['retro','Retro'],['kawaii','Kawaii Pink'],['shonen','Shonen Red'],['doge','Much Wow'],['sigma','Sigma Gold'],['vapor','Vaporwave'],['lofi','Lofi Night']];
 
 // The glowing M in the home hero, and the faint giant M behind the page (Update 15).
 const M_PATH = 'M 55,140 L 55,60 L 100,105 L 145,60 L 145,140';
