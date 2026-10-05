@@ -82,7 +82,8 @@ function applyProfileRow(p){
   // AI rivals: retired ones leave the leaderboard and search.
   u.isAi = !!p.is_ai;
   u.aiRetired = !!p.ai_retired;
-  u.suspended = !!p.suspended;   // banned accounts disappear from the lists (moderators still find them in the mod tools)
+  u.suspended = !!p.suspended;
+  u.banned = !!p.banned;         // permanently banned: their posts are hidden too   // banned accounts disappear from the lists (moderators still find them in the mod tools)
   if(u.aiRetired) u.settings.showOnLeaderboard = false;
   return u;
 }
@@ -95,6 +96,7 @@ async function loadAllProfiles(){
     if(error || !data){ if(error) console.warn('loadAllProfiles failed', error); return; }
     data.forEach(applyProfileRow);
     if(state.user && !state.user.isGuest && state.users[state.currentUser]) state.user = state.users[state.currentUser];
+    pruneBannedContent();
   } catch(e){ console.warn('loadAllProfiles failed', e); }
 }
 
@@ -1397,12 +1399,21 @@ async function afterSignIn(authUser){
   render();
 }
 
+// A permanently banned person's threads and replies are removed from view.
+function isBannedUser(username){ const u = state.users[username]; return !!(u && u.banned); }
+function pruneBannedContent(){
+  state.forum = state.forum.filter(p => !isBannedUser(p.author));
+  state.forum.forEach(p => { p.replies = p.replies.filter(r => !isBannedUser(r.author)); });
+  if(typeof motion !== 'undefined' && Array.isArray(motion.takes)) motion.takes = motion.takes.filter(t => !isBannedUser(t.username));
+}
+
 // Forum/wiki may load before we know everyone's usernames; fill the names in afterwards.
 function relinkAuthors(){
   const idToUsername = idToUsernameMap();
   const fix = (x) => { if(x.authorId && idToUsername[x.authorId]) x.author = idToUsername[x.authorId]; };
   state.wiki.forEach(fix);
   state.forum.forEach(p => { fix(p); p.replies.forEach(fix); });
+  pruneBannedContent();
 }
 
 function renderAuthOverlay(){
