@@ -2395,6 +2395,59 @@ function renderReading(){
   const pagesReadInput = draft('book-pages-read', el('input',{type:'number', placeholder:'Pages read so far', min:'0'}));
   const leaningSelect = draft('book-leaning', el('select',{}, LEANINGS.map(l=>el('option',{value:l},l))));
 
+  // Search the catalogue like a database: type, see a short list of matches, pick one to fill the form.
+  const searchIn = el('input',{type:'search', placeholder:'Search the library by title or author…', maxlength:'120', autocomplete:'off'});
+  const searchOut = el('div',{class:'book-search-results'});
+  let searchTimer = null, searchSeq = 0;
+  function pickBook(r){
+    titleInput.value = r.title; authorInput.value = r.author;
+    if(r.pages) pagesInput.value = r.pages;
+    [titleInput, authorInput, pagesInput].forEach(i=>i.dispatchEvent(new Event('input',{bubbles:true})));
+    searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'Filled in "'+r.title+'". Check the details, then add the book.'));
+  }
+  function showResults(list){
+    let shown = 5;
+    const draw = ()=>{
+      const rows = list.slice(0, shown).map(r=>el('button',{type:'button', class:'book-search-row', onclick:()=>pickBook(r)},[
+        r.cover ? el('img',{src:r.cover, alt:'', loading:'lazy', class:'book-search-cover'}) : el('div',{class:'book-search-cover book-search-nocover'}, '📖'),
+        el('div',{class:'book-search-info'},[
+          el('div',{class:'book-title'}, r.title),
+          el('div',{class:'book-meta'}, [r.author, r.year, r.pages ? r.pages+' pages' : ''].filter(Boolean).join(' · ')),
+        ]),
+      ]));
+      const foot = el('div',{class:'book-search-note'}, 'Showing '+Math.min(shown, list.length)+' of '+list.length+' matches (the catalogue is searched 20 at a time). ');
+      if(shown < list.length) foot.appendChild(el('button',{type:'button', class:'linkbtn', onclick:()=>{ shown += 5; draw(); }}, 'Show more'));
+      searchOut.replaceChildren(...rows, foot);
+    };
+    draw();
+  }
+  async function runSearch(q){
+    const seq = ++searchSeq;
+    searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'Searching…'));
+    try{
+      const res = await fetch('https://openlibrary.org/search.json?limit=20&fields=key,title,author_name,number_of_pages_median,first_publish_year,cover_i&q='+encodeURIComponent(q));
+      if(!res.ok) throw new Error('status '+res.status);
+      const docs = (await res.json()).docs || [];
+      if(seq !== searchSeq) return;
+      const list = docs.filter(d=>d.title).map(d=>({
+        title: d.title, author: (d.author_name||[]).slice(0,2).join(' & ') || 'Unknown',
+        pages: d.number_of_pages_median || 0, year: d.first_publish_year || '',
+        cover: d.cover_i ? 'https://covers.openlibrary.org/b/id/'+d.cover_i+'-S.jpg' : '',
+      }));
+      if(!list.length){ searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'No matches. You can still type the book in below and add it with a link.')); return; }
+      showResults(list);
+    }catch(e){
+      if(seq === searchSeq) searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'The library search is unavailable right now. You can still type the book in below.'));
+    }
+  }
+  searchIn.addEventListener('input', ()=>{
+    clearTimeout(searchTimer);
+    const q = searchIn.value.trim();
+    if(q.length < 3){ searchSeq++; searchOut.replaceChildren(); return; }
+    searchTimer = setTimeout(()=>runSearch(q), 450);
+  });
+  addCard.appendChild(el('div',{class:'field'},[el('label',{},'Search the library'), searchIn, searchOut]));
+
   addCard.appendChild(el('div',{class:'field'},[el('label',{},'Title'), titleInput]));
   addCard.appendChild(el('div',{class:'field'},[el('label',{},'Author'), authorInput]));
   const row2 = el('div',{class:'grid grid-2'},[
@@ -2910,7 +2963,7 @@ function renderAssessment(){
 
   if(!state.quiz.active){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'A philosophy section, then three separate mapping sections — economic, political, and social — each producing its own compass. An optional religion section follows, then a short written statement of your own view. The final written question decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
+      'One test, start to finish: philosophy, economic, political and social questions, an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
     wrap.appendChild(el('button',{class:'btn', onclick:()=>{
       state.quiz.active = true;
       state.quiz.section = 'philosophy';
@@ -2935,18 +2988,34 @@ function renderAssessment(){
     social: 'Social mapping',
   };
 
+  // One continuous test: a single counter and bar from the first question to the last.
+  function quizOverall(){
+    const banks = [PHIL_QUESTIONS, ECONOMIC_QUESTIONS, POLITICAL_QUESTIONS, SOCIAL_QUESTIONS];
+    let total = banks.reduce((n,b)=>n+b.length, 0) + 1;                       // +1 for the religion question
+    const follow = state.quiz.religion && RELIGION_QUESTIONS[state.quiz.religion];
+    if(follow && state.quiz.section === 'religion-followup') total += follow.length;
+    const at = state.quiz.answers.length + 1;
+    return { at: Math.min(at, total), total };
+  }
+  function quizProgress(label){
+    const o = quizOverall();
+    const box = el('div',{});
+    box.appendChild(el('p',{class:'section-sub'}, 'Question '+o.at+' of '+o.total+(label ? ' · '+label : '')));
+    return {o, box};
+  }
+
   if(QUIZ_SECTIONS.includes(state.quiz.section)){
     const bank = SECTION_BANK[state.quiz.section];
     const item = bank[state.quiz.index];
     const displayIndex = state.quiz.index+1;
     const displayTotal = bank.length;
 
-    wrap.appendChild(el('p',{class:'section-sub'},
-      SECTION_LABEL[state.quiz.section]+' — question '+displayIndex+' of '+displayTotal));
+    const prog = quizProgress(SECTION_LABEL[state.quiz.section]);
+    wrap.appendChild(prog.box);
     { const b = quizBackButton(); if(b) wrap.appendChild(b); }
 
     const track = el('div',{class:'progress-track'});
-    track.appendChild(el('div',{class:'progress-fill', style:'width:'+Math.round((displayIndex/displayTotal)*100)+'%'}));
+    track.appendChild(el('div',{class:'progress-fill', style:'width:'+Math.round((prog.o.at/prog.o.total)*100)+'%'}));
     wrap.appendChild(track);
     wrap.appendChild(el('div',{style:'height:20px'}));
 
@@ -2976,7 +3045,8 @@ function renderAssessment(){
   }
 
   if(state.quiz.section === 'religion-pick'){
-    wrap.appendChild(el('p',{class:'section-sub'}, 'Optional — helps the AI understand your worldview more precisely. Skip if you\'d rather not say.'));
+    { const pg = quizProgress('Worldview (optional)'); wrap.appendChild(pg.box); }
+    wrap.appendChild(el('p',{class:'field-caption'}, 'Helps the AI understand your worldview more precisely. Skip if you\'d rather not say.'));
     wrap.appendChild(quizBackButton());
     const card = el('div',{class:'card'});
     card.appendChild(el('div',{class:'quiz-q'}, 'Which best describes your religious or spiritual identity?'));
@@ -3008,10 +3078,11 @@ function renderAssessment(){
     const displayIndex = state.quiz.index+1;
     const displayTotal = bank.length;
 
-    wrap.appendChild(el('p',{class:'section-sub'}, state.quiz.religion+' — question '+displayIndex+' of '+displayTotal));
+    const prog = quizProgress(state.quiz.religion);
+    wrap.appendChild(prog.box);
     wrap.appendChild(quizBackButton());
     const track = el('div',{class:'progress-track'});
-    track.appendChild(el('div',{class:'progress-fill', style:'width:'+Math.round((displayIndex/displayTotal)*100)+'%'}));
+    track.appendChild(el('div',{class:'progress-fill', style:'width:'+Math.round((prog.o.at/prog.o.total)*100)+'%'}));
     wrap.appendChild(track);
     wrap.appendChild(el('div',{style:'height:20px'}));
 
@@ -3049,6 +3120,7 @@ function renderAssessment(){
   }
 
   if(state.quiz.section === 'written'){
+    wrap.appendChild(el('p',{class:'section-sub'}, 'Last step'));
     wrap.appendChild(quizBackButton());
     wrap.appendChild(el('p',{class:'section-sub'},
       'State a position you hold and make your strongest case for it, in your own words. This decides your starting rank (1–10): the AI looks for clear reasons, evidence or examples, and whether you deal with the best objection to your view. Length alone doesn\'t help.'));
@@ -3333,7 +3405,7 @@ async function requestRivalTurn(debate, isRetry){
   const skipped = res && res.data && res.data.skipped;
   if(!m && (res && res.error || skipped === 'ai' || skipped === 'busy')){
     debate._rivalRetries = (debate._rivalRetries || 0) + 1;
-    if(debate._rivalRetries <= 6){
+    if(debate._rivalRetries <= 10){
       debate._rivalTyping = true;   // keep the dots up while we wait
       render();
       setTimeout(() => {
