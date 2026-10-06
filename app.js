@@ -1625,15 +1625,13 @@ function queueBookSearch(q){
   bookSearch.loading = true;
   bookSearch.timer = setTimeout(async ()=>{
     try{
-      const res = await fetch('https://openlibrary.org/search.json?limit=20&fields=key,title,author_name,number_of_pages_median,first_publish_year,cover_i&q='+encodeURIComponent(q.trim()));
-      if(!res.ok) throw new Error('status '+res.status);
-      const docs = (await res.json()).docs || [];
+      const { data, error } = await sb.functions.invoke('book-search', { body: { q: q.trim() }, region: FN_REGION });
+      if(error || !data || data.error) throw new Error('search failed');
       if(seq !== bookSearch.seq) return;
-      bookSearch.hits = docs.filter(d=>d.title).map(d=>({
-        title: d.title, author: (d.author_name||[]).slice(0,2).join(' & ') || 'Unknown',
-        pages: d.number_of_pages_median || 0, year: d.first_publish_year || '',
-        cover: d.cover_i ? 'https://covers.openlibrary.org/b/id/'+d.cover_i+'-S.jpg' : '',
+      bookSearch.hits = (data.books || []).map(d=>({
+        title: d.title, author: d.author || 'Unknown', pages: d.pages || 0, year: d.year || '', cover: d.cover || '',
       }));
+      if(data.failed) bookSearch.failed = true;
     }catch(e){ if(seq !== bookSearch.seq) return; bookSearch.failed = true; }
     bookSearch.loading = false;
     notifyBookSearch();
