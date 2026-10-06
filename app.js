@@ -1614,19 +1614,74 @@ function computeSearchResults(query) {
   return results;
 }
 
+/* Book search lives in the main search box: it looks up Open Library as you type and lists a few matches at a time. */
+const bookSearch = { q:'', hits:[], shown:5, loading:false, failed:false, seq:0, timer:null, updaters:{} };
+function notifyBookSearch(){ Object.values(bookSearch.updaters).forEach(f=>{ try{ f(); }catch(e){} }); }
+function queueBookSearch(q){
+  clearTimeout(bookSearch.timer);
+  const seq = ++bookSearch.seq;
+  bookSearch.q = q; bookSearch.hits = []; bookSearch.shown = 5; bookSearch.failed = false;
+  if(q.trim().length < 3){ bookSearch.loading = false; return; }
+  bookSearch.loading = true;
+  bookSearch.timer = setTimeout(async ()=>{
+    try{
+      const res = await fetch('https://openlibrary.org/search.json?limit=20&fields=key,title,author_name,number_of_pages_median,first_publish_year,cover_i&q='+encodeURIComponent(q.trim()));
+      if(!res.ok) throw new Error('status '+res.status);
+      const docs = (await res.json()).docs || [];
+      if(seq !== bookSearch.seq) return;
+      bookSearch.hits = docs.filter(d=>d.title).map(d=>({
+        title: d.title, author: (d.author_name||[]).slice(0,2).join(' & ') || 'Unknown',
+        pages: d.number_of_pages_median || 0, year: d.first_publish_year || '',
+        cover: d.cover_i ? 'https://covers.openlibrary.org/b/id/'+d.cover_i+'-S.jpg' : '',
+      }));
+    }catch(e){ if(seq !== bookSearch.seq) return; bookSearch.failed = true; }
+    bookSearch.loading = false;
+    notifyBookSearch();
+  }, 450);
+  notifyBookSearch();
+}
+function openBookFromSearch(r){
+  state.drafts['book-title'] = r.title; state.drafts['book-author'] = r.author;
+  if(r.pages) state.drafts['book-pages'] = String(r.pages);
+  state.searchQuery = ''; state.searchResults = null; queueBookSearch('');
+  state.readingNotice = 'Filled in "'+r.title+'". Check the details, then add the book.';
+  navigateWithLoading('reading');
+}
+
 // Typing in the search box only swaps the results dropdown — it never rebuilds the
 // page, so the input keeps focus and the cursor stays put.
 function buildSearchDropdown(){
-  if (!state.searchQuery.trim() || !state.searchResults) return null;
-  return el('div', {class: 'search-results'},
-    state.searchResults.length ? state.searchResults.map(r =>
-      el('div', {class: 'search-result-item', onclick: () => {
-        state.searchQuery = '';
-        state.searchResults = null;
-        if(r.user){ viewProfile(r.user); } else { navigateWithLoading(r.tab); }
-      }}, r.label)
-    ) : [el('div', {class: 'search-result-item'}, 'No results found')]
-  );
+  const q = state.searchQuery.trim();
+  if(!q || !state.searchResults) return null;
+  const rows = state.searchResults.map(r =>
+    el('div', {class: 'search-result-item', onclick: () => {
+      state.searchQuery = '';
+      state.searchResults = null;
+      queueBookSearch('');
+      if(r.user){ viewProfile(r.user); } else { navigateWithLoading(r.tab); }
+    }}, r.label));
+  const showBooks = q.length >= 3 && bookSearch.q === state.searchQuery;
+  if(showBooks){
+    const hits = bookSearch.hits;
+    rows.push(el('div',{class:'search-result-head'}, 'Books'));
+    if(bookSearch.loading) rows.push(el('div',{class:'search-result-item search-muted'}, 'Searching the library…'));
+    else if(bookSearch.failed) rows.push(el('div',{class:'search-result-item search-muted'}, 'The library search is unavailable right now.'));
+    else if(!hits.length) rows.push(el('div',{class:'search-result-item search-muted'}, 'No books found.'));
+    hits.slice(0, bookSearch.shown).forEach(r => rows.push(el('div',{class:'search-result-item search-book', onclick:()=>openBookFromSearch(r)},[
+      r.cover ? el('img',{src:r.cover, alt:'', loading:'lazy', class:'search-book-cover'}) : el('div',{class:'search-book-cover search-book-nocover'}),
+      el('div',{class:'search-book-info'},[
+        el('div',{class:'search-book-title'}, r.title),
+        el('div',{class:'search-book-meta'}, [r.author, r.year, r.pages ? r.pages+' pages' : ''].filter(Boolean).join(' · ')),
+      ]),
+    ])));
+    if(hits.length > bookSearch.shown){
+      rows.push(el('div',{class:'search-result-item search-more', onclick:(e)=>{ e.stopPropagation(); bookSearch.shown += 5; notifyBookSearch(); }},
+        'Show more books ('+bookSearch.shown+' of '+hits.length+')'));
+    }
+  } else if(!rows.length){
+    rows.push(el('div', {class: 'search-result-item'}, 'No results found'));
+  }
+  return el('div', {class: 'search-results'}, rows);
 }
 
 /* ================= TOPBAR & NAV ================= */
@@ -1776,13 +1831,18 @@ function buildSearchBox(key){
   const searchIn = el('input', { type: 'text', placeholder: 'Search people, threads, books…', 'data-key': key });
   searchIn.value = state.searchQuery;
   let searchDropdown = buildSearchDropdown();
-  searchIn.addEventListener('input', (e) => {
-    state.searchQuery = e.target.value;
-    state.searchResults = computeSearchResults(state.searchQuery);
+  const refresh = () => {
     const next = buildSearchDropdown();
     if(searchDropdown) searchDropdown.remove();
     searchDropdown = next;
     if(next) searchBox.appendChild(next);
+  };
+  bookSearch.updaters[key] = refresh;
+  searchIn.addEventListener('input', (e) => {
+    state.searchQuery = e.target.value;
+    state.searchResults = computeSearchResults(state.searchQuery);
+    queueBookSearch(state.searchQuery);
+    refresh();
   });
   searchBox.appendChild(icon('search', 16));
   searchBox.appendChild(searchIn);
@@ -2394,59 +2454,6 @@ function renderReading(){
   const pagesInput = draft('book-pages', el('input',{type:'number', placeholder:'Total pages', min:'1', max:'5000'}));
   const pagesReadInput = draft('book-pages-read', el('input',{type:'number', placeholder:'Pages read so far', min:'0'}));
   const leaningSelect = draft('book-leaning', el('select',{}, LEANINGS.map(l=>el('option',{value:l},l))));
-
-  // Search the catalogue like a database: type, see a short list of matches, pick one to fill the form.
-  const searchIn = el('input',{type:'search', placeholder:'Search the library by title or author…', maxlength:'120', autocomplete:'off'});
-  const searchOut = el('div',{class:'book-search-results'});
-  let searchTimer = null, searchSeq = 0;
-  function pickBook(r){
-    titleInput.value = r.title; authorInput.value = r.author;
-    if(r.pages) pagesInput.value = r.pages;
-    [titleInput, authorInput, pagesInput].forEach(i=>i.dispatchEvent(new Event('input',{bubbles:true})));
-    searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'Filled in "'+r.title+'". Check the details, then add the book.'));
-  }
-  function showResults(list){
-    let shown = 5;
-    const draw = ()=>{
-      const rows = list.slice(0, shown).map(r=>el('button',{type:'button', class:'book-search-row', onclick:()=>pickBook(r)},[
-        r.cover ? el('img',{src:r.cover, alt:'', loading:'lazy', class:'book-search-cover'}) : el('div',{class:'book-search-cover book-search-nocover'}, '📖'),
-        el('div',{class:'book-search-info'},[
-          el('div',{class:'book-title'}, r.title),
-          el('div',{class:'book-meta'}, [r.author, r.year, r.pages ? r.pages+' pages' : ''].filter(Boolean).join(' · ')),
-        ]),
-      ]));
-      const foot = el('div',{class:'book-search-note'}, 'Showing '+Math.min(shown, list.length)+' of '+list.length+' matches (the catalogue is searched 20 at a time). ');
-      if(shown < list.length) foot.appendChild(el('button',{type:'button', class:'linkbtn', onclick:()=>{ shown += 5; draw(); }}, 'Show more'));
-      searchOut.replaceChildren(...rows, foot);
-    };
-    draw();
-  }
-  async function runSearch(q){
-    const seq = ++searchSeq;
-    searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'Searching…'));
-    try{
-      const res = await fetch('https://openlibrary.org/search.json?limit=20&fields=key,title,author_name,number_of_pages_median,first_publish_year,cover_i&q='+encodeURIComponent(q));
-      if(!res.ok) throw new Error('status '+res.status);
-      const docs = (await res.json()).docs || [];
-      if(seq !== searchSeq) return;
-      const list = docs.filter(d=>d.title).map(d=>({
-        title: d.title, author: (d.author_name||[]).slice(0,2).join(' & ') || 'Unknown',
-        pages: d.number_of_pages_median || 0, year: d.first_publish_year || '',
-        cover: d.cover_i ? 'https://covers.openlibrary.org/b/id/'+d.cover_i+'-S.jpg' : '',
-      }));
-      if(!list.length){ searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'No matches. You can still type the book in below and add it with a link.')); return; }
-      showResults(list);
-    }catch(e){
-      if(seq === searchSeq) searchOut.replaceChildren(el('div',{class:'book-search-note'}, 'The library search is unavailable right now. You can still type the book in below.'));
-    }
-  }
-  searchIn.addEventListener('input', ()=>{
-    clearTimeout(searchTimer);
-    const q = searchIn.value.trim();
-    if(q.length < 3){ searchSeq++; searchOut.replaceChildren(); return; }
-    searchTimer = setTimeout(()=>runSearch(q), 450);
-  });
-  addCard.appendChild(el('div',{class:'field'},[el('label',{},'Search the library'), searchIn, searchOut]));
 
   addCard.appendChild(el('div',{class:'field'},[el('label',{},'Title'), titleInput]));
   addCard.appendChild(el('div',{class:'field'},[el('label',{},'Author'), authorInput]));
