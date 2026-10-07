@@ -466,6 +466,7 @@ const state = {
     section: 'philosophy',
     index: 0,
     answers: [],
+    order: null,   // the shuffled order of the compass statements for this attempt
   },
   forumPage: 1,
   forumSort: 'new',
@@ -2913,8 +2914,6 @@ function matchesCard(){
 // Steps one question back in the assessment and forgets that answer, so it can be answered again.
 function quizBack(){
   const q = state.quiz;
-  const SEC = ['philosophy','economic','political','social'];
-  const BANK = { philosophy: PHIL_QUESTIONS, economic: ECONOMIC_QUESTIONS, political: POLITICAL_QUESTIONS, social: SOCIAL_QUESTIONS };
   const last = q.answers[q.answers.length - 1];
   if(q.section === 'written'){
     if(last && last.section === 'religion-detail'){ q.answers.pop(); q.section = 'religion-followup'; q.index = q.answers.filter(x => x.section === 'religion-detail').length; }
@@ -2925,14 +2924,12 @@ function quizBack(){
     else { q.answers.pop(); q.section = 'religion-pick'; q.religion = null; }
   } else if(q.section === 'religion-pick'){
     if(!last) return;
-    q.answers.pop(); q.section = 'social'; q.index = SOCIAL_QUESTIONS.length - 1;
-  } else if(SEC.includes(q.section)){
+    q.answers.pop(); q.section = 'compass'; q.index = COMPASS_ITEMS.length - 1;
+  } else if(q.section === 'compass'){
     if(q.index > 0){ q.answers.pop(); q.index -= 1; }
-    else {
-      const prev = SEC[SEC.indexOf(q.section) - 1];
-      if(!prev) return;
-      q.answers.pop(); q.section = prev; q.index = BANK[prev].length - 1;
-    }
+    else { q.answers.pop(); q.section = 'philosophy'; q.index = PHIL_QUESTIONS.length - 1; }
+  } else if(q.section === 'philosophy'){
+    if(q.index > 0){ q.answers.pop(); q.index -= 1; }
   }
   render();
 }
@@ -2962,6 +2959,7 @@ function renderAssessment(){
         state.quiz.section = 'philosophy';
         state.quiz.index = 0;
         state.quiz.answers = [];
+        state.quiz.order = null;
         render();
       }}, 'Retake Assessment'),
     ]));
@@ -2971,35 +2969,33 @@ function renderAssessment(){
 
   if(!state.quiz.active){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'One test, start to finish: philosophy, economic, political and social questions, an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
+      'One test, start to finish: philosophy questions, then a mixed set of statements about politics, economics and society (like 8values, each answer can move several scales), an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
     wrap.appendChild(el('button',{class:'btn', onclick:()=>{
       state.quiz.active = true;
       state.quiz.section = 'philosophy';
       state.quiz.index = 0;
       state.quiz.answers = [];
+      state.quiz.order = null;
       render();
     }}, 'Begin Assessment'));
     return wrap;
   }
 
-  const QUIZ_SECTIONS = ['philosophy','economic','political','social'];
-  const SECTION_BANK = {
-    philosophy: PHIL_QUESTIONS,
-    economic: ECONOMIC_QUESTIONS,
-    political: POLITICAL_QUESTIONS,
-    social: SOCIAL_QUESTIONS,
-  };
-  const SECTION_LABEL = {
-    philosophy: 'Philosophy',
-    economic: 'Economic mapping',
-    political: 'Political mapping',
-    social: 'Social mapping',
+  const QUIZ_SECTIONS = ['philosophy','compass'];
+  const SECTION_LABEL = { philosophy: 'Philosophy', compass: 'Politics and society' };
+  // The politics statements come as one shuffled list (like 8values), new order every attempt.
+  const compassOrder = () => {
+    if(!state.quiz.order || state.quiz.order.length !== COMPASS_ITEMS.length){
+      const o = COMPASS_ITEMS.map((_, i) => i);
+      for(let i = o.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+      state.quiz.order = o;
+    }
+    return state.quiz.order;
   };
 
   // One continuous test: a single counter and bar from the first question to the last.
   function quizOverall(){
-    const banks = [PHIL_QUESTIONS, ECONOMIC_QUESTIONS, POLITICAL_QUESTIONS, SOCIAL_QUESTIONS];
-    let total = banks.reduce((n,b)=>n+b.length, 0) + 1;                       // +1 for the religion question
+    let total = PHIL_QUESTIONS.length + COMPASS_ITEMS.length + 1;             // +1 for the religion question
     const follow = state.quiz.religion && RELIGION_QUESTIONS[state.quiz.religion];
     if(follow && state.quiz.section === 'religion-followup') total += follow.length;
     const at = state.quiz.answers.length + 1;
@@ -3013,8 +3009,9 @@ function renderAssessment(){
   }
 
   if(QUIZ_SECTIONS.includes(state.quiz.section)){
-    const bank = SECTION_BANK[state.quiz.section];
-    const item = bank[state.quiz.index];
+    const isCompass = state.quiz.section === 'compass';
+    const bank = isCompass ? COMPASS_ITEMS : PHIL_QUESTIONS;
+    const item = isCompass ? COMPASS_ITEMS[compassOrder()[state.quiz.index]] : PHIL_QUESTIONS[state.quiz.index];
     const displayIndex = state.quiz.index+1;
     const displayTotal = bank.length;
 
@@ -3029,10 +3026,10 @@ function renderAssessment(){
 
     const card = el('div',{class:'card'});
     card.appendChild(el('div',{class:'quiz-q'}, item.q));
-    const optsWrap = el('div',{class:'quiz-opts' + (item.dir ? ' quiz-likert' : '')});
+    const optsWrap = el('div',{class:'quiz-opts' + (isCompass ? ' quiz-likert' : '')});
     item.opts.forEach((opt)=>{
       optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>{
-        state.quiz.answers.push({section: state.quiz.section, axis: item.axis || null, q: item.q, choice: opt});
+        state.quiz.answers.push({section: state.quiz.section, axis: null, q: item.q, choice: opt});
         if(displayIndex >= displayTotal){
           const nextIdx = QUIZ_SECTIONS.indexOf(state.quiz.section) + 1;
           if(nextIdx < QUIZ_SECTIONS.length){
@@ -3217,11 +3214,23 @@ function computeAxisPair(answers, section){
   };
 }
 
+const ANSWER_VALUE = { 'Strongly disagree': -1, 'Disagree': -0.5, 'Neutral': 0, 'Agree': 0.5, 'Strongly agree': 1 };
+// 8values-style: add up every answer times its weight on each axis, compare with the most it could be, as a percentage.
 function computeThreeCompasses(answers){
+  const sum = {}, max = {};
+  COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
+  COMPASS_ITEMS.forEach(i => { Object.keys(i.w).forEach(ax => { max[ax] += Math.abs(i.w[ax]); }); });
+  answers.filter(a => a.section === 'compass').forEach(a => {
+    const item = COMPASS_ITEMS.find(i => i.q === a.q);
+    const v = ANSWER_VALUE[a.choice];
+    if(!item || v === undefined) return;
+    Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; });
+  });
+  const pct = (ax) => Math.max(0, Math.min(100, Math.round(50 + 50 * sum[ax] / (max[ax] || 1))));
   return {
-    economic: computeAxisPair(answers, 'economic'),
-    political: computeAxisPair(answers, 'political'),
-    social: computeAxisPair(answers, 'social'),
+    economic: { x: pct('ex'), y: pct('ey') },
+    political: { x: pct('px'), y: pct('py') },
+    social: { x: pct('sx'), y: pct('sy') },
   };
 }
 
@@ -3232,34 +3241,45 @@ function deriveQuadrantIdeology(section, pair){
   return def.grid[row][band(pair.x)];
 }
 
-function deriveArchetype(answers){
-  // Philosophical archetype, derived only from the philosophy section, independent of the three compasses.
-  const philAnswers = answers.filter(a=>a.section==='philosophy');
-  let epistemic = 0;
-  philAnswers.forEach(a=>{
-    const bank = PHIL_QUESTIONS.find(q=>q.q===a.q);
-    if(!bank) return;
-    const optIndex = bank.opts.indexOf(a.choice);
-    if(optIndex === -1) return;
-    epistemic += (2 - optIndex);
+// Philosophy axes (0 to 100): each answer carries effects (see PHIL_EFFECTS in questions.js), compared with the most it could be.
+function computePhilosophyAxes(answers){
+  const keys = Object.keys(PHIL_AXES);
+  const sum = {}, max = {};
+  keys.forEach(k => { sum[k] = 0; max[k] = 0; });
+  PHIL_QUESTIONS.forEach((q, i) => {
+    keys.forEach(k => { max[k] += Math.max(0, ...PHIL_EFFECTS[i].map(e => Math.abs(e[k] || 0))); });
+    const ans = answers.find(a => a.section === 'philosophy' && a.q === q.q);
+    const j = ans ? q.opts.indexOf(ans.choice) : -1;
+    if(j >= 0) keys.forEach(k => { sum[k] += (PHIL_EFFECTS[i][j][k] || 0); });
   });
-  const pickedLast = (tag) => {
-    const bank = PHIL_QUESTIONS.find(q => q.tag === tag);
-    const ans = bank && philAnswers.find(a => a.q === bank.q);
-    return !!(ans && bank.opts.indexOf(ans.choice) === bank.opts.length - 1);
-  };
-  const moralityInvented = pickedLast('morality'), freeWillIncoherent = pickedLast('freewill');
-  const avg = epistemic / (philAnswers.length || 1);   // about -1 (very sceptical) to +2 (very rationalist)
-  if(avg <= -0.18) return 'Empiricist';
-  if(moralityInvented) return 'Existentialist';
-  if(freeWillIncoherent) return 'Skeptic';
-  if(avg >= 0.44) return 'Rationalist';
-  if(avg >= 0.18) return 'Utilitarian';
-  return 'Stoic';
+  const out = {};
+  keys.forEach(k => { out[k] = Math.max(0, Math.min(100, Math.round(50 + 50 * sum[k] / (max[k] || 1)))); });
+  return out;
+}
+
+// The nearest of the six philosophy types to your axes.
+function deriveArchetype(answers){
+  const ax = computePhilosophyAxes(answers);
+  let best = 'Stoic', bestD = Infinity;
+  Object.keys(PHIL_TYPES).forEach(name => {
+    const t = PHIL_TYPES[name];
+    const d = Object.keys(t).reduce((n, k) => n + Math.pow(t[k] - ax[k], 2), 0);
+    if(d < bestD){ bestD = d; best = name; }
+  });
+  return best;
+}
+
+// A sentence about what stood out, built from the axes themselves.
+function archetypeReasoningFor(answers){
+  const ax = computePhilosophyAxes(answers);
+  const strong = Object.keys(ax).map(k => ({ k, off: Math.abs(ax[k] - 50), name: PHIL_AXES[k][ax[k] >= 50 ? 1 : 0], pct: ax[k] >= 50 ? ax[k] : 100 - ax[k] }))
+    .sort((a, b) => b.off - a.off).filter(x => x.off >= 10).slice(0, 3);
+  return strong.length ? 'What stood out: ' + strong.map(x => x.name.toLowerCase() + ' (' + x.pct + '%)').join(', ') + '.' : 'Your answers sat close to the middle on most questions.';
 }
 
 async function aiAnalyzeAssessment(answers){
-  const bySection = (name) => answers.filter(a=>a.section===name).map(a=>({ q: a.q, choice: a.choice }));
+  const bySection = (name) => answers.filter(a => name === 'philosophy' ? a.section === 'philosophy'
+    : (a.section === 'compass' && (COMPASS_ITEMS.find(i => i.q === a.q) || {}).sec === name)).map(a=>({ q: a.q, choice: a.choice }));
   const religionAnswer = answers.find(a=>a.section==='religion');
   const payload = {
     action: 'analyze_assessment',
@@ -3280,8 +3300,9 @@ async function aiAnalyzeAssessment(answers){
     const compass = computeThreeCompasses(answers);
     return {
       aiAnalyzed: true,
-      archetype: data.archetype,
-      archetypeReasoning: data.archetypeReasoning || '',
+      archetype: deriveArchetype(answers),
+      archetypeReasoning: archetypeReasoningFor(answers),
+      philosophyAxes: computePhilosophyAxes(answers),
       religion: payload.religion,
       denomination: data.denomination || null,
       denominationReasoning: data.denominationReasoning || '',
@@ -3298,7 +3319,8 @@ async function aiAnalyzeAssessment(answers){
     return {
       aiAnalyzed: false,
       archetype: deriveArchetype(answers),
-      archetypeReasoning: '',
+      archetypeReasoning: archetypeReasoningFor(answers),
+      philosophyAxes: computePhilosophyAxes(answers),
       religion: payload.religion,
       denomination: null,
       denominationReasoning: '',
@@ -3387,6 +3409,7 @@ async function finishAssessment(position, viewText){
   state.user.compass = analysis.compass;
   state.user.archetype = analysis.archetype;
   state.user.archetypeReasoning = analysis.archetypeReasoning;
+  state.user.philosophyAxes = analysis.philosophyAxes;
   state.user.ideologies = analysis.ideologies;
   state.user.ideologyAiAnalyzed = analysis.aiAnalyzed;
   state.user.religion = analysis.religion;
@@ -5889,10 +5912,20 @@ function renderCompass(){
   if(state.user.archetypeReasoning){
     card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:8px;'}, state.user.archetypeReasoning));
   }
-  card.appendChild(el('p',{style:'font-size:12px;color:var(--parchment-dim);margin-bottom:20px;'},
-    state.user.ideologyAiAnalyzed
-      ? 'Determined by AI, reasoning directly from your specific answers.'
-      : 'The AI analysis wasn\'t reachable when you took this — a standard scoring pass was used instead.'));
+  const pax = state.user.philosophyAxes;
+  if(pax){
+    const bars = el('div',{class:'phil-axes'});
+    Object.keys(PHIL_AXES).forEach(k => {
+      const v = pax[k], high = v >= 50, pct = high ? v : 100 - v;
+      bars.appendChild(el('div',{class:'phil-axis'},[
+        el('div',{class:'phil-axis__row'},[el('span',{}, PHIL_AXES[k][0]), el('b',{}, PHIL_AXES[k][high ? 1 : 0] + ' ' + pct + '%'), el('span',{}, PHIL_AXES[k][1])]),
+        el('div',{class:'phil-axis__track'},[el('span',{class:'phil-axis__dot', style:'left:' + v + '%;'})]),
+      ]));
+    });
+    card.appendChild(bars);
+  }
+  card.appendChild(el('p',{style:'font-size:12px;color:var(--parchment-dim);margin:12px 0 20px;'},
+    'Scored from your answers with fixed rules, so the same answers always give the same result.'));
   if(state.user.religion && state.user.religion !== 'Prefer not to say'){
     card.appendChild(el('div',{style:'height:6px'}));
     card.appendChild(el('h3',{},'Religious/spiritual identity: ' + state.user.religion + (state.user.denomination ? ' — '+state.user.denomination : '')));
