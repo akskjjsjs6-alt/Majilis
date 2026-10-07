@@ -2480,3 +2480,4 @@ h2 .role-tag { font-size: 0.5em; }
 .phil-axis__row b{font-size:13px}
 .phil-axis__track{position:relative;height:6px;border-radius:3px;background:rgba(128,128,128,.25);margin-top:5px}
 .phil-axis__dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--neon,#00e676);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(0,230,118,.18)}
+.phil-axis__fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--neon,#00e676);opacity:.8}

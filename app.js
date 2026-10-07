@@ -2969,7 +2969,7 @@ function renderAssessment(){
 
   if(!state.quiz.active){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'One test, start to finish: philosophy questions, then a mixed set of statements about politics, economics and society (like 8values, each answer can move several scales), an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
+      'One test, start to finish: philosophy questions (scenarios plus the classic survey positions), then a mixed set of statements about politics, economics, society and morals (drawing on 8values, 12axes, the Political Compass and the Moral Foundations Questionnaire), an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
     wrap.appendChild(el('button',{class:'btn', onclick:()=>{
       state.quiz.active = true;
       state.quiz.section = 'philosophy';
@@ -3214,6 +3214,36 @@ function computeAxisPair(answers, section){
   };
 }
 
+// Extra scores beyond the three compasses: 12axes-style detail axes and Moral Foundations scores (all 0 to 100).
+function computeExtraScores(answers){
+  const sum = {}, max = {};
+  COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
+  COMPASS_ITEMS.forEach(i => { Object.keys(i.w).forEach(ax => { max[ax] += Math.abs(i.w[ax]); }); });
+  answers.filter(a => a.section === 'compass').forEach(a => {
+    const item = COMPASS_ITEMS.find(i => i.q === a.q);
+    const v = ANSWER_VALUE[a.choice];
+    if(!item || v === undefined) return;
+    Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; });
+  });
+  const out = {};
+  Object.keys(DETAIL_AXES).concat(Object.keys(FOUNDATIONS)).forEach(ax => {
+    out[ax] = Math.max(0, Math.min(100, Math.round(50 + 50 * sum[ax] / (max[ax] || 1))));
+  });
+  return out;
+}
+// Kept on this device (the profile database only stores the three compasses and their names).
+const extrasStoreKey = () => 'majlis-extras-' + (state.user && state.user.id ? state.user.id : 'guest');
+function saveExtras(){
+  try { localStorage.setItem(extrasStoreKey(), JSON.stringify({ phil: state.user.philosophyAxes || null, extra: state.user.extraScores || null })); } catch(e){}
+}
+function loadExtras(){
+  if(state.user.philosophyAxes && state.user.extraScores) return;
+  try {
+    const raw = JSON.parse(localStorage.getItem(extrasStoreKey()) || 'null');
+    if(raw){ if(!state.user.philosophyAxes && raw.phil) state.user.philosophyAxes = raw.phil; if(!state.user.extraScores && raw.extra) state.user.extraScores = raw.extra; }
+  } catch(e){}
+}
+
 const ANSWER_VALUE = { 'Strongly disagree': -1, 'Disagree': -0.5, 'Neutral': 0, 'Agree': 0.5, 'Strongly agree': 1 };
 // 8values-style: add up every answer times its weight on each axis, compare with the most it could be, as a percentage.
 function computeThreeCompasses(answers){
@@ -3303,6 +3333,7 @@ async function aiAnalyzeAssessment(answers){
       archetype: deriveArchetype(answers),
       archetypeReasoning: archetypeReasoningFor(answers),
       philosophyAxes: computePhilosophyAxes(answers),
+      extras: computeExtraScores(answers),
       religion: payload.religion,
       denomination: data.denomination || null,
       denominationReasoning: data.denominationReasoning || '',
@@ -3321,6 +3352,7 @@ async function aiAnalyzeAssessment(answers){
       archetype: deriveArchetype(answers),
       archetypeReasoning: archetypeReasoningFor(answers),
       philosophyAxes: computePhilosophyAxes(answers),
+      extras: computeExtraScores(answers),
       religion: payload.religion,
       denomination: null,
       denominationReasoning: '',
@@ -3337,7 +3369,8 @@ async function aiAnalyzeAssessment(answers){
 function computePhilosophyScore(answers){
   // Reduces the philosophy section to a single 0-100 number so it can be compared
   // for matchmaking, independent of whatever label the AI gives it.
-  const philAnswers = answers.filter(a=>a.section==='philosophy');
+  const core = PHIL_QUESTIONS.slice(0, 15);   // the original scenario questions (the position questions added later are scored on the axes)
+  const philAnswers = answers.filter(a=>a.section==='philosophy' && core.some(q => q.q === a.q));
   let epistemic = 0;
   philAnswers.forEach(a=>{
     const bank = PHIL_QUESTIONS.find(q=>q.q===a.q);
@@ -3410,6 +3443,8 @@ async function finishAssessment(position, viewText){
   state.user.archetype = analysis.archetype;
   state.user.archetypeReasoning = analysis.archetypeReasoning;
   state.user.philosophyAxes = analysis.philosophyAxes;
+  state.user.extraScores = analysis.extras;
+  saveExtras();
   state.user.ideologies = analysis.ideologies;
   state.user.ideologyAiAnalyzed = analysis.aiAnalyzed;
   state.user.religion = analysis.religion;
@@ -5912,6 +5947,7 @@ function renderCompass(){
   if(state.user.archetypeReasoning){
     card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:8px;'}, state.user.archetypeReasoning));
   }
+  loadExtras();
   const pax = state.user.philosophyAxes;
   if(pax){
     const bars = el('div',{class:'phil-axes'});
@@ -5924,8 +5960,30 @@ function renderCompass(){
     });
     card.appendChild(bars);
   }
+  const ex = state.user.extraScores;
+  if(ex){
+    const detail = el('div',{class:'phil-axes'});
+    detail.appendChild(el('div',{class:'eyebrow', style:'margin-top:18px;'}, 'More detail (12axes-style)'));
+    Object.keys(DETAIL_AXES).forEach(k => {
+      const v = ex[k], high = v >= 50, pct = high ? v : 100 - v;
+      detail.appendChild(el('div',{class:'phil-axis'},[
+        el('div',{class:'phil-axis__row'},[el('span',{}, DETAIL_AXES[k][0]), el('b',{}, DETAIL_AXES[k][high ? 1 : 0] + ' ' + pct + '%'), el('span',{}, DETAIL_AXES[k][1])]),
+        el('div',{class:'phil-axis__track'},[el('span',{class:'phil-axis__dot', style:'left:' + v + '%;'})]),
+      ]));
+    });
+    card.appendChild(detail);
+    const found = el('div',{class:'phil-axes'});
+    found.appendChild(el('div',{class:'eyebrow', style:'margin-top:18px;'}, 'Moral foundations'));
+    Object.keys(FOUNDATIONS).forEach(k => {
+      found.appendChild(el('div',{class:'phil-axis'},[
+        el('div',{class:'phil-axis__row'},[el('span',{}, FOUNDATIONS[k]), el('b',{}, ex[k] + '%')]),
+        el('div',{class:'phil-axis__track'},[el('span',{class:'phil-axis__fill', style:'width:' + ex[k] + '%;'})]),
+      ]));
+    });
+    card.appendChild(found);
+  }
   card.appendChild(el('p',{style:'font-size:12px;color:var(--parchment-dim);margin:12px 0 20px;'},
-    'Scored from your answers with fixed rules, so the same answers always give the same result.'));
+    'Scored from your answers with fixed rules, so the same answers always give the same result. Modelled on 8values, 12axes, the Moral Foundations Questionnaire and the PhilPapers survey.'));
   if(state.user.religion && state.user.religion !== 'Prefer not to say'){
     card.appendChild(el('div',{style:'height:6px'}));
     card.appendChild(el('h3',{},'Religious/spiritual identity: ' + state.user.religion + (state.user.denomination ? ' — '+state.user.denomination : '')));

@@ -128,7 +128,17 @@ const SOCIAL_QUESTIONS = SOC_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(SOC_Y
    Your score on an axis is your total compared with the most it could be, as a percentage.
    `sec` is the section a statement mainly belongs to (used for the AI summary).
    ====================================================================== */
-const COMPASS_AXES = ['ex', 'ey', 'px', 'py', 'sx', 'sy'];
+const COMPASS_AXES = ['ex', 'ey', 'px', 'py', 'sx', 'sy', 'dm', 'ml', 'as', 'rl', 'tc', 'fc', 'ff', 'fl', 'fa', 'fs'];
+/* Sources this test borrows from:
+   - 8values: one mixed list, statements that move several axes, score = total compared with the maximum.
+   - Political Compass: the themes (country and world, economy, personal values, wider society, religion, sex).
+   - 12axes: extra axes beyond the compass (democracy, militarism, assimilation, religion, technology).
+   - Moral Foundations Questionnaire: five moral foundations, each a 0-100 average of agreement.
+   dm: Autocratic (low) to Democratic   ml: Militarist to Pacifist   as: Assimilationist to Multicultural
+   rl: Religious to Secular   tc: Bioconservative to Accelerationist
+   fc/ff/fl/fa/fs: Care, Fairness, Loyalty, Authority, Sanctity (one-sided: agreeing raises it). */
+const DETAIL_AXES = { dm: ['Autocratic', 'Democratic'], ml: ['Militarist', 'Pacifist'], as: ['Assimilationist', 'Multicultural'], rl: ['Religious', 'Secular'], tc: ['Bioconservative', 'Accelerationist'] };
+const FOUNDATIONS = { fc: 'Care', ff: 'Fairness', fl: 'Loyalty', fa: 'Authority', fs: 'Sanctity' };
 const COMPASS_ITEMS = (function(){
   const prim = { economic: { x: 'ex', y: 'ey' }, political: { x: 'px', y: 'py' }, social: { x: 'sx', y: 'sy' } };
   // extra axis loads for statements that clearly touch more than one thing (matched by the start of the statement)
@@ -137,18 +147,23 @@ const COMPASS_ITEMS = (function(){
     'Free-trade deals that remove tariffs': { px: 6 },
     'The state should run a national plan': { py: -3 },
     'Foreign companies should be banned': { ey: -5 },
-    'Immigration should be cut sharply': { sx: -5 },
-    'Rich countries should accept refugees': { ex: -3, sx: 3 },
-    'Schools should give priority to teaching the national': { sx: -6 },
+    'Immigration should be cut sharply': { sx: -5, as: -6 },
+    'Rich countries should accept refugees': { ex: -3, sx: 3, as: 4 },
+    'Schools should give priority to teaching the national': { sx: -6, as: -6 },
     'Cannabis and other recreational drugs': { sx: 4 },
     'Citizens should be allowed to carry firearms': { sy: 3 },
     'Same-sex couples should have exactly': { py: 3 },
-    'Abortion should be legal for any reason': { py: 3, sy: 3 },
-    'Prayer or religious teaching should be part': { py: -3 },
+    'Abortion should be legal for any reason': { py: 3, sy: 3, rl: 3 },
+    'Prayer or religious teaching should be part': { py: -3, rl: -6 },
+    'Children should be expected to follow their parents': { rl: -6 },
+    'Public holidays should centre on': { rl: -5 },
+    'My country should leave international organisations': { ml: -2 },
+    'The government should be able to ban protests': { dm: -4 },
+    'Police should be allowed to read': { dm: -2 },
     'Vaccines should be required': { py: -4 },
-    'Every young person should do a year of national service': { py: -4, px: -3 },
+    'Every young person should do a year of national service': { py: -4, px: -3, ml: -5 },
     'Adult children should be expected to look after': { ey: 4, ex: 3 },
-    'Terminally ill adults should be allowed': { py: 4, sx: 3 },
+    'Terminally ill adults should be allowed': { py: 4, sx: 3, rl: 3 },
   };
   const out = [];
   [['economic', ECONOMIC_QUESTIONS], ['political', POLITICAL_QUESTIONS], ['social', SOCIAL_QUESTIONS]].forEach(([sec, bank]) => {
@@ -163,23 +178,43 @@ const COMPASS_ITEMS = (function(){
   // Broad statements about principles, a few moving several axes at once.
   [
     ['political', 'All authority should be questioned.', { py: 8, sy: 4 }],
-    ['political', 'A strong leader gets more done than endless debate.', { py: -8 }],
     ['social', 'Traditions are worth keeping simply because they are old.', { sx: -8 }],
     ['social', 'Society was better a few generations ago than it is today.', { sx: -8 }],
     ['political', 'A single world government would benefit humanity.', { px: 10 }],
     ['political', 'My country\'s interests should come before those of other countries.', { px: -8 }],
-    ['political', 'A country does not need to justify its wars to the rest of the world.', { px: -6, py: -6 }],
     ['economic', 'Wealth that one person earns should mostly belong to them.', { ex: 8, sy: 5 }],
     ['economic', 'The very rich have too much power over ordinary people\'s lives.', { ex: -8 }],
     ['economic', 'Businesses treat workers better than government rules ever could.', { ey: 8, ex: 4 }],
     ['political', 'Keeping order matters more than protecting every individual freedom.', { py: -8 }],
-    ['political', 'The state should decide what children are taught about right and wrong.', { py: -6, sx: -4 }],
-    ['social', 'Science and technology will solve most of our biggest problems.', { sx: 6 }],
     ['social', 'Reason matters more than keeping our culture the way it is.', { sx: 8 }],
     ['social', 'A person\'s duty to their community comes before their own ambitions.', { sy: -8 }],
     ['economic', 'People succeed or fail mostly because of their own efforts.', { sy: 6, ex: 4, ey: 3 }],
-    ['social', 'No culture is better than another.', { px: 5, sx: 6 }],
-    ['political', 'Religion should have a say in how the country is governed.', { sx: -8, py: -6 }],
+  ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
+  // Extra axes, in the style of 12axes.
+  [
+    ['political', 'Important national decisions should be put to a public vote.', { dm: 8 }],
+    ['political', 'Experts, not voters, should make the big decisions about the economy.', { dm: -7, ey: -2 }],
+    ['political', 'A country should keep a strong military even in peacetime.', { ml: -8, px: -2 }],
+    ['political', 'Most wars could have been avoided with better diplomacy.', { ml: 7 }],
+    ['social', 'Newcomers should adopt the local culture and drop their old customs.', { as: -8, sx: -3 }],
+    ['social', 'A country is stronger when many cultures keep their own traditions.', { as: 8, sx: 3 }],
+    ['social', 'Religion should stay out of public life.', { rl: 8, sx: 4 }],
+    ['social', 'A society without religion loses its moral compass.', { rl: -8, sx: -4 }],
+    ['social', 'Technology that edits genes or enhances the human body should be encouraged.', { tc: 8, sx: 3 }],
+    ['social', 'Some technologies should never be built, even if they would work.', { tc: -7 }],
+  ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
+  // Moral foundations, in the style of the Moral Foundations Questionnaire (two statements for each foundation).
+  [
+    ['social', 'Compassion for people who are suffering is the most important virtue.', { fc: 10, ex: -2 }],
+    ['social', 'Being cruel to someone defenceless is among the worst things a person can do.', { fc: 10 }],
+    ['social', 'It is wrong that some children inherit fortunes while others inherit nothing.', { ff: 10, ex: -4 }],
+    ['social', 'Everyone should be held to exactly the same rules, whoever they are.', { ff: 10 }],
+    ['social', 'People should stay loyal to their family and group even when it costs them.', { fl: 10, sy: -3 }],
+    ['social', 'Betraying your own team or country is one of the worst things you can do.', { fl: 10, px: -3 }],
+    ['social', 'Children must be taught to respect authority.', { fa: 10, py: -3, sx: -2 }],
+    ['social', 'People should follow orders from those above them even when they disagree.', { fa: 10, py: -3 }],
+    ['social', 'Some acts are wrong because they are disgusting or unnatural, even if nobody is harmed.', { fs: 10, sx: -4 }],
+    ['social', 'People should keep their body and mind free from degrading things.', { fs: 10, sx: -2 }],
   ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
   return out;
 })();
@@ -220,3 +255,22 @@ const PHIL_TYPES = {
   Existentialist:{ E:40, K:40, M:40, V:85, C:60, W:20 },
   Skeptic:       { E:50, K:50, M:60, V:70, C:90, W:50 },
 };
+
+/* PhilPapers-survey-style position questions: "which is closest to your view?" on the classic topics
+   (mind, God, knowledge, what makes actions right, personal identity, science). */
+PHIL_QUESTIONS.push(
+  { q: 'Which is closest to your view of the mind?', tag: 'pp', opts: ['It is entirely physical: brain activity and nothing more', 'Mostly physical, though consciousness is hard to explain', 'Mind and body are different kinds of thing that affect each other', 'The mind is non-physical, perhaps a soul'] },
+  { q: 'Which is closest to your view of God?', tag: 'pp', opts: ['A personal God exists', 'Something divine exists, but not as a person', 'Probably no god, but I can\'t be sure', 'No gods exist'] },
+  { q: 'Where does real knowledge come from?', tag: 'pp', opts: ['Mainly from experience and observation', 'From both: evidence, checked by reason', 'Partly from reasoning, intuition and tradition', 'Some of it comes from faith or revelation'] },
+  { q: 'What makes an action right?', tag: 'pp', opts: ['It follows moral rules or duties', 'It comes from good character', 'It leads to the best results overall', 'People could reasonably agree to it'] },
+  { q: 'What makes you the same person over time?', tag: 'pp', opts: ['My body and brain', 'My memories and personality', 'A soul or inner self that carries on', 'Nothing fixed: I am a changing stream of experiences'] },
+  { q: 'How should we think about scientific theories?', tag: 'pp', opts: ['They describe how the world really is', 'They are our best approximations of reality', 'They are useful tools, not necessarily the truth', 'They are one story among many, shaped by culture'] },
+);
+PHIL_EFFECTS.push(
+  [{M:2}, {M:1}, {M:-1}, {M:-2}],
+  [{M:-2,K:-1}, {M:-1}, {M:1,C:1}, {M:2,K:1}],
+  [{K:2}, {K:1}, {K:-1}, {K:-2}],
+  [{E:-2}, {E:-1}, {E:2}, {V:1}],
+  [{M:2}, {M:1}, {M:-2}, {C:1,M:1}],
+  [{K:2,C:-1}, {K:1}, {C:1}, {C:2,V:1}],
+);
