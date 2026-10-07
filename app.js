@@ -2794,15 +2794,18 @@ const IDEOLOGY_PROFILES = [
   ['Green Progressive',      [25, 30, 75, 60, 80, 40]],
   ['Centrist',               [50, 50, 50, 50, 50, 50]],
 ];
-function overallIdeology(c){
-  if(!c || !c.economic || !c.political || !c.social) return null;
+// The closest ideologies with how close each one is (100% would be an exact match).
+function ideologyMatches(c){
+  if(!c || !c.economic || !c.political || !c.social) return [];
   const v = [c.economic.x, c.economic.y, c.political.x, c.political.y, c.social.x, c.social.y];
-  let best = null, bestD = Infinity;
-  IDEOLOGY_PROFILES.forEach(([name, p]) => {
-    const d = p.reduce((n, x, i) => n + Math.pow(x - v[i], 2), 0);
-    if(d < bestD){ bestD = d; best = name; }
-  });
-  return best;
+  return IDEOLOGY_PROFILES.map(([name, p]) => {
+    const dist = Math.sqrt(p.reduce((n, x, i) => n + Math.pow(x - v[i], 2), 0));
+    return { name, dist, pct: Math.max(0, Math.round(100 - dist / 1.8)) };
+  }).sort((a, b) => a.dist - b.dist);
+}
+function overallIdeology(c){
+  const m = ideologyMatches(c);
+  return m.length ? m[0].name : null;
 }
 
 // Every axis of the test as one list (the six compass axes, then the five detail axes), each with the end you lean to and how strongly.
@@ -2810,10 +2813,11 @@ function cardAxisList(u){
   const rows = axisRows(u).map(r => ({ name: r.name, pct: r.pct, color: r.color }));
   const ex = u.extraScores;
   if(ex){
-    const colors = ['#4dabf7', '#f06595', '#94d82d', '#ffa94d', '#9775fa'];
+    const colors = ['#4dabf7', '#f06595', '#94d82d', '#ffa94d', '#9775fa', '#38d9a9', '#ff8787'];
     Object.keys(DETAIL_AXES).forEach((k, i) => {
+      if(typeof ex[k] !== 'number') return;   // results saved before an axis existed simply don't have it
       const v = ex[k], high = v >= 50;
-      rows.push({ name: DETAIL_AXES[k][high ? 1 : 0], pct: high ? v : 100 - v, color: colors[i] });
+      rows.push({ name: DETAIL_AXES[k][high ? 1 : 0], pct: high ? v : 100 - v, color: colors[i % colors.length] });
     });
   }
   return rows;
@@ -2859,6 +2863,7 @@ function buildResultCard(){
     el('div',{class:'dz-kicker'}, 'Classified as'),
     el('h2',{class:'dz-title'}, overallIdeology(u.compass) || ideo('political')),
     el('div',{class:'dz-rule'},[el('i',{})]),
+    (() => { const m = ideologyMatches(u.compass).slice(0, 3); return m.length ? el('div',{class:'dz-also'}, m.map((x, i) => el('span',{}, (i ? ' · ' : '') + x.name + ' ' + x.pct + '%'))) : null; })(),
     el('div',{class:'dz-tags'},[el('span',{}, ideo('political')), el('span',{}, ideo('economic')), el('span',{}, ideo('social'))].concat(
       (u.archetype && !/not yet/i.test(u.archetype)) ? [el('span',{}, u.archetype)] : [],
       (u.religion && u.religion !== 'Prefer not to say') ? [el('span',{}, u.religion + (u.denomination ? ', ' + u.denomination : ''))] : [])),
@@ -3000,7 +3005,7 @@ function saveQuiz(){
   try {
     const q = state.quiz;
     if(!q.active || !q.answers.length){ return; }
-    localStorage.setItem(quizStoreKey(), JSON.stringify({ section: q.section, index: q.index, answers: q.answers, order: q.order, religion: q.religion || null, at: Date.now() }));
+    localStorage.setItem(quizStoreKey(), JSON.stringify({ section: q.section, index: q.index, answers: q.answers, order: q.order, philOrder: q.philOrder || null, mode: q.mode || 'full', religion: q.religion || null, at: Date.now() }));
   } catch(e){}
 }
 function clearSavedQuiz(){ try { localStorage.removeItem(quizStoreKey()); } catch(e){} }
@@ -3016,9 +3021,68 @@ function resumeQuizButton(){
   if(!saved) return null;
   return el('button',{class:'btn secondary', style:'margin-right:10px;', onclick:()=>{
     state.quiz.active = true; state.quiz.section = saved.section; state.quiz.index = saved.index;
-    state.quiz.answers = saved.answers; state.quiz.order = saved.order; state.quiz.religion = saved.religion;
+    state.quiz.answers = saved.answers; state.quiz.order = saved.order; state.quiz.philOrder = saved.philOrder || null; state.quiz.mode = saved.mode || 'full'; state.quiz.religion = saved.religion;
     render();
   }}, 'Resume your test (' + saved.answers.length + ' answered)');
+}
+
+/* Full test or short test. The short one picks the questions that tell the axes apart best, so every axis is still covered. */
+const SHORT_PHIL = 20, SHORT_COMPASS = 60, SHORT_RELIGION = 14;
+function pickShortPhil(){
+  const keys = Object.keys(PHIL_AXES), chosen = [];
+  const weight = (i, k) => Math.max(0, ...PHIL_EFFECTS[i].map(e => Math.abs(e[k] || 0)));
+  while(chosen.length < SHORT_PHIL){
+    for(const k of keys){
+      let best = -1, bw = 0;
+      PHIL_QUESTIONS.forEach((_, i) => { if(!chosen.includes(i) && weight(i, k) > bw){ bw = weight(i, k); best = i; } });
+      if(best >= 0) chosen.push(best);
+      if(chosen.length >= SHORT_PHIL) break;
+    }
+  }
+  return chosen.sort((a, b) => a - b);
+}
+function pickShortCompass(){
+  const keys = ['ex','ey','px','py','sx','sy','dm','ml','as','rl','tc','fd','pr','fc','ff','fl','fa','fs'], chosen = [];
+  while(chosen.length < SHORT_COMPASS){
+    for(const k of keys){
+      let best = -1, bw = 0;
+      COMPASS_ITEMS.forEach((it, i) => { const w = Math.abs(it.w[k] || 0); if(!chosen.includes(i) && w > bw){ bw = w; best = i; } });
+      if(best >= 0) chosen.push(best);
+      if(chosen.length >= SHORT_COMPASS) break;
+    }
+  }
+  return chosen;
+}
+const quizIsShort = () => state.quiz.mode === 'short';
+function quizPhilIdx(){
+  const q = state.quiz;
+  if(!q.philOrder || !q.philOrder.length) q.philOrder = quizIsShort() ? pickShortPhil() : PHIL_QUESTIONS.map((_, i) => i);
+  return q.philOrder;
+}
+function quizCompassIdx(){
+  const q = state.quiz, size = quizIsShort() ? SHORT_COMPASS : COMPASS_ITEMS.length;
+  if(!q.order || q.order.length !== size){
+    const o = quizIsShort() ? pickShortCompass() : COMPASS_ITEMS.map((_, i) => i);
+    for(let i = o.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    q.order = o;
+  }
+  return q.order;
+}
+const quizReligionList = (r) => { const all = RELIGION_QUESTIONS[r] || []; return quizIsShort() ? all.slice(0, SHORT_RELIGION) : all; };
+const quizReligionTotal = () => 1 + (quizIsShort() ? SHORT_RELIGION : 34);   // the pick plus the questions about your tradition
+function beginQuiz(mode){
+  clearSavedQuiz();
+  const q = state.quiz;
+  q.active = true; q.section = 'philosophy'; q.index = 0; q.answers = []; q.order = null; q.philOrder = null; q.mode = mode; q.religion = null;
+  render();
+}
+function startQuizButtons(retake){
+  const saved = savedQuiz();
+  const full = PHIL_QUESTIONS.length + COMPASS_ITEMS.length + 35, short = SHORT_PHIL + SHORT_COMPASS + 1 + SHORT_RELIGION;
+  return el('div',{class:'quiz-start'},[
+    el('button',{class: retake && !saved ? 'btn secondary' : 'btn', onclick:()=>beginQuiz('full')},[(saved ? 'Start over: full test' : 'Full test'), el('small',{}, ' · ' + full + ' questions')]),
+    el('button',{class:'btn secondary', onclick:()=>beginQuiz('short')},[(saved ? 'Start over: short test' : 'Short test'), el('small',{}, ' · ' + short + ' questions')]),
+  ]);
 }
 
 // Steps one question back in the assessment and forgets that answer, so it can be answered again.
@@ -3034,15 +3098,29 @@ function quizBack(){
     else { q.answers.pop(); q.section = 'religion-pick'; q.religion = null; }
   } else if(q.section === 'religion-pick'){
     if(!last) return;
-    q.answers.pop(); q.section = 'compass'; q.index = COMPASS_ITEMS.length - 1;
+    q.answers.pop(); q.section = 'compass'; q.index = quizCompassIdx().length - 1;
   } else if(q.section === 'compass'){
     if(q.index > 0){ q.answers.pop(); q.index -= 1; }
-    else { q.answers.pop(); q.section = 'philosophy'; q.index = PHIL_QUESTIONS.length - 1; }
+    else { q.answers.pop(); q.section = 'philosophy'; q.index = quizPhilIdx().length - 1; }
   } else if(q.section === 'philosophy'){
     if(q.index > 0){ q.answers.pop(); q.index -= 1; }
   }
   render();
 }
+// Keyboard: 1 to 5 picks an answer, Backspace or the left arrow goes back.
+document.addEventListener('keydown', (e) => {
+  if(!state.quiz || !state.quiz.active || state.tab !== 'assessment' || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  const sec = state.quiz.section;
+  if(e.key === 'Backspace' || e.key === 'ArrowLeft'){ if(sec !== 'written'){ e.preventDefault(); quizBack(); } return; }
+  if(!['philosophy', 'compass', 'religion-followup'].includes(sec)) return;
+  const n = parseInt(e.key, 10);
+  if(n >= 1 && n <= 5){
+    const opts = document.querySelectorAll('.quiz-opt');
+    if(opts[n - 1]){ e.preventDefault(); opts[n - 1].click(); }
+  }
+});
 function quizBackButton(){
   const q = state.quiz;
   if(q.section === 'philosophy' && q.index === 0) return null;   // nothing before the first question
@@ -3065,15 +3143,7 @@ function renderAssessment(){
       el('div',{class:'stat-label'},'Retaking updates your compass, philosophy, and religion results — it won\'t change your rank or points.'),
       el('div',{style:'height:14px'}),
       resumeQuizButton(),
-      el('button',{class:'btn secondary', onclick:()=>{
-        clearSavedQuiz();
-        state.quiz.active = true;
-        state.quiz.section = 'philosophy';
-        state.quiz.index = 0;
-        state.quiz.answers = [];
-        state.quiz.order = null;
-        render();
-      }}, savedQuiz() ? 'Start over' : 'Retake Assessment'),
+      startQuizButtons(true),
     ]));
     if(state.user.compass) wrap.appendChild(matchesCard());
     return wrap;
@@ -3083,15 +3153,7 @@ function renderAssessment(){
     wrap.appendChild(el('p',{class:'section-sub'},
       'One test, start to finish: philosophy questions (scenarios plus the classic survey positions), then a mixed set of statements about politics, economics, society and morals (drawing on 8values, 12axes, the Political Compass and the Moral Foundations Questionnaire), an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
     { const r = resumeQuizButton(); if(r) wrap.appendChild(r); }
-    wrap.appendChild(el('button',{class:'btn', onclick:()=>{
-      clearSavedQuiz();
-      state.quiz.active = true;
-      state.quiz.section = 'philosophy';
-      state.quiz.index = 0;
-      state.quiz.answers = [];
-      state.quiz.order = null;
-      render();
-    }}, savedQuiz() ? 'Start over' : 'Begin Assessment'));
+    wrap.appendChild(startQuizButtons(false));
     return wrap;
   }
 
@@ -3099,19 +3161,12 @@ function renderAssessment(){
   const QUIZ_SECTIONS = ['philosophy','compass'];
   const SECTION_LABEL = { philosophy: 'Philosophy', compass: 'Politics and society' };
   // The politics statements come as one shuffled list (like 8values), new order every attempt.
-  const compassOrder = () => {
-    if(!state.quiz.order || state.quiz.order.length !== COMPASS_ITEMS.length){
-      const o = COMPASS_ITEMS.map((_, i) => i);
-      for(let i = o.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
-      state.quiz.order = o;
-    }
-    return state.quiz.order;
-  };
+  const compassOrder = quizCompassIdx;
 
   // One continuous test: a single counter and bar from the first question to the last.
   function quizOverall(){
     // philosophy, then the compass statements, then the religion section (the pick plus 34 questions, 35 in all)
-    const total = PHIL_QUESTIONS.length + COMPASS_ITEMS.length + 35;
+    const total = quizPhilIdx().length + quizCompassIdx().length + quizReligionTotal();
     const at = state.quiz.answers.length + 1;
     return { at: Math.min(at, total), total };
   }
@@ -3124,8 +3179,9 @@ function renderAssessment(){
 
   if(QUIZ_SECTIONS.includes(state.quiz.section)){
     const isCompass = state.quiz.section === 'compass';
-    const bank = isCompass ? COMPASS_ITEMS : PHIL_QUESTIONS;
-    const item = isCompass ? COMPASS_ITEMS[compassOrder()[state.quiz.index]] : PHIL_QUESTIONS[state.quiz.index];
+    const idx = isCompass ? quizCompassIdx() : quizPhilIdx();
+    const bank = idx;
+    const item = isCompass ? COMPASS_ITEMS[idx[state.quiz.index]] : PHIL_QUESTIONS[idx[state.quiz.index]];
     const displayIndex = state.quiz.index+1;
     const displayTotal = bank.length;
 
@@ -3160,6 +3216,7 @@ function renderAssessment(){
     });
     card.appendChild(optsWrap);
     wrap.appendChild(card);
+    wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:10px;'}, 'Tip: press 1 to ' + item.opts.length + ' to answer, Backspace to go back. Your answers are saved on this device.'));
     return wrap;
   }
 
@@ -3174,7 +3231,7 @@ function renderAssessment(){
       optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>{
         state.quiz.religion = r;
         state.quiz.answers.push({section:'religion', axis:null, q:'Which best describes your religious or spiritual identity?', choice:r});
-        const followups = RELIGION_QUESTIONS[r];
+        const followups = quizReligionList(r);
         if(followups && followups.length){
           state.quiz.section = 'religion-followup';
           state.quiz.index = 0;
@@ -3192,7 +3249,7 @@ function renderAssessment(){
   }
 
   if(state.quiz.section === 'religion-followup'){
-    const bank = RELIGION_QUESTIONS[state.quiz.religion] || [];
+    const bank = quizReligionList(state.quiz.religion);
     const item = bank[state.quiz.index];
     const displayIndex = state.quiz.index+1;
     const displayTotal = bank.length;
@@ -3332,12 +3389,11 @@ function computeAxisPair(answers, section){
 function computeExtraScores(answers){
   const sum = {}, max = {};
   COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
-  COMPASS_ITEMS.forEach(i => { Object.keys(i.w).forEach(ax => { max[ax] += Math.abs(i.w[ax]); }); });
   answers.filter(a => a.section === 'compass').forEach(a => {
     const item = COMPASS_ITEMS.find(i => i.q === a.q);
     const v = ANSWER_VALUE[a.choice];
     if(!item || v === undefined) return;
-    Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; });
+    Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; max[ax] += Math.abs(item.w[ax]); });   // the most it could be counts only the statements you were asked
   });
   const out = {};
   Object.keys(DETAIL_AXES).concat(Object.keys(FOUNDATIONS)).forEach(ax => {
@@ -3363,12 +3419,11 @@ const ANSWER_VALUE = { 'Strongly disagree': -1, 'Disagree': -0.5, 'Neutral': 0, 
 function computeThreeCompasses(answers){
   const sum = {}, max = {};
   COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
-  COMPASS_ITEMS.forEach(i => { Object.keys(i.w).forEach(ax => { max[ax] += Math.abs(i.w[ax]); }); });
   answers.filter(a => a.section === 'compass').forEach(a => {
     const item = COMPASS_ITEMS.find(i => i.q === a.q);
     const v = ANSWER_VALUE[a.choice];
     if(!item || v === undefined) return;
-    Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; });
+    Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; max[ax] += Math.abs(item.w[ax]); });
   });
   const pct = (ax) => Math.max(0, Math.min(100, Math.round(50 + 50 * sum[ax] / (max[ax] || 1))));
   return {
@@ -3391,10 +3446,10 @@ function computePhilosophyAxes(answers){
   const sum = {}, max = {};
   keys.forEach(k => { sum[k] = 0; max[k] = 0; });
   PHIL_QUESTIONS.forEach((q, i) => {
-    keys.forEach(k => { max[k] += Math.max(0, ...PHIL_EFFECTS[i].map(e => Math.abs(e[k] || 0))); });
     const ans = answers.find(a => a.section === 'philosophy' && a.q === q.q);
     const j = ans ? q.opts.indexOf(ans.choice) : -1;
-    if(j >= 0) keys.forEach(k => { sum[k] += (PHIL_EFFECTS[i][j][k] || 0); });
+    if(j < 0) return;   // only the questions you were asked count
+    keys.forEach(k => { max[k] += Math.max(0, ...PHIL_EFFECTS[i].map(e => Math.abs(e[k] || 0))); sum[k] += (PHIL_EFFECTS[i][j][k] || 0); });
   });
   const out = {};
   keys.forEach(k => { out[k] = Math.max(0, Math.min(100, Math.round(50 + 50 * sum[k] / (max[k] || 1)))); });
@@ -6080,6 +6135,7 @@ function renderCompass(){
     const detail = el('div',{class:'phil-axes'});
     detail.appendChild(el('div',{class:'eyebrow', style:'margin-top:18px;'}, 'More detail (12axes-style)'));
     Object.keys(DETAIL_AXES).forEach(k => {
+      if(typeof ex[k] !== 'number') return;
       const v = ex[k], high = v >= 50, pct = high ? v : 100 - v;
       detail.appendChild(el('div',{class:'phil-axis'},[
         el('div',{class:'phil-axis__row'},[el('span',{}, DETAIL_AXES[k][0]), el('b',{}, DETAIL_AXES[k][high ? 1 : 0] + ' ' + pct + '%'), el('span',{}, DETAIL_AXES[k][1])]),
