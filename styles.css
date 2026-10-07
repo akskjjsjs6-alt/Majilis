@@ -2465,3 +2465,11 @@ h2 .role-tag { font-size: 0.5em; }
 .book-search-cover{width:36px;height:52px;object-fit:cover;border-radius:3px;flex:none;background:rgba(128,128,128,.18)}
 .book-search-info{min-width:0}
 .book-search-note{font-size:12px;opacity:.75;padding:2px 0}
+
+/* Choosing a side of the debate question */
+.side-bar{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line-2,rgba(128,128,128,.3));border-radius:10px;background:var(--surface,transparent)}
+.side-bar__line{font-size:14px}
+.side-bar__btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.side-btn.is-on{border-color:var(--neon-line,#2fd27a);box-shadow:0 0 0 2px var(--neon-soft,rgba(47,210,122,.18))}
+.side-tag--for{color:#35d07f}
+.side-tag--against{color:#ff7a6b}

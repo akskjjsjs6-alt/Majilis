@@ -164,6 +164,17 @@ async function claimNetwork(userId){
   } catch(e){ networkClaimed = null; console.warn('network check unavailable', e); }
 }
 
+// Wiki articles whose writer can't be found (deleted account) are shown under the current founder instead of "Unknown".
+function founderName(){
+  const f = Object.values(state.users).find(u => FOUNDER_USERNAMES.includes(String(u.username).toLowerCase()));
+  return f ? f.username : 'SafePlace2359';
+}
+function wikiAuthorName(w){
+  if(w.author && w.author !== 'Unknown') return w.author;
+  const u = Object.values(state.users).find(x => x.id && x.id === w.authorId);
+  return u ? u.username : founderName();
+}
+
 // Pull every wiki article from Supabase (shared by everyone) into state.wiki.
 async function loadWikiFromSupabase(){
   try {
@@ -3413,7 +3424,8 @@ async function requestRivalTurn(debate, isRetry){
       return;
     }
   }
-  if(m) debate._rivalRetries = 0;
+  if(!m && debate._rivalRetries > 10) debate._rivalGaveUp = true;   // don't leave the player locked out of the chat
+  if(m){ debate._rivalRetries = 0; debate._rivalGaveUp = false; }
   if(m && !debate.chatLog.some(x => x.id === m.id)){
     debate.chatLog.push({ id: m.id, author: m.author, text: m.text });
   }
@@ -3462,6 +3474,7 @@ async function enterDebate(debateId){
     createdAt: debate.created_at ? new Date(debate.created_at).getTime() : Date.now(),
     endRequest: debate.end_request || null,
     topicVotes: debate.topic_votes || {},
+    sides: debate.sides || {},
     topicLocked: debate.topic_locked !== false,   // older databases without the topic step: never block the chat
     label: debate.label || null,
   };
@@ -3494,6 +3507,7 @@ function subscribeToDebate(debateId){
       d.status = payload.new.status;
       if('end_request' in payload.new) d.endRequest = payload.new.end_request;
       if('topic_votes' in payload.new) d.topicVotes = payload.new.topic_votes || {};
+      if('sides' in payload.new) d.sides = payload.new.sides || {};
       if('topic_locked' in payload.new) d.topicLocked = payload.new.topic_locked !== false;
       if(payload.new.topic) d.topic = payload.new.topic;
       if(payload.new.label) d.label = payload.new.label;
@@ -4683,6 +4697,7 @@ function renderChatRoom(debate){
   wrap.appendChild(el('p',{class:'section-sub vs-line'}, ['vs. ', avatarNode(oppName, 26), ' '+oppName, badgeRow(oppName, 'xs'), (debate.unranked?' · unranked':' · ranked'),
     state.users[oppName] ? el('button',{class:'report-link', title:'Report ' + oppName, onclick:()=>openReport(oppName, { type:'debate', id:debate.id, preview: debate.topic ? 'Topic: ' + debate.topic : '' })}, [icon('flag', 13), 'Report']) : null]));
   if(topicPhaseActive(debate)) wrap.appendChild(renderTopicPhase(debate));
+  if(!debate.verdict && debate.status !== 'ended') wrap.appendChild(sideBar(debate));
 
   const room = el('div',{class:'debate-room'});
   const left = el('div',{});
@@ -4765,11 +4780,20 @@ function renderChatRoom(debate){
 function debateMessageInput(debate, placeholder){
   const inputRow = el('div',{class:'chat-input-row', style: (debate.mode === 'Video' || debate.mode === 'Audio') ? 'border:1px solid var(--line);border-radius:3px;margin-top:10px;' : ''});
   const picking = topicPhaseActive(debate);
-  const box = draft('debate-msg-'+debate.id, el('textarea',{placeholder: picking ? 'The chat opens when the topic is set…' : placeholder, maxlength:'4000'}));
-  if(picking){ box.disabled = true; }
+  // Against an AI rival the debate is turn-based: after you send, wait for its answer before writing again.
+  const bot = rivalOf(debate);
+  const lastMsg = debate.chatLog[debate.chatLog.length - 1];
+  const waitingForBot = !!(bot && !debate.verdict && !debate._rivalGaveUp && lastMsg && lastMsg.author === state.currentUser);
+  if(waitingForBot && !debate._rivalTyping && !debate._rivalKicked){
+    debate._rivalKicked = true;   // e.g. the page was reloaded while the rival was still due to answer
+    setTimeout(() => requestRivalTurn(debate), 0);
+  }
+  if(!waitingForBot) debate._rivalKicked = false;
+  const box = draft('debate-msg-'+debate.id, el('textarea',{placeholder: picking ? 'The chat opens when the topic is set…' : waitingForBot ? 'Wait for ' + (otherParticipant(debate) || 'your opponent') + ' to answer, then it\'s your turn…' : placeholder, maxlength:'4000'}));
+  if(picking || waitingForBot){ box.disabled = true; }
   const send = async ()=>{
     const val = box.value.trim();
-    if(!val || topicPhaseActive(debate)) return;
+    if(!val || topicPhaseActive(debate) || waitingForBot) return;
     // Show it in the debate straight away (faded until the server confirms).
     const local = { author: state.currentUser, text: val, pending: true, id: null };
     debate.chatLog.push(local);
@@ -4793,7 +4817,9 @@ function debateMessageInput(debate, placeholder){
   };
   box.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
   inputRow.appendChild(box);
-  inputRow.appendChild(el('button',{class:'btn', onclick: send}, 'Send'));
+  const sendBtn = el('button',{class:'btn', onclick: send}, waitingForBot ? 'Their turn…' : 'Send');
+  if(waitingForBot) sendBtn.disabled = true;
+  inputRow.appendChild(sendBtn);
   return inputRow;
 }
 
@@ -4843,18 +4869,29 @@ function disagreements(debate){
   return { known: true, axes, extras };
 }
 
+function hashString(str){
+  let h = 2166136261;
+  for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+// Fresh suggestions for every debate: both players get the same list (it's built from the debate's id),
+// but a different debate gets different topics, drawn from an endless supply.
 function suggestedTopics(debate, d){
   const out = [];
   const add = (t) => { if(t && !out.some(x => x.toLowerCase() === t.toLowerCase())) out.push(t); };
   if(debate.topic && !/^open topic$/i.test(debate.topic)) add(debate.topic);   // proposed in the lobby
-  if(d.known){
-    const seed = String(debate.id).split('').reduce((n, c) => n + c.charCodeAt(0), 0);
-    d.axes.slice(0, 2).forEach((a, i) => { add(a.motions[(seed + i) % a.motions.length]); add(a.motions[(seed + i + 1) % a.motions.length]); });
-    d.extras.slice(0, 1).forEach(e => add(e.motions[seed % e.motions.length]));
-  } else {
+  const seed = hashString(String(debate.id));
+  if(window.MajlisTopics){
+    for(let i = 0; out.length < 5 && i < 12; i++) add(window.MajlisTopics.at((seed + i * 7919) % 2000000000));
+  }
+  if(d.known && d.axes.length){
+    const a = d.axes[0];
+    out.splice(Math.min(2, out.length), 0, a.motions[seed % a.motions.length]);   // one tied to where you disagree most
+  } else if(!window.MajlisTopics){
     GENERAL_MOTIONS.forEach(add);
   }
-  return out.slice(0, 5);
+  const seen = new Set();
+  return out.filter(t => { const k = t.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
 }
 
 async function voteTopic(debate, topic){
@@ -4865,6 +4902,44 @@ async function voteTopic(debate, topic){
   const { data, error } = await callSecure('vote_topic', { debateId: debate.id, topic });
   if(error){ alert(error); return; }
   applyTopicState(debate, data);
+}
+
+// Which side of the question you argue. Against an AI rival it takes the other side; against a person, whoever picks first chooses.
+async function pickSide(debate, side){
+  const before = debate.sides || {};
+  debate.sides = { ...before, [state.user.id]: side };
+  render();
+  const { data, error } = await callSecure('pick_side', { debateId: debate.id, side });
+  if(error){ debate.sides = before; render(); alert(error); return; }
+  if(data && data.sides) debate.sides = data.sides;
+  render();
+}
+function sideBar(debate){
+  const sides = debate.sides || {};
+  const mine = sides[state.user.id] || null;
+  const oppName = otherParticipant(debate) || 'your opponent';
+  const oppUser = state.users[oppName];
+  const theirs = oppUser && oppUser.id ? (sides[oppUser.id] || null) : null;
+  const canChange = !debate.chatLog.length;
+  const label = (v) => v === 'for' ? 'FOR' : 'AGAINST';
+  const bar = el('div',{class:'side-bar'});
+  if(mine){
+    bar.appendChild(el('div',{class:'side-bar__line'},[
+      'You argue ', el('strong',{class:'side-tag side-tag--' + mine}, label(mine)), ' this question',
+      theirs ? [' · ' + oppName + ' argues ', el('strong',{class:'side-tag side-tag--' + theirs}, label(theirs))] : null,
+    ].flat().filter(Boolean)));
+  } else {
+    bar.appendChild(el('div',{class:'side-bar__line'}, 'Pick your side of the question:'));
+  }
+  if(canChange){
+    const row = el('div',{class:'side-bar__btns'});
+    [['for','For (yes)'],['against','Against (no)']].forEach(([v, text]) => {
+      row.appendChild(el('button',{class:'btn secondary side-btn' + (mine === v ? ' is-on' : ''), onclick:()=>{ if(mine !== v) pickSide(debate, v); }}, text));
+    });
+    bar.appendChild(row);
+    if(!mine) bar.appendChild(el('p',{class:'end-panel__note'}, 'Your opponent gets the other side. If you don\'t pick, you just argue whatever you like.'));
+  }
+  return bar;
 }
 
 function applyTopicState(debate, data){
@@ -6503,11 +6578,11 @@ function renderWiki(){
   state.wiki.forEach(w=>{
     const card = el('div',{class:'forum-post'});
     card.appendChild(el('h4',{}, w.title));
-    card.appendChild(el('div',{class:'meta'}, 'by '+w.author));
+    card.appendChild(el('div',{class:'meta'}, 'by '+wikiAuthorName(w)));
     card.appendChild(el('p',{style:'font-style:italic;color:var(--parchment-dim);'}, w.summary));
     card.appendChild(el('p',{style:'white-space:pre-line;'}, (window.MajlisFilters ? MajlisFilters.wrap(w.body) : w.body)));
-    if(w.author !== state.currentUser && state.users[w.author] && (state.user && !state.user.isGuest)){
-      card.appendChild(el('button',{class:'report-link', onclick:()=>openReport(w.author, { type:'wiki', id:w.id, preview:w.title })}, [icon('flag', 13), 'Report article']));
+    if(wikiAuthorName(w) !== state.currentUser && state.users[wikiAuthorName(w)] && (state.user && !state.user.isGuest)){
+      card.appendChild(el('button',{class:'report-link', onclick:()=>openReport(wikiAuthorName(w), { type:'wiki', id:w.id, preview:w.title })}, [icon('flag', 13), 'Report article']));
     }
     if(canModerate() || w.authorId === (state.user && state.user.id)){
       card.appendChild(el('button',{class:'btn secondary', style:'margin-top:8px;padding:5px 12px;font-size:12px;color:var(--wine);border-color:var(--wine);', onclick:()=>deleteWikiArticle(w.id)}, 'Delete'));
