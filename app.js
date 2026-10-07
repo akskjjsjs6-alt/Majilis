@@ -3160,45 +3160,60 @@ function renderAssessment(){
 }
 
 
+/* Convention (the same everywhere): x runs left to right = xLabels[0] to xLabels[1]; y runs bottom to top = yLabels[0] to yLabels[1].
+   Scoring is like 8values: every answer moves the score a little, the total is compared with the most it could be, and
+   you get a percentage for both ends of each axis. The name comes from a 3x3 grid (low / middle / high on each axis). */
 const COMPASS_DEFS = {
   economic: {
     title: 'Economic Compass',
     xLabels: ['Left','Right'], yLabels: ['Interventionist','Laissez-faire'],
-    quads: { tl:'Socialist', tr:'Corporatist', bl:'Communalist', br:'Free-Market Capitalist' },
+    // rows from the top (high y) to the bottom (low y); columns from left to right
+    grid: [['Market Socialist','Free-Market Moderate','Free-Market Capitalist'],
+           ['Social Democrat','Economic Centrist','Conservative Liberal'],
+           ['Socialist','Interventionist Moderate','Corporatist']],
+    quads: { tl:'Market Socialist', tr:'Free-Market Capitalist', bl:'Socialist', br:'Corporatist' },
   },
   political: {
     title: 'Political Compass',
     xLabels: ['Nationalist','Globalist'], yLabels: ['Authoritarian','Libertarian'],
-    quads: { tl:'Nationalist-Authoritarian', tr:'Technocratic Globalist', bl:'Sovereigntist Libertarian', br:'Cosmopolitan Libertarian' },
+    grid: [['Sovereigntist Libertarian','Civil Libertarian','Cosmopolitan Libertarian'],
+           ['Nationalist Moderate','Political Centrist','Internationalist Moderate'],
+           ['Nationalist Authoritarian','Authoritarian','Technocratic Globalist']],
+    quads: { tl:'Sovereigntist Libertarian', tr:'Cosmopolitan Libertarian', bl:'Nationalist Authoritarian', br:'Technocratic Globalist' },
   },
   social: {
     title: 'Social Compass',
     xLabels: ['Traditional','Progressive'], yLabels: ['Collectivist','Individualist'],
-    quads: { tl:'Traditionalist Communitarian', tr:'Progressive Communitarian', bl:'Conservative Individualist', br:'Liberal Individualist' },
+    grid: [['Conservative Individualist','Individualist','Liberal Individualist'],
+           ['Traditionalist','Social Centrist','Progressive'],
+           ['Traditionalist Communitarian','Communitarian','Progressive Communitarian']],
+    quads: { tl:'Conservative Individualist', tr:'Liberal Individualist', bl:'Traditionalist Communitarian', br:'Progressive Communitarian' },
   },
 };
 
-function axisScoreToPct(sum, questionCount){
-  const max = questionCount * 3;
+function axisScoreToPct(sum, weightTotal){
+  const max = weightTotal * 3;
   return Math.max(0, Math.min(100, Math.round(50 + (sum/max)*50)));
 }
 
 function computeAxisPair(answers, section){
   const secAnswers = answers.filter(a=>a.section===section);
   const bank = section==='economic' ? ECONOMIC_QUESTIONS : section==='political' ? POLITICAL_QUESTIONS : SOCIAL_QUESTIONS;
-  let xSum = 0, xCount = 0, ySum = 0, yCount = 0;
+  let xSum = 0, xW = 0, ySum = 0, yW = 0;
   secAnswers.forEach(a=>{
     const q = bank.find(b=>b.q===a.q);
     if(!q) return;
     const optIndex = q.opts.indexOf(a.choice);
     if(optIndex === -1) return;
     // Agree/disagree statements: Strongly disagree = -3 ... Strongly agree = +3, flipped when the statement points to the low end.
-    const value = (optIndex - 2) * 1.5 * (q.dir || 1);
-    if(q.axis==='x'){ xSum += value; xCount++; } else { ySum += value; yCount++; }
+    // Core statements count double (w: 2), like the heavier items in 8values.
+    const w = q.w || 1;
+    const value = (optIndex - 2) * 1.5 * (q.dir || 1) * w;
+    if(q.axis==='x'){ xSum += value; xW += w; } else { ySum += value; yW += w; }
   });
   return {
-    x: axisScoreToPct(xSum, xCount || 8),
-    y: axisScoreToPct(ySum, yCount || 8),
+    x: axisScoreToPct(xSum, xW || 8),
+    y: axisScoreToPct(ySum, yW || 8),
   };
 }
 
@@ -3212,12 +3227,9 @@ function computeThreeCompasses(answers){
 
 function deriveQuadrantIdeology(section, pair){
   const def = COMPASS_DEFS[section];
-  const isRight = pair.x >= 50;
-  const isTop = pair.y >= 50;
-  if(isTop && !isRight) return def.quads.tl;
-  if(isTop && isRight) return def.quads.tr;
-  if(!isTop && !isRight) return def.quads.bl;
-  return def.quads.br;
+  const band = (v) => v < 40 ? 0 : v > 60 ? 2 : 1;
+  const row = 2 - band(pair.y);          // high y is the top row
+  return def.grid[row][band(pair.x)];
 }
 
 function deriveArchetype(answers){
@@ -3263,7 +3275,9 @@ async function aiAnalyzeAssessment(answers){
   try {
     const { data, error } = await sb.functions.invoke('ai-assist', { body: payload, region: FN_REGION });
     if(error || !data || data.error) throw new Error((data && data.error) || 'AI analysis unavailable');
-    const clampPair = (p) => ({ x: Math.max(0, Math.min(100, Math.round(p.x))), y: Math.max(0, Math.min(100, Math.round(p.y))) });
+    // The compass numbers and names come from the answers themselves (the same every time, like other online tests).
+    // The AI is only used for the philosophy type and the religious tradition.
+    const compass = computeThreeCompasses(answers);
     return {
       aiAnalyzed: true,
       archetype: data.archetype,
@@ -3271,15 +3285,11 @@ async function aiAnalyzeAssessment(answers){
       religion: payload.religion,
       denomination: data.denomination || null,
       denominationReasoning: data.denominationReasoning || '',
-      compass: {
-        economic: clampPair(data.economic),
-        political: clampPair(data.political),
-        social: clampPair(data.social),
-      },
+      compass,
       ideologies: {
-        economic: { label: data.economic.ideology, reasoning: data.economic.reasoning || '' },
-        political: { label: data.political.ideology, reasoning: data.political.reasoning || '' },
-        social: { label: data.social.ideology, reasoning: data.social.reasoning || '' },
+        economic: { label: deriveQuadrantIdeology('economic', compass.economic), reasoning: '' },
+        political: { label: deriveQuadrantIdeology('political', compass.political), reasoning: '' },
+        social: { label: deriveQuadrantIdeology('social', compass.social), reasoning: '' },
       },
     };
   } catch(e){
@@ -5824,7 +5834,7 @@ function compassMap(section, focus, dots, farthest){
   }
   map.appendChild(tip);
   return el('div',{class:'opposites__mapwrap'},[
-    el('div',{class:'opposites__axis is-top'}, def.yLabels[0]), map, el('div',{class:'opposites__axis is-bottom'}, def.yLabels[1]),
+    el('div',{class:'opposites__axis is-top'}, def.yLabels[1]), map, el('div',{class:'opposites__axis is-bottom'}, def.yLabels[0]),
     el('div',{class:'opposites__axis is-left'}, def.xLabels[0]), el('div',{class:'opposites__axis is-right'}, def.xLabels[1]),
   ]);
 }
