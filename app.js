@@ -5123,24 +5123,18 @@ function hashString(str){
   for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
 }
-// Fresh suggestions for every debate: both players get the same list (it's built from the debate's id),
-// but a different debate gets different topics, drawn from an endless supply.
 function suggestedTopics(debate, d){
   const out = [];
   const add = (t) => { if(t && !out.some(x => x.toLowerCase() === t.toLowerCase())) out.push(t); };
   if(debate.topic && !/^open topic$/i.test(debate.topic)) add(debate.topic);   // proposed in the lobby
-  const seed = hashString(String(debate.id));
-  if(window.MajlisTopics){
-    for(let i = 0; out.length < 5 && i < 12; i++) add(window.MajlisTopics.at((seed + i * 7919) % 2000000000));
-  }
-  if(d.known && d.axes.length){
-    const a = d.axes[0];
-    out.splice(Math.min(2, out.length), 0, a.motions[seed % a.motions.length]);   // one tied to where you disagree most
-  } else if(!window.MajlisTopics){
+  if(d.known){
+    const seed = String(debate.id).split('').reduce((n, c) => n + c.charCodeAt(0), 0);
+    d.axes.slice(0, 2).forEach((a, i) => { add(a.motions[(seed + i) % a.motions.length]); add(a.motions[(seed + i + 1) % a.motions.length]); });
+    d.extras.slice(0, 1).forEach(e => add(e.motions[seed % e.motions.length]));
+  } else {
     GENERAL_MOTIONS.forEach(add);
   }
-  const seen = new Set();
-  return out.filter(t => { const k = t.toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+  return out.slice(0, 5);
 }
 
 async function voteTopic(debate, topic){
