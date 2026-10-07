@@ -128,25 +128,25 @@ const SOCIAL_QUESTIONS = SOC_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(SOC_Y
    Your score on an axis is your total compared with the most it could be, as a percentage.
    `sec` is the section a statement mainly belongs to (used for the AI summary).
    ====================================================================== */
-const COMPASS_AXES = ['ex', 'ey', 'px', 'py', 'sx', 'sy', 'dm', 'ml', 'as', 'rl', 'tc', 'fc', 'ff', 'fl', 'fa', 'fs'];
+const COMPASS_AXES = ['ex', 'ey', 'px', 'py', 'sx', 'sy', 'dm', 'ml', 'as', 'rl', 'tc', 'fd', 'pr', 'fc', 'ff', 'fl', 'fa', 'fs'];
 /* Sources this test borrows from:
    - 8values: one mixed list, statements that move several axes, score = total compared with the maximum.
    - Political Compass: the themes (country and world, economy, personal values, wider society, religion, sex).
    - 12axes: extra axes beyond the compass (democracy, militarism, assimilation, religion, technology).
    - Moral Foundations Questionnaire: five moral foundations, each a 0-100 average of agreement.
    dm: Autocratic (low) to Democratic   ml: Militarist to Pacifist   as: Assimilationist to Multicultural
-   rl: Religious to Secular   tc: Bioconservative to Accelerationist
+   rl: Religious to Secular   tc: Bioconservative to Accelerationist   fd: Unitary to Federal   pr: Protectionist to Free-trade
    fc/ff/fl/fa/fs: Care, Fairness, Loyalty, Authority, Sanctity (one-sided: agreeing raises it). */
-const DETAIL_AXES = { dm: ['Autocratic', 'Democratic'], ml: ['Militarist', 'Pacifist'], as: ['Assimilationist', 'Multicultural'], rl: ['Religious', 'Secular'], tc: ['Bioconservative', 'Accelerationist'] };
+const DETAIL_AXES = { dm: ['Autocratic', 'Democratic'], ml: ['Militarist', 'Pacifist'], as: ['Assimilationist', 'Multicultural'], rl: ['Religious', 'Secular'], tc: ['Bioconservative', 'Accelerationist'], fd: ['Unitary', 'Federal'], pr: ['Protectionist', 'Free-trade'] };
 const FOUNDATIONS = { fc: 'Care', ff: 'Fairness', fl: 'Loyalty', fa: 'Authority', fs: 'Sanctity' };
 const COMPASS_ITEMS = (function(){
   const prim = { economic: { x: 'ex', y: 'ey' }, political: { x: 'px', y: 'py' }, social: { x: 'sx', y: 'sy' } };
   // extra axis loads for statements that clearly touch more than one thing (matched by the start of the statement)
   const CROSS = {
-    'The government should put tariffs on cheap imports': { px: -5 },
-    'Free-trade deals that remove tariffs': { px: 6 },
+    'The government should put tariffs on cheap imports': { px: -5, pr: -9 },
+    'Free-trade deals that remove tariffs': { px: 6, pr: 9 },
     'The state should run a national plan': { py: -3 },
-    'Foreign companies should be banned': { ey: -5 },
+    'Foreign companies should be banned': { ey: -5, pr: -7 },
     'Immigration should be cut sharply': { sx: -5, as: -6 },
     'Rich countries should accept refugees': { ex: -3, sx: 3, as: 4 },
     'Schools should give priority to teaching the national': { sx: -6, as: -6 },
@@ -238,8 +238,8 @@ const COMPASS_ITEMS = (function(){
     ['economic', 'Rents should be agreed between landlords and tenants, not set by law.', { ey: 7 }],
     ['economic', 'Natural resources such as oil and water should belong to the whole nation.', { ex: -6, ey: -5, px: -2 }],
     ['economic', 'Cutting government spending matters more than keeping every public service running.', { ex: 8, ey: 4 }],
-    ['economic', 'A country should grow its own food and make its own energy even if imports are cheaper.', { ey: -5, px: -6 }],
-    ['economic', 'Global trade makes rich countries richer and poor countries poorer.', { ex: -5, ey: -3 }],
+    ['economic', 'A country should grow its own food and make its own energy even if imports are cheaper.', { ey: -5, px: -6, pr: -8 }],
+    ['economic', 'Global trade makes rich countries richer and poor countries poorer.', { ex: -5, ey: -3, pr: -5 }],
 
     ['political', 'Governments should be allowed to monitor social media to stop extremism.', { py: -8, dm: -2 }],
     ['political', 'People who reveal state secrets to the public should be protected by law.', { py: 7, dm: 3 }],
@@ -249,7 +249,7 @@ const COMPASS_ITEMS = (function(){
     ['political', 'A country should be free to ignore rulings from international courts.', { px: -8 }],
     ['political', 'Countries should share the cost of global problems like climate change fairly.', { px: 7, ex: -3 }],
     ['political', 'The army should be used to keep order during riots.', { py: -7, ml: -5 }],
-    ['political', 'Burning the national flag should be punished.', { py: -7, px: -4 }],
+    ['political', 'One set of national laws should apply in the same way everywhere in the country.', { fd: -9 }],
     ['political', 'Nuclear weapons make the world safer.', { ml: -8 }],
     ['political', 'Countries should give up their nuclear weapons.', { ml: 8 }],
     ['political', 'Hateful speech should be banned by law.', { py: -6 }],
@@ -257,12 +257,12 @@ const COMPASS_ITEMS = (function(){
     ['political', 'Referendums are a better way to settle big issues than parliaments.', { dm: 7 }],
     ['political', 'The press must be free to criticise the government without limits.', { py: 8, dm: 4 }],
     ['political', 'A leader who gets results matters more than whether he follows every rule.', { py: -8, dm: -7 }],
-    ['political', 'Local communities should decide most things for themselves, not the national government.', { dm: 4, px: -3 }],
-    ['political', 'Prisoners should be allowed to vote.', { py: 5, dm: 3 }],
+    ['political', 'Local communities should decide most things for themselves, not the national government.', { dm: 4, px: -3, fd: 8 }],
+    ['political', 'Regions should be able to make their own laws and set their own taxes, even if that means differences across the country.', { fd: 9, dm: 2 }],
     ['political', 'The death penalty should exist for the worst crimes.', { py: -7 }],
     ['political', 'Powerful countries have a duty to step in when a government commits atrocities.', { px: 5, ml: -4 }],
     ['political', 'My country should spend less on its army and more on schools and hospitals.', { ml: 7, ex: -3 }],
-    ['political', 'Spying on other countries is a normal and necessary part of defending your own.', { px: -5, py: -3, ml: -3 }],
+    ['political', 'Cities and regions should be allowed to ignore national rules they disagree with.', { fd: 7, py: 3 }],
     ['political', 'Citizens should be able to protest without needing permission.', { py: 7 }],
     ['political', 'Private donations to political parties should be banned.', { dm: 6, ex: -3 }],
     ['political', 'Police should be able to use force without having to explain it afterwards.', { py: -7 }],
