@@ -2818,6 +2818,54 @@ function cardAxisList(u){
   }
   return rows;
 }
+// Small line icons for the axes list on the result card.
+const CARD_ICONS = {
+  scale: '<path d="M12 3v18M6 21h12M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/>',
+  bank: '<path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  flag: '<path d="M5 21V4M5 4h12l-2 4 2 4H5"/>',
+  shield: '<path d="M12 3 4.5 6v6c0 4.4 3.2 7.9 7.5 9 4.3-1.1 7.5-4.6 7.5-9V6z"/>',
+  unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
+  book: '<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5zM4 21.5V4.5M8 7h8"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 20a6.5 6.5 0 0 0-3-5.5"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  vote: '<path d="M4 14h16v6H4zM8 14l-1-5h10l-1 5M12 3v6"/>',
+  crown: '<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/>',
+  helmet: '<path d="M12 3l8 4v5c0 5-4 8-8 9-4-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/>',
+  heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
+  cross: '<path d="M12 3v18M7 9h10"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+  leaf: '<path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14zM5 19l8-8"/>',
+  chip: '<rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+};
+const AXIS_ICON = { Left: 'scale', Right: 'scale', Interventionist: 'bank', 'Laissez-faire': 'bank', Nationalist: 'flag', Globalist: 'globe',
+  Authoritarian: 'shield', Libertarian: 'unlock', Traditional: 'book', Progressive: 'bolt', Collectivist: 'users', Individualist: 'user',
+  Autocratic: 'crown', Democratic: 'vote', Militarist: 'helmet', Pacifist: 'heart', Assimilationist: 'user', Multicultural: 'users',
+  Religious: 'cross', Secular: 'compass', Bioconservative: 'leaf', Accelerationist: 'chip' };
+const cardIcon = (name, color) => el('span',{class:'rc-tile', style:'color:' + color + ';background:' + color + '24;', html:
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (CARD_ICONS[AXIS_ICON[name] || 'compass']) + '</svg>'});
+
+// The big portrait panel: the photo fills it when we have one, a soft gradient with initials otherwise.
+function portraitPanel(p){
+  const initials = p.name.split(/\s+/).filter(w => /^[A-Za-z\u00C0-\u024F]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  const box = el('div',{class:'rc-person'});
+  box.appendChild(el('div',{class:'rc-person__initials'}, initials));
+  const setPhoto = (url) => {
+    const img = new Image(); img.alt = ''; img.referrerPolicy = 'no-referrer';
+    img.onload = () => { box.style.backgroundImage = 'url("' + url + '")'; box.classList.add('has-photo'); };
+    img.src = url;
+  };
+  if(p.photo) setPhoto(p.photo); else loadPortrait(p.name, url => { if(url) setPhoto(url); });
+  box.appendChild(el('div',{class:'rc-person__body'},[
+    p.close != null ? el('div',{class:'rc-person__pct'}, p.close + '%') : null,
+    el('div',{class:'rc-person__kicker'}, 'Most compatible'),
+    el('div',{class:'rc-person__name'}, p.name),
+    p.label ? el('div',{class:'rc-person__label'}, p.label) : null,
+  ]));
+  return box;
+}
+
 function buildResultCard(){
   const u = state.user, saved = loadSavedMatches();
   if(!u || !u.compass) return null;
@@ -2832,7 +2880,8 @@ function buildResultCard(){
 
   card.appendChild(el('div',{class:'rc-head'},[
     el('div',{class:'rc-logo'},[el('span',{class:'rc-logo__m', html:'<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>'}), 'Majlis']),
-    el('span',{class:'rc-pill'}, 'Your result'),
+    el('span',{class:'rc-head__line'}),
+    el('span',{class:'rc-pill'}, 'My result'),
   ]));
   card.appendChild(el('div',{class:'rc-hero'},[
     el('div',{class:'rc-eyebrow'}, 'You sit with the'),
@@ -2842,45 +2891,44 @@ function buildResultCard(){
       (u.religion && u.religion !== 'Prefer not to say') ? [el('span',{}, u.religion + (u.denomination ? ', ' + u.denomination : ''))] : [])),
   ]));
 
+  const list = cardAxisList(u);
+  const axes = el('div',{class:'rc-panel rc-axpanel'});
+  axes.appendChild(el('div',{class:'rc-eyebrow'}, 'Your ' + list.length + ' axes'));
+  list.forEach(r => axes.appendChild(el('div',{class:'rc-axis'},[
+    cardIcon(r.name, r.color),
+    el('div',{class:'rc-axis__main'},[
+      el('div',{class:'rc-axis__top'},[el('span',{class:'rc-axis__name'}, r.name), el('b',{style:'color:' + r.color + ';'}, r.pct + '%')]),
+      el('span',{class:'rc-axis__bar'},[el('i',{style:'width:' + r.pct + '%;background:' + r.color + ';'})]),
+    ]),
+  ])));
   if(top){
-    const photo = portraitNode(top.name, top.photo, top.pnote);
-    card.appendChild(el('div',{class:'rc-match'},[
-      top.close != null ? ringNode(top.close, photo) : photo,
-      el('div',{class:'rc-match__text'},[
-        el('div',{class:'rc-eyebrow'}, 'Closest in spirit'),
-        el('div',{class:'rc-name'}, top.name),
-        el('div',{class:'rc-label'}, top.label),
-        top.close != null ? el('div',{class:'rc-pct'},[el('b',{}, top.close + '%'), ' match']) : null,
-      ]),
-    ]));
-  } else if(state.matchesLoading){
-    card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Finding who you sound like…'));
+    card.appendChild(el('div',{class:'rc-grid'},[portraitPanel(top), axes]));
+  } else {
+    if(state.matchesLoading) card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Finding who you sound like…'));
+    card.appendChild(el('div',{class:'rc-grid rc-grid--solo'}, [axes]));
   }
 
-  card.appendChild(el('div',{class:'rc-radar', html: radarSvg(axisRows(u))}));
-  const list = cardAxisList(u);
-  card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Your ' + list.length + ' axes'));
-  card.appendChild(el('div',{class:'rc-axes'}, list.map(r => el('div',{class:'rc-axis'},[
-    el('span',{class:'rc-axis__name'}, r.name),
-    el('span',{class:'rc-axis__bar'},[el('i',{style:'width:' + r.pct + '%;background:' + r.color + ';'})]),
-    el('b',{style:'color:' + r.color + ';'}, r.pct + '%'),
-  ]))));
-
+  const bottom = [];
   if(others.length){
-    card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Also sound like'));
-    card.appendChild(el('div',{class:'rc-trio'}, others.map(p => el('div',{class:'rc-chip', title: p.why},[
-      portraitNode(p.name, p.photo, p.pnote),
-      el('div',{class:'rc-chip__name'}, p.name),
-      el('div',{class:'rc-chip__sub'}, p.close != null ? p.close + '% · ' + p.title : p.title),
-    ]))));
+    const p = el('div',{class:'rc-panel'});
+    p.appendChild(el('div',{class:'rc-eyebrow'}, 'Other personalities'));
+    others.forEach(o => p.appendChild(el('div',{class:'rc-row', title: o.why},[
+      portraitNode(o.name, o.photo, o.pnote),
+      el('div',{class:'rc-row__name'}, o.name),
+      el('b',{class:'rc-row__pct'}, o.close != null ? o.close + '%' : ''),
+    ])));
+    bottom.push(p);
   }
   if(saved && saved.countries && saved.countries.length){
-    card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Closest nations'));
-    card.appendChild(el('div',{class:'rc-trio'}, saved.countries.map(c => el('div',{class:'rc-chip'},[
-      flagNode(c), el('div',{class:'rc-chip__name'}, c.name), el('div',{class:'rc-chip__sub'}, c.pct + '%'),
-    ]))));
+    const p = el('div',{class:'rc-panel'});
+    p.appendChild(el('div',{class:'rc-eyebrow'}, 'Nearby nations'));
+    saved.countries.forEach(c => p.appendChild(el('div',{class:'rc-row'},[
+      flagNode(c), el('div',{class:'rc-row__name'}, c.name), el('b',{class:'rc-row__pct'}, c.pct + '%'),
+    ])));
+    bottom.push(p);
   }
-  card.appendChild(el('div',{class:'rc-foot'}, 'Find where you stand at Majlis'));
+  if(bottom.length) card.appendChild(el('div',{class:'rc-grid2'}, bottom));
+  card.appendChild(el('div',{class:'rc-foot'},[el('span',{}, 'Discover your profile'), el('span',{}, 'Majlis')]));
   return card;
 }
 function renderResultOverlay(){
