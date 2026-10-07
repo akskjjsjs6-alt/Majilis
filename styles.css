@@ -2473,3 +2473,10 @@ h2 .role-tag { font-size: 0.5em; }
 .side-btn.is-on{border-color:var(--neon-line,#2fd27a);box-shadow:0 0 0 2px var(--neon-soft,rgba(47,210,122,.18))}
 .side-tag--for{color:#35d07f}
 .side-tag--against{color:#ff7a6b}
+
+/* Philosophy axes on the assessment result */
+.phil-axes{display:flex;flex-direction:column;gap:12px;margin:14px 0 4px}
+.phil-axis__row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;opacity:.9}
+.phil-axis__row b{font-size:13px}
+.phil-axis__track{position:relative;height:6px;border-radius:3px;background:rgba(128,128,128,.25);margin-top:5px}
+.phil-axis__dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--neon,#00e676);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(0,230,118,.18)}

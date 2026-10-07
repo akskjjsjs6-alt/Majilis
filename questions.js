@@ -119,3 +119,104 @@ const SOC_Y_QUESTIONS = [
 const ECONOMIC_QUESTIONS = ECON_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(ECON_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
 const POLITICAL_QUESTIONS = POL_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(POL_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
 const SOCIAL_QUESTIONS = SOC_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(SOC_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
+
+/* ======================================================================
+   Compass test, modelled on 8values: one mixed list of statements, and every answer can move
+   several axes at once. Weights run from -10 to 10 per axis (positive = agreeing pushes toward the HIGH end:
+   Right, Laissez-faire, Globalist, Libertarian, Progressive, Individualist). Answers count
+   Strongly agree +1, Agree +0.5, Neutral 0, Disagree -0.5, Strongly disagree -1.
+   Your score on an axis is your total compared with the most it could be, as a percentage.
+   `sec` is the section a statement mainly belongs to (used for the AI summary).
+   ====================================================================== */
+const COMPASS_AXES = ['ex', 'ey', 'px', 'py', 'sx', 'sy'];
+const COMPASS_ITEMS = (function(){
+  const prim = { economic: { x: 'ex', y: 'ey' }, political: { x: 'px', y: 'py' }, social: { x: 'sx', y: 'sy' } };
+  // extra axis loads for statements that clearly touch more than one thing (matched by the start of the statement)
+  const CROSS = {
+    'The government should put tariffs on cheap imports': { px: -5 },
+    'Free-trade deals that remove tariffs': { px: 6 },
+    'The state should run a national plan': { py: -3 },
+    'Foreign companies should be banned': { ey: -5 },
+    'Immigration should be cut sharply': { sx: -5 },
+    'Rich countries should accept refugees': { ex: -3, sx: 3 },
+    'Schools should give priority to teaching the national': { sx: -6 },
+    'Cannabis and other recreational drugs': { sx: 4 },
+    'Citizens should be allowed to carry firearms': { sy: 3 },
+    'Same-sex couples should have exactly': { py: 3 },
+    'Abortion should be legal for any reason': { py: 3, sy: 3 },
+    'Prayer or religious teaching should be part': { py: -3 },
+    'Vaccines should be required': { py: -4 },
+    'Every young person should do a year of national service': { py: -4, px: -3 },
+    'Adult children should be expected to look after': { ey: 4, ex: 3 },
+    'Terminally ill adults should be allowed': { py: 4, sx: 3 },
+  };
+  const out = [];
+  [['economic', ECONOMIC_QUESTIONS], ['political', POLITICAL_QUESTIONS], ['social', SOCIAL_QUESTIONS]].forEach(([sec, bank]) => {
+    bank.forEach((q) => {
+      const w = {};
+      w[prim[sec][q.axis]] = (q.dir || 1) * (q.w === 2 ? 10 : 6);
+      const key = Object.keys(CROSS).find((k) => q.q.startsWith(k));
+      if (key) Object.assign(w, CROSS[key]);
+      out.push({ q: q.q, sec, w, opts: LIKERT });
+    });
+  });
+  // Broad statements about principles, a few moving several axes at once.
+  [
+    ['political', 'All authority should be questioned.', { py: 8, sy: 4 }],
+    ['political', 'A strong leader gets more done than endless debate.', { py: -8 }],
+    ['social', 'Traditions are worth keeping simply because they are old.', { sx: -8 }],
+    ['social', 'Society was better a few generations ago than it is today.', { sx: -8 }],
+    ['political', 'A single world government would benefit humanity.', { px: 10 }],
+    ['political', 'My country\'s interests should come before those of other countries.', { px: -8 }],
+    ['political', 'A country does not need to justify its wars to the rest of the world.', { px: -6, py: -6 }],
+    ['economic', 'Wealth that one person earns should mostly belong to them.', { ex: 8, sy: 5 }],
+    ['economic', 'The very rich have too much power over ordinary people\'s lives.', { ex: -8 }],
+    ['economic', 'Businesses treat workers better than government rules ever could.', { ey: 8, ex: 4 }],
+    ['political', 'Keeping order matters more than protecting every individual freedom.', { py: -8 }],
+    ['political', 'The state should decide what children are taught about right and wrong.', { py: -6, sx: -4 }],
+    ['social', 'Science and technology will solve most of our biggest problems.', { sx: 6 }],
+    ['social', 'Reason matters more than keeping our culture the way it is.', { sx: 8 }],
+    ['social', 'A person\'s duty to their community comes before their own ambitions.', { sy: -8 }],
+    ['economic', 'People succeed or fail mostly because of their own efforts.', { sy: 6, ex: 4, ey: 3 }],
+    ['social', 'No culture is better than another.', { px: 5, sx: 6 }],
+    ['political', 'Religion should have a say in how the country is governed.', { sx: -8, py: -6 }],
+  ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
+  return out;
+})();
+
+/* ======================================================================
+   Philosophy test: six scored axes (like the other online philosophy quizzes), each answer carries
+   effects from -2 to +2. PHIL_EFFECTS[i][j] = what option j of question i does.
+   E: Duty (-) to Outcomes (+)   K: Faith and gut (-) to Evidence (+)   M: Spiritual mind (-) to Physical mind (+)
+   V: Objective values (-) to Relative values (+)   C: Confident (-) to Sceptical (+)   W: Free will (-) to Determinism (+)
+   ====================================================================== */
+const PHIL_AXES = {
+  E: ['Duty', 'Outcomes'], K: ['Faith and gut', 'Evidence'], M: ['Spiritual mind', 'Physical mind'],
+  V: ['Objective values', 'Relative values'], C: ['Confident', 'Sceptical'], W: ['Free will', 'Determinism'],
+};
+const PHIL_EFFECTS = [
+  [{E:2}, {E:1}, {E:-2}, {V:2}],
+  [{E:-2}, {E:-1}, {E:1}, {E:2}],
+  [{E:-2,V:-1}, {E:-1}, {E:1}, {E:2,V:1}],
+  [{K:2}, {K:1}, {K:-1}, {K:-2}],
+  [{M:2}, {M:1}, {M:-1}, {C:1}],
+  [{C:-2}, {C:-1}, {C:1}, {C:2}],
+  [{V:-2}, {V:-1}, {V:1}, {V:2}],
+  [{W:-2}, {W:-1}, {W:1}, {W:2}],
+  [{K:2}, {K:1}, {C:1}, {K:-2}],
+  [{V:-2,K:1}, {V:-1}, {V:1}, {V:2}],
+  [{M:-2}, {M:-1}, {M:2}, {C:2}],
+  [{K:-2}, {K:-1}, {K:1}, {K:2}],
+  [{V:-2}, {}, {V:1}, {V:2}],
+  [{C:-2}, {C:-1}, {C:1}, {C:2}],
+  [{E:-2,W:-1}, {E:-1}, {E:1}, {E:2,W:1}],
+];
+// Ideal profiles (0 to 100 on each axis) for the six philosophy types; you get the nearest one.
+const PHIL_TYPES = {
+  Empiricist:    { E:50, K:90, M:80, V:50, C:60, W:60 },
+  Rationalist:   { E:50, K:85, M:60, V:15, C:20, W:50 },
+  Utilitarian:   { E:90, K:70, M:70, V:50, C:40, W:60 },
+  Stoic:         { E:25, K:60, M:50, V:25, C:40, W:70 },
+  Existentialist:{ E:40, K:40, M:40, V:85, C:60, W:20 },
+  Skeptic:       { E:50, K:50, M:60, V:70, C:90, W:50 },
+};
