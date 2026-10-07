@@ -2770,13 +2770,62 @@ function ringNode(pct, inner){
   wrap.appendChild(inner);
   return wrap;
 }
+// One name for the whole compass: the nearest of these ideologies across all six axes
+// (economic left-right, state-market, nation-world, authority-liberty, tradition-progress, group-individual).
+const IDEOLOGY_PROFILES = [
+  ['Social Democrat',        [25, 35, 65, 65, 70, 45]],
+  ['Democratic Socialist',   [12, 25, 60, 60, 75, 35]],
+  ['Marxist-Leninist',       [ 5, 10, 55, 20, 60, 15]],
+  ['Libertarian Socialist',  [15, 40, 70, 90, 85, 60]],
+  ['Social Liberal',         [40, 50, 70, 75, 80, 65]],
+  ['Classical Liberal',      [70, 80, 65, 85, 65, 85]],
+  ['Libertarian',            [85, 95, 60, 95, 60, 95]],
+  ['Anarcho-Capitalist',     [98, 98, 55, 98, 60, 98]],
+  ['Conservative',           [70, 65, 35, 45, 25, 55]],
+  ['National Conservative',  [65, 55, 15, 35, 15, 45]],
+  ['Religious Conservative', [55, 50, 35, 35,  5, 40]],
+  ['Christian Democrat',     [45, 45, 55, 45, 30, 35]],
+  ['Authoritarian Nationalist', [60, 40, 5, 5, 15, 10]],
+  ['Left Nationalist',       [20, 25, 15, 40, 35, 25]],
+  ['Right-Wing Populist',    [65, 50, 15, 45, 25, 60]],
+  ['Left-Wing Populist',     [25, 30, 25, 55, 45, 45]],
+  ['Communitarian',          [35, 40, 40, 45, 25, 15]],
+  ['Technocrat',             [50, 40, 70, 35, 60, 50]],
+  ['Green Progressive',      [25, 30, 75, 60, 80, 40]],
+  ['Centrist',               [50, 50, 50, 50, 50, 50]],
+];
+function overallIdeology(c){
+  if(!c || !c.economic || !c.political || !c.social) return null;
+  const v = [c.economic.x, c.economic.y, c.political.x, c.political.y, c.social.x, c.social.y];
+  let best = null, bestD = Infinity;
+  IDEOLOGY_PROFILES.forEach(([name, p]) => {
+    const d = p.reduce((n, x, i) => n + Math.pow(x - v[i], 2), 0);
+    if(d < bestD){ bestD = d; best = name; }
+  });
+  return best;
+}
+
+// Every axis of the test as one list (the six compass axes, then the five detail axes), each with the end you lean to and how strongly.
+function cardAxisList(u){
+  const rows = axisRows(u).map(r => ({ name: r.name, pct: r.pct, color: r.color }));
+  const ex = u.extraScores;
+  if(ex){
+    const colors = ['#4dabf7', '#f06595', '#94d82d', '#ffa94d', '#9775fa'];
+    Object.keys(DETAIL_AXES).forEach((k, i) => {
+      const v = ex[k], high = v >= 50;
+      rows.push({ name: DETAIL_AXES[k][high ? 1 : 0], pct: high ? v : 100 - v, color: colors[i] });
+    });
+  }
+  return rows;
+}
 function buildResultCard(){
   const u = state.user, saved = loadSavedMatches();
-  if(!u || !saved || !u.compass) return null;
-  const people = saved.list.map(p => Object.assign({}, p, { close: closeness(p) }));
+  if(!u || !u.compass) return null;
+  loadExtras();
+  // The card opens as soon as the test is scored. The "who you sound like" parts join it when the AI has found them.
+  const people = saved ? saved.list.map(p => Object.assign({}, p, { close: closeness(p) })) : [];
   const ranked = people.slice().sort((a, b) => (b.close == null ? -1 : b.close) - (a.close == null ? -1 : a.close));
-  const top = ranked[0];
-  if(!top) return null;
+  const top = ranked[0] || null;
   const others = ranked.slice(1, 4);
   const ideo = (k) => (u.ideologies && u.ideologies[k] && u.ideologies[k].label) || deriveQuadrantIdeology(k, u.compass[k]);
   const card = el('div',{class:'rc'});
@@ -2787,24 +2836,35 @@ function buildResultCard(){
   ]));
   card.appendChild(el('div',{class:'rc-hero'},[
     el('div',{class:'rc-eyebrow'}, 'You sit with the'),
-    el('h2',{class:'rc-title'}, ideo('political')),
-    el('div',{class:'rc-tags'},[el('span',{}, ideo('economic')), el('span',{}, ideo('social'))].concat(
+    el('h2',{class:'rc-title'}, overallIdeology(u.compass) || ideo('political')),
+    el('div',{class:'rc-tags'},[el('span',{}, ideo('political')), el('span',{}, ideo('economic')), el('span',{}, ideo('social'))].concat(
       (u.archetype && !/not yet/i.test(u.archetype)) ? [el('span',{}, u.archetype)] : [],
       (u.religion && u.religion !== 'Prefer not to say') ? [el('span',{}, u.religion + (u.denomination ? ', ' + u.denomination : ''))] : [])),
   ]));
 
-  const photo = portraitNode(top.name, top.photo, top.pnote);
-  card.appendChild(el('div',{class:'rc-match'},[
-    top.close != null ? ringNode(top.close, photo) : photo,
-    el('div',{class:'rc-match__text'},[
-      el('div',{class:'rc-eyebrow'}, 'Closest in spirit'),
-      el('div',{class:'rc-name'}, top.name),
-      el('div',{class:'rc-label'}, top.label),
-      top.close != null ? el('div',{class:'rc-pct'},[el('b',{}, top.close + '%'), ' match']) : null,
-    ]),
-  ]));
+  if(top){
+    const photo = portraitNode(top.name, top.photo, top.pnote);
+    card.appendChild(el('div',{class:'rc-match'},[
+      top.close != null ? ringNode(top.close, photo) : photo,
+      el('div',{class:'rc-match__text'},[
+        el('div',{class:'rc-eyebrow'}, 'Closest in spirit'),
+        el('div',{class:'rc-name'}, top.name),
+        el('div',{class:'rc-label'}, top.label),
+        top.close != null ? el('div',{class:'rc-pct'},[el('b',{}, top.close + '%'), ' match']) : null,
+      ]),
+    ]));
+  } else if(state.matchesLoading){
+    card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Finding who you sound like…'));
+  }
 
   card.appendChild(el('div',{class:'rc-radar', html: radarSvg(axisRows(u))}));
+  const list = cardAxisList(u);
+  card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Your ' + list.length + ' axes'));
+  card.appendChild(el('div',{class:'rc-axes'}, list.map(r => el('div',{class:'rc-axis'},[
+    el('span',{class:'rc-axis__name'}, r.name),
+    el('span',{class:'rc-axis__bar'},[el('i',{style:'width:' + r.pct + '%;background:' + r.color + ';'})]),
+    el('b',{style:'color:' + r.color + ';'}, r.pct + '%'),
+  ]))));
 
   if(others.length){
     card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Also sound like'));
@@ -2814,7 +2874,7 @@ function buildResultCard(){
       el('div',{class:'rc-chip__sub'}, p.close != null ? p.close + '% · ' + p.title : p.title),
     ]))));
   }
-  if(saved.countries && saved.countries.length){
+  if(saved && saved.countries && saved.countries.length){
     card.appendChild(el('div',{class:'rc-eyebrow rc-center'}, 'Closest nations'));
     card.appendChild(el('div',{class:'rc-trio'}, saved.countries.map(c => el('div',{class:'rc-chip'},[
       flagNode(c), el('div',{class:'rc-chip__name'}, c.name), el('div',{class:'rc-chip__sub'}, c.pct + '%'),
@@ -2911,6 +2971,33 @@ function matchesCard(){
   return card;
 }
 
+// The test is long, so your answers are kept on this device and you can pick it up where you left off.
+const quizStoreKey = () => 'majlis-quiz-' + (state.user && state.user.id ? state.user.id : 'guest');
+function saveQuiz(){
+  try {
+    const q = state.quiz;
+    if(!q.active || !q.answers.length){ return; }
+    localStorage.setItem(quizStoreKey(), JSON.stringify({ section: q.section, index: q.index, answers: q.answers, order: q.order, religion: q.religion || null, at: Date.now() }));
+  } catch(e){}
+}
+function clearSavedQuiz(){ try { localStorage.removeItem(quizStoreKey()); } catch(e){} }
+function savedQuiz(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(quizStoreKey()) || 'null');
+    if(raw && Array.isArray(raw.answers) && raw.answers.length && Date.now() - (raw.at || 0) < 14 * 86400000) return raw;
+  } catch(e){}
+  return null;
+}
+function resumeQuizButton(){
+  const saved = savedQuiz();
+  if(!saved) return null;
+  return el('button',{class:'btn secondary', style:'margin-right:10px;', onclick:()=>{
+    state.quiz.active = true; state.quiz.section = saved.section; state.quiz.index = saved.index;
+    state.quiz.answers = saved.answers; state.quiz.order = saved.order; state.quiz.religion = saved.religion;
+    render();
+  }}, 'Resume your test (' + saved.answers.length + ' answered)');
+}
+
 // Steps one question back in the assessment and forgets that answer, so it can be answered again.
 function quizBack(){
   const q = state.quiz;
@@ -2954,14 +3041,16 @@ function renderAssessment(){
       fb && fb.feedback ? el('p',{style:'font-size:13.5px;color:var(--parchment-dim);margin:0 0 10px;'}, fb.feedback) : null,
       el('div',{class:'stat-label'},'Retaking updates your compass, philosophy, and religion results — it won\'t change your rank or points.'),
       el('div',{style:'height:14px'}),
+      resumeQuizButton(),
       el('button',{class:'btn secondary', onclick:()=>{
+        clearSavedQuiz();
         state.quiz.active = true;
         state.quiz.section = 'philosophy';
         state.quiz.index = 0;
         state.quiz.answers = [];
         state.quiz.order = null;
         render();
-      }}, 'Retake Assessment'),
+      }}, savedQuiz() ? 'Start over' : 'Retake Assessment'),
     ]));
     if(state.user.compass) wrap.appendChild(matchesCard());
     return wrap;
@@ -2970,17 +3059,20 @@ function renderAssessment(){
   if(!state.quiz.active){
     wrap.appendChild(el('p',{class:'section-sub'},
       'One test, start to finish: philosophy questions (scenarios plus the classic survey positions), then a mixed set of statements about politics, economics, society and morals (drawing on 8values, 12axes, the Political Compass and the Moral Foundations Questionnaire), an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
+    { const r = resumeQuizButton(); if(r) wrap.appendChild(r); }
     wrap.appendChild(el('button',{class:'btn', onclick:()=>{
+      clearSavedQuiz();
       state.quiz.active = true;
       state.quiz.section = 'philosophy';
       state.quiz.index = 0;
       state.quiz.answers = [];
       state.quiz.order = null;
       render();
-    }}, 'Begin Assessment'));
+    }}, savedQuiz() ? 'Start over' : 'Begin Assessment'));
     return wrap;
   }
 
+  saveQuiz();
   const QUIZ_SECTIONS = ['philosophy','compass'];
   const SECTION_LABEL = { philosophy: 'Philosophy', compass: 'Politics and society' };
   // The politics statements come as one shuffled list (like 8values), new order every attempt.
@@ -2995,9 +3087,8 @@ function renderAssessment(){
 
   // One continuous test: a single counter and bar from the first question to the last.
   function quizOverall(){
-    let total = PHIL_QUESTIONS.length + COMPASS_ITEMS.length + 1;             // +1 for the religion question
-    const follow = state.quiz.religion && RELIGION_QUESTIONS[state.quiz.religion];
-    if(follow && state.quiz.section === 'religion-followup') total += follow.length;
+    // philosophy, then the compass statements, then the religion section (the pick plus 34 questions, 35 in all)
+    const total = PHIL_QUESTIONS.length + COMPASS_ITEMS.length + 35;
     const at = state.quiz.answers.length + 1;
     return { at: Math.min(at, total), total };
   }
@@ -3453,11 +3544,12 @@ async function finishAssessment(position, viewText){
   state.user.philosophyScore = philosophyScore;
 
   clearDrafts('assessment-position', 'assessment-case');
+  clearSavedQuiz();
   state.quiz.active = false;
   state.tab = 'assessment';
   try { localStorage.removeItem(matchStoreKey()); } catch(e){}   // a retake changes your results, so the old matches are stale
   render();
-  if(signedIn){ state.cardPending = true; fetchMatches(); }   // the AI names who you match in real life; the result card opens once when it's ready
+  if(signedIn){ state.showCard = true; fetchMatches(); }   // the AI names who you match in real life; the result card opens once when it's ready
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }

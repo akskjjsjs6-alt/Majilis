@@ -2481,3 +2481,11 @@ h2 .role-tag { font-size: 0.5em; }
 .phil-axis__track{position:relative;height:6px;border-radius:3px;background:rgba(128,128,128,.25);margin-top:5px}
 .phil-axis__dot{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:var(--neon,#00e676);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(0,230,118,.18)}
 .phil-axis__fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--neon,#00e676);opacity:.8}
+
+/* Result card: the list of every axis */
+.rc-axes{display:grid;grid-template-columns:1fr;gap:9px;margin:10px 0 6px}
+.rc-axis{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) 44px;align-items:center;gap:10px;font-size:13px}
+.rc-axis__name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-axis__bar{display:block;height:6px;border-radius:3px;background:rgba(128,128,128,.25);overflow:hidden}
+.rc-axis__bar i{display:block;height:100%;border-radius:3px}
+.rc-axis b{text-align:right}
