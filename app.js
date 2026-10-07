@@ -2564,8 +2564,9 @@ function statCard(label, value){
    After the assessment, the AI names well-known public figures whose public views are closest
    to each result (political, economic, social, philosophy, religion). Saved on this device. */
 function matchStoreKey(){ return 'majlis-matches-' + (state.user && state.user.id || 'guest'); }
+// v3: matches saved before the photo fixes are thrown away, so they are found again with photos.
 function loadSavedMatches(){
-  try { const m = JSON.parse(localStorage.getItem(matchStoreKey()) || 'null'); return m && m.v === 2 && Array.isArray(m.list) ? m : null; } catch(e){ return null; }
+  try { const m = JSON.parse(localStorage.getItem(matchStoreKey()) || 'null'); return m && m.v === 3 && Array.isArray(m.list) ? m : null; } catch(e){ return null; }
 }
 function matchCategories(u){
   if(!u || !u.compass || !u.ideologies) return [];
@@ -2593,11 +2594,12 @@ async function fetchMatches(){
     const seen = {};
     const list = data.matches.filter(m => titles[m.key] && m.name && !seen[m.key] && (seen[m.key] = 1))
       .map(m => ({ key: m.key, title: titles[m.key], name: m.name, label: m.label || '', why: m.why || '', x: m.x, y: m.y,
-        photo: typeof m.photo === 'string' && m.photo.startsWith('data:image/') ? m.photo : null, pnote: m.pnote || '' }));
+        photo: typeof m.photo === 'string' && m.photo.startsWith('data:image/') ? m.photo : (typeof m.photoUrl === 'string' && PHOTO_URL.test(m.photoUrl) ? m.photoUrl : null),
+        embedded: typeof m.photo === 'string' && m.photo.startsWith('data:image/'), pnote: m.pnote || '' }));
     if(!list.length) throw new Error('empty');
     const countries = Array.isArray(data.countries) ? data.countries.filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).slice(0, 3)
       .map(c => ({ name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })) : [];
-    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ v: 2, at: Date.now(), list, countries })); } catch(e){}
+    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ v: 3, at: Date.now(), list, countries })); } catch(e){}
     if(state.cardPending){ state.cardPending = false; state.showCard = true; }   // the result card pops up once, right after the test
   } catch(e){
     console.warn('matches unavailable', e);
@@ -2682,6 +2684,7 @@ const portraitCache = {};
 try { Object.keys(localStorage).filter(k => k.startsWith('majlis-portrait-') && /"url":null/.test(localStorage.getItem(k) || '')).forEach(k => localStorage.removeItem(k)); } catch(e){}   // forget old "no photo" notes
 function portraitSaved(name){ try { return JSON.parse(localStorage.getItem('majlis-portrait-' + name) || 'null'); } catch(e){ return null; } }
 const WIKI_IMG = /^https:\/\/upload\.wikimedia\.org\//;
+const PHOTO_URL = /^https:\/\/(upload\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/)/;   // where match photos may come from
 function wikiThumb(j){ return j && j.thumbnail && WIKI_IMG.test(j.thumbnail.source || '') ? j.thumbnail.source : null; }
 // Three tries, because the AI's name is not always the exact article title: the article summary, then the
 // article by title (following redirects), then a search for the name.
@@ -2710,13 +2713,16 @@ function loadPortrait(name, done){
 function portraitNode(name, photo, note){
   const initials = name.split(/\s+/).filter(w => /^[A-Za-z\u00C0-\u024F]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
   const box = el('div',{class:'match-photo'}, initials);
+  let fellBack = false;
   const show = (url) => {
     const img = new Image();
     img.alt = ''; img.referrerPolicy = 'no-referrer';
     img.onload = () => { box.textContent = ''; box.appendChild(img); };
+    // If the picture we were given can't be loaded, ask Wikipedia from this browser once instead.
+    img.onerror = () => { if(fellBack) return; fellBack = true; loadPortrait(name, u => { if(u && u !== url) show(u); }); };
     img.src = url;
   };
-  if(photo){ show(photo); return box; }          // the server already sent the picture
+  if(photo){ show(photo); return box; }          // the server already sent the picture (or a link to it)
   if(note) box.title = note;
   loadPortrait(name, url => { if(url) show(url); });   // otherwise ask Wikipedia from this browser
   return box;
@@ -2995,7 +3001,12 @@ function matchesCard(){
   card.appendChild(el('div',{style:'display:flex;gap:10px;flex-wrap:wrap;'},[
     el('button',{class:'btn secondary', onclick:()=>{ state.showCard = true; render(); }}, 'View result card'),
     el('button',{class:'linkbtn', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh'),
+    el('button',{class:'linkbtn', onclick:()=>{ state.photoDetails = !state.photoDetails; render(); }}, 'Photo problem?'),
   ]));
+  if(state.photoDetails){
+    card.appendChild(el('div',{class:'field-caption', style:'margin-top:10px;line-height:1.6;'}, saved.list.map(c =>
+      el('div',{}, c.name + ': ' + (c.embedded ? 'photo sent by the server' : c.photo ? 'link only (the server could not embed it)' : 'no photo' + (c.pnote ? ' (' + c.pnote + ')' : ''))))));
+  }
   return card;
 }
 
