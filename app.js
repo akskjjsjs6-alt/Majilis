@@ -2702,10 +2702,18 @@ function flagNode(c){
 const cardMatchKey = () => 'majlis-card-' + (state.user && state.user.id || 'guest');
 const answersKey = () => 'majlis-answers-' + (state.user && state.user.id || 'guest');
 const compassSig = (c) => ['economic', 'political', 'social'].map(k => c[k].x + ',' + c[k].y).join('|');
+let cardMatchesMemory = null;   // kept here too, in case the device can't store it
 function savedCardMatches(){
   const c = state.user && state.user.compass;
   if(!c) return null;
-  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 1 && m.sig === compassSig(c) ? m : null; } catch(e){ return null; }
+  const sig = compassSig(c);
+  if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return cardMatchesMemory;
+  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 2 && m.sig === sig ? m : null; } catch(e){ return null; }
+}
+// The leader shown for an era: the closest one who has a photo, so the card always shows a face.
+function leaderFor(m, era){
+  const pool = m ? m.leaders.filter(l => l.era === era) : [];
+  return pool.find(l => l.photo) || pool[0] || null;
 }
 // Your chosen positions are kept so the AI can read them, not just the scores.
 function saveAnswersForAI(answers){
@@ -2718,37 +2726,50 @@ async function fetchCardMatches(){
   if(!u || u.isGuest || !u.id || !u.compass || state.cardMatches.loading) return;
   state.cardMatches = { loading: true, error: null };
   render();
-  try {
-    let answers = [];
-    try { answers = JSON.parse(localStorage.getItem(answersKey()) || '[]'); } catch(e){}
-    const maps = {};
-    ['economic', 'political', 'social'].forEach(k => {
-      const d = COMPASS_DEFS[k];
-      maps[k] = { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1], me: u.compass[k], label: ideologyLabel(u, k) };
-    });
-    const axes = allAxes(u).slice(6).map(r => r.lo + ' ' + (100 - r.v) + '% / ' + r.hi + ' ' + r.v + '%').join('\n');
-    const extra = [u.archetype && !/not yet/i.test(u.archetype) ? 'Philosophy: ' + u.archetype : '',
-      u.religion && u.religion !== 'Prefer not to say' ? 'Religion: ' + u.religion + (u.denomination ? ', ' + u.denomination : '') : ''].filter(Boolean).join('. ');
-    const { data, error } = await sb.functions.invoke('ai-matches', { region: FN_REGION,
-      body: { mode: 'card', maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') } });
-    if(data && data.error) throw new Error(data.error);
-    if(error || !data || !data.card) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
-    const card = data.card;
-    const out = { v: 1, sig: compassSig(u.compass), at: Date.now(),
-      leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
-        name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
-        photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
-        photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
-      countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
-        name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
-      ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
-    if(!out.leaders.length) throw new Error('no leaders came back');
-    try { localStorage.setItem(cardMatchKey(), JSON.stringify(out)); } catch(e){}
-    state.cardMatches = { loading: false, error: null };
-  } catch(e){
-    console.warn('card matches unavailable', e);
-    state.cardMatches = { loading: false, error: String(e && e.message || e).slice(0, 160) };
+  let answers = [];
+  try { answers = JSON.parse(localStorage.getItem(answersKey()) || '[]'); } catch(e){}
+  const maps = {};
+  ['economic', 'political', 'social'].forEach(k => {
+    const d = COMPASS_DEFS[k];
+    maps[k] = { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1], me: u.compass[k], label: ideologyLabel(u, k) };
+  });
+  const axes = allAxes(u).slice(6).map(r => r.lo + ' ' + (100 - r.v) + '% / ' + r.hi + ' ' + r.v + '%').join('\n');
+  const extra = [u.archetype && !/not yet/i.test(u.archetype) ? 'Philosophy: ' + u.archetype : '',
+    u.religion && u.religion !== 'Prefer not to say' ? 'Religion: ' + u.religion + (u.denomination ? ', ' + u.denomination : '') : ''].filter(Boolean).join('. ');
+  const body = { mode: 'card', maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') };
+  let lastErr = null;
+  // A busy AI is the usual reason for a miss, so try up to three times before showing "Try again".
+  for(let attempt = 0; attempt < 3; attempt++){
+    if(attempt) await new Promise(r => setTimeout(r, attempt * 3000));
+    try {
+      const { data, error } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body });
+      if(data && data.error) throw new Error(data.error);
+      if(error || !data || !data.card) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
+      const card = data.card;
+      const out = { v: 2, sig: compassSig(u.compass), key: cardMatchKey(), at: Date.now(),
+        leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
+          name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
+          photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
+          photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
+        countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
+          name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
+        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
+      if(!out.leaders.some(l => l.era === 'modern') || !out.leaders.some(l => l.era === 'historical')) throw new Error('no leaders came back');
+      // Keep embedded photos only for the leaders that are shown (card and maps), so it fits in the device's storage.
+      const shown = new Set(['modern', 'historical'].map(era => leaderFor(out, era)));
+      ['economic', 'political', 'social'].forEach(k => ['modern', 'historical'].forEach(era => shown.add(closestOnMap(out, k, era, true))));
+      out.leaders.forEach(l => { if(!shown.has(l) && l.photo && l.photo.startsWith('data:')) l.photo = l.photoUrl; });
+      cardMatchesMemory = out;
+      try { localStorage.setItem(cardMatchKey(), JSON.stringify(out)); } catch(e){}
+      state.cardMatches = { loading: false, error: null };
+      render();
+      return;
+    } catch(e){
+      console.warn('card matches unavailable (try ' + (attempt + 1) + ')', e);
+      lastErr = e;
+    }
   }
+  state.cardMatches = { loading: false, error: String(lastErr && lastErr.message || lastErr).slice(0, 160) };
   render();
 }
 // The AI's results for the card, asking for them the first time they're needed.
@@ -2758,12 +2779,18 @@ function cardMatches(){
   return m;
 }
 // The closest of the AI's leaders on one map only (its two axes), for the portraits on the Compass page.
-function closestOnMap(m, section, era){
+// Among the nearest, one with a photo is preferred (within 10 points of the very nearest), so the map shows a face.
+function closestOnMap(m, section, era, raw){
   const me = state.user.compass[section];
-  return (m ? m.leaders : []).filter(l => l.era === era).map(l => {
+  const ranked = (m ? m.leaders : []).filter(l => l.era === era).map(l => {
     const p = l.pos[section], dist = Math.hypot(p.x - me.x, p.y - me.y);
-    return Object.assign({}, l, { x: p.x, y: p.y, dist, mapPct: Math.max(0, Math.round(100 - dist / 1.414)) });
-  }).sort((a, b) => a.dist - b.dist)[0] || null;
+    return { l, dist };
+  }).sort((a, b) => a.dist - b.dist);
+  if(!ranked.length) return null;
+  const pick = ranked.find(r => r.l.photo && r.dist <= ranked[0].dist + 10) || ranked[0];
+  if(raw) return pick.l;
+  const p = pick.l.pos[section];
+  return Object.assign({}, pick.l, { x: p.x, y: p.y, dist: pick.dist, mapPct: Math.max(0, Math.round(100 - pick.dist / 1.414)) });
 }
 
 const M_SVG = (w) => '<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -2796,7 +2823,7 @@ function bigPortrait(url){
 // Waits (up to 8 seconds) for the background portrait of the card, so the card appears complete.
 function preloadCardPortrait(){
   const m = savedCardMatches();
-  const who = m && m.leaders.filter(l => l.era === 'modern' || l.era === 'historical').slice().sort((a, b) => b.pct - a.pct)[0];
+  const who = m && [leaderFor(m, 'modern'), leaderFor(m, 'historical')].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
   if(!who) return Promise.resolve();
   const load = (url) => new Promise(done => { if(!url || url.startsWith('data:')) return done(); const img = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = img.onerror = () => done(); img.src = url; });
   const work = who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? Promise.resolve() : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done)));
@@ -2811,7 +2838,7 @@ function buildResultCard(){
   if(!u || !u.compass) return null;
   loadExtras();
   const m = cardMatches();
-  const leaders = m ? { modern: m.leaders.find(l => l.era === 'modern'), historical: m.leaders.find(l => l.era === 'historical') } : {};
+  const leaders = m ? { modern: leaderFor(m, 'modern'), historical: leaderFor(m, 'historical') } : {};
   const nation = m && m.countries[0];
   const ideos = m ? m.ideologies : [];
   const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
