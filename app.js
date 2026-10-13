@@ -2887,7 +2887,7 @@ function renderResultOverlay(){
 }
 
 // The test is long, so your answers are kept on this device and you can pick it up where you left off.
-const quizStoreKey = () => 'majlis-quiz2-' + (state.user && state.user.id ? state.user.id : 'guest');
+const quizStoreKey = () => 'majlis-quiz3-' + (state.user && state.user.id ? state.user.id : 'guest');
 function saveQuiz(){
   try {
     const q = state.quiz;
