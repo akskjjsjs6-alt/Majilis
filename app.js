@@ -2708,7 +2708,7 @@ function savedCardMatches(){
   if(!c) return null;
   const sig = compassSig(c);
   if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return cardMatchesMemory;
-  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 2 && m.sig === sig ? m : null; } catch(e){ return null; }
+  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 3 && m.sig === sig ? m : null; } catch(e){ return null; }
 }
 // The leader shown for an era: the closest one who has a photo, so the card always shows a face.
 function leaderFor(m, era){
@@ -2746,7 +2746,7 @@ async function fetchCardMatches(){
       if(data && data.error) throw new Error(data.error);
       if(error || !data || !data.card) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
       const card = data.card;
-      const out = { v: 2, sig: compassSig(u.compass), key: cardMatchKey(), at: Date.now(),
+      const out = { v: 3, sig: compassSig(u.compass), key: cardMatchKey(), at: Date.now(),
         leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
           name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
           photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
@@ -2755,6 +2755,7 @@ async function fetchCardMatches(){
           name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
         ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
       if(!out.leaders.some(l => l.era === 'modern') || !out.leaders.some(l => l.era === 'historical')) throw new Error('no leaders came back');
+      await confirmCardPhotos(out);
       // Keep embedded photos only for the leaders that are shown (card and maps), so it fits in the device's storage.
       const shown = new Set(['modern', 'historical'].map(era => leaderFor(out, era)));
       ['economic', 'political', 'social'].forEach(k => ['modern', 'historical'].forEach(era => shown.add(closestOnMap(out, k, era, true))));
@@ -2771,6 +2772,40 @@ async function fetchCardMatches(){
   }
   state.cardMatches = { loading: false, error: String(lastErr && lastErr.message || lastErr).slice(0, 160) };
   render();
+}
+// Checks in this browser that a picture really loads (8 seconds at most).
+function imageLoads(url){
+  return new Promise(done => {
+    if(!url) return done(false);
+    const img = new Image(); img.referrerPolicy = 'no-referrer';
+    const t = setTimeout(() => done(false), 8000);
+    img.onload = () => { clearTimeout(t); done(img.naturalWidth > 0); };
+    img.onerror = () => { clearTimeout(t); done(false); };
+    img.src = url;
+  });
+}
+// Finds a photo of this leader that actually loads here: the server's copy, its link, then Wikipedia from the browser.
+async function confirmPhoto(l){
+  for(const url of [l.photo, l.photoUrl]){ if(url && await imageLoads(url)){ l.photo = url; return true; } }
+  const wiki = await new Promise(done => loadPortrait(l.name, done));
+  if(wiki && await imageLoads(wiki)){ l.photo = wiki; l.photoUrl = wiki; return true; }
+  l.photo = null;
+  return false;
+}
+// Before the card is shown: for each era, and for the nearest leaders on each map, keep going down the list until a
+// photo loads, so the card and the maps always show faces.
+async function confirmCardPhotos(m){
+  const checked = new Map();
+  const check = (l) => { if(!checked.has(l)) checked.set(l, confirmPhoto(l)); return checked.get(l); };
+  const firstWithPhoto = async (list) => { for(const l of list.slice(0, 8)){ if(await check(l)) return; } };
+  const jobs = ['modern', 'historical'].map(era => firstWithPhoto(m.leaders.filter(l => l.era === era)));
+  ['economic', 'political', 'social'].forEach(k => ['modern', 'historical'].forEach(era => {
+    const me = state.user.compass[k];
+    const near = m.leaders.filter(l => l.era === era).slice().sort((a, b) => Math.hypot(a.pos[k].x - me.x, a.pos[k].y - me.y) - Math.hypot(b.pos[k].x - me.x, b.pos[k].y - me.y));
+    jobs.push(firstWithPhoto(near.slice(0, 3)));
+  }));
+  await Promise.race([Promise.all(jobs), new Promise(done => setTimeout(done, 25000))]);
+  m.leaders.forEach(l => { if(!checked.has(l)) l.photo = l.photo && l.photo.startsWith('data:') ? l.photo : null; });   // unchecked links are dropped, so only proven photos are preferred
 }
 // The AI's results for the card, asking for them the first time they're needed.
 function cardMatches(){
@@ -2823,7 +2858,7 @@ function bigPortrait(url){
 // Waits (up to 8 seconds) for the background portrait of the card, so the card appears complete.
 function preloadCardPortrait(){
   const m = savedCardMatches();
-  const who = m && [leaderFor(m, 'modern'), leaderFor(m, 'historical')].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
+  const who = m && [leaderFor(m, 'modern'), leaderFor(m, 'historical')].filter(l => l && l.photo).sort((a, b) => b.pct - a.pct)[0];
   if(!who) return Promise.resolve();
   const load = (url) => new Promise(done => { if(!url || url.startsWith('data:')) return done(); const img = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = img.onerror = () => done(); img.src = url; });
   const work = who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? Promise.resolve() : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done)));
@@ -2846,18 +2881,19 @@ function buildResultCard(){
 
   // The closer of the two leaders is the big black-and-white portrait behind the card.
   const bg = el('div',{class:'rc9__bg'});
-  const bgWho = [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
+  const bgWho = [leaders.modern, leaders.historical].filter(l => l && l.photo).sort((a, b) => b.pct - a.pct)[0]
+    || [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
   if(bgWho){
     const setBg = (url) => { if(url && SAFE_BG.test(url)) bg.style.backgroundImage = 'url("' + url + '")'; };
     const tryBig = (url) => {
       const big = url && bigPortrait(url);
       if(!big){ setBg(url); return; }
       const probe = new Image(); probe.referrerPolicy = 'no-referrer';
-      probe.onload = () => setBg(big); probe.onerror = () => setBg(url);
+      probe.onload = () => setBg(big); probe.onerror = () => { if(!bg.style.backgroundImage) setBg(url); };
       probe.src = big;
     };
-    if(bgWho.photoUrl) tryBig(bgWho.photoUrl);
-    else if(bgWho.photo) setBg(bgWho.photo);
+    if(bgWho.photo){ setBg(bgWho.photo); if(bgWho.photoUrl && bgWho.photoUrl !== bgWho.photo) tryBig(bgWho.photoUrl); }   // the proven photo at once, a sharper copy if it loads
+    else if(bgWho.photoUrl) tryBig(bgWho.photoUrl);
     else loadPortrait(bgWho.name, tryBig);
   }
   card.appendChild(bg);
