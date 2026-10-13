@@ -2562,9 +2562,9 @@ function statCard(label, value){
   ]);
 }
 
-/* A reusable "the AI is working" screen: a plain white robot checking cards with a magnifying glass,
-   one line saying what it is doing, and a thin progress line. Steps tick over on a timer and the last one
-   holds until stopThink() is called, so a slow answer never looks frozen. */
+/* A reusable "the AI is working" screen: a big radar sweeping for people, with a small white robot scanning
+   in the middle, then the title, what it is doing now, and a progress bar. Steps tick over on a timer and the
+   last one holds until stopThink() is called, so a slow answer never looks frozen. */
 const thinkStages = {};
 function stopThink(id){
   const t = thinkStages[id];
@@ -2572,36 +2572,47 @@ function stopThink(id){
 }
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
-  const node = el('div',{class:'think-stage'});
-  // three small cards placed where the glass lands as the arm swings from the shoulder
-  const card = (cls, cx, cy) => { const x = cx - 15, y = cy - 18;
-    return '<g class="tk-card ' + cls + '"><rect x="' + x + '" y="' + y + '" width="30" height="36" rx="4" class="tk-card__bg"/>' +
-      '<line x1="' + (x + 6) + '" y1="' + (y + 9) + '" x2="' + (x + 24) + '" y2="' + (y + 9) + '" class="tk-card__line"/>' +
-      '<line x1="' + (x + 6) + '" y1="' + (y + 16) + '" x2="' + (x + 20) + '" y2="' + (y + 16) + '" class="tk-card__line"/>' +
-      '<path class="tk-tick" d="M' + (x + 8) + ' ' + (y + 25) + ' l4 4 l9 -10"/></g>'; };
-  node.appendChild(el('div',{class:'think-scene', 'aria-hidden':'true', html:
-    '<svg viewBox="0 0 250 200">' +
-    '<line x1="20" y1="190" x2="230" y2="190" class="tk-ground"/>' +
-    card('tk-c1', 158, 53) + card('tk-c2', 170, 100) + card('tk-c3', 151, 145) +
+  const node = el('div',{class:'judge-stage think-stage'});
+  const radar = el('div',{class:'think-radar', 'aria-hidden':'true'});
+  // the blips are people being found
+  [[22,30],[70,24],[38,70],[76,68],[56,44],[26,52]].forEach(([x,y], i) => radar.appendChild(el('span',{class:'think-blip', style:'left:'+x+'%;top:'+y+'%;animation-delay:'+(i*0.55)+'s'})));
+  radar.appendChild(el('div',{class:'think-sweep'}));
+  radar.appendChild(el('div',{class:'think-bot', html:
+    '<svg viewBox="70 40 150 172">' +
+    '<ellipse class="tk-shadow" cx="125" cy="206" rx="34" ry="5"/>' +
     '<g class="tk-robot">' +
-      '<line x1="70" y1="20" x2="70" y2="34" class="tk-line"/><circle cx="70" cy="16" r="4" class="tk-line"/>' +
-      '<rect x="44" y="34" width="52" height="40" rx="10" class="tk-line"/>' +
-      '<g class="tk-eyes"><circle cx="60" cy="54" r="3.5"/><circle cx="80" cy="54" r="3.5"/></g>' +
-      '<rect x="48" y="80" width="44" height="54" rx="8" class="tk-line"/>' +
-      '<line x1="48" y1="94" x2="34" y2="118" class="tk-line"/>' +
-      '<g class="tk-arm"><line x1="92" y1="94" x2="159" y2="99" class="tk-line"/><circle cx="170" cy="100" r="11" class="tk-line tk-lens"/></g>' +
-      '<line x1="60" y1="134" x2="60" y2="188" class="tk-line"/><line x1="80" y1="134" x2="80" y2="188" class="tk-line"/>' +
+      '<line x1="125" y1="52" x2="125" y2="70" class="tk-limb"/><circle cx="125" cy="48" r="6" class="tk-ant"/>' +
+      '<rect x="89" y="70" width="72" height="54" rx="17" class="tk-head"/>' +
+      '<rect x="99" y="80" width="52" height="32" rx="11" class="tk-face"/>' +
+      '<g class="tk-eyes"><ellipse cx="112" cy="95" rx="6" ry="7.5"/><ellipse cx="138" cy="95" rx="6" ry="7.5"/></g>' +
+      '<path d="M116 106 q9 7 18 0" class="tk-mouth"/>' +
+      '<rect x="97" y="128" width="56" height="52" rx="15" class="tk-body"/>' +
+      '<path d="M112 160 L112 144 L125 154 L138 144 L138 160" class="tk-chestM"/>' +
+      '<line x1="98" y1="142" x2="80" y2="164" class="tk-limb"/>' +
+      '<g class="tk-arm"><line x1="152" y1="142" x2="176" y2="152" class="tk-limb"/><circle cx="190" cy="146" r="15" class="tk-lens"/><line x1="201" y1="157" x2="214" y2="172" class="tk-handle"/></g>' +
+      '<rect x="105" y="182" width="14" height="22" rx="7" class="tk-body"/><rect x="131" y="182" width="14" height="22" rx="7" class="tk-body"/>' +
     '</g></svg>'}));
-  node.appendChild(el('div',{class:'think-title'}, cfg.title));
-  node.appendChild(el('div',{class:'think-phase'}, cfg.steps[0]));
-  node.appendChild(el('div',{class:'think-bar'},[el('div',{class:'think-bar__fill'})]));
+  node.appendChild(el('div',{class:'think-scene'}, radar));
+  node.appendChild(el('div',{class:'judge-head think-head'},[
+    el('div',{class:'judge-orb', html:
+      '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="judge-orb__track"/><circle cx="60" cy="60" r="54" class="judge-orb__arc"/>' +
+      '<path d="M 38,78 L 38,42 L 60,66 L 82,42 L 82,78" class="judge-orb__m"/></svg>'}),
+    el('div',{},[
+      el('div',{class:'judge-kicker'}, cfg.kicker),
+      el('div',{class:'judge-title'}, cfg.title),
+      el('div',{class:'judge-phase'}, cfg.steps[0]),
+    ]),
+  ]));
+  node.appendChild(el('div',{class:'judge-bar think-bar'},[el('div',{class:'judge-bar__fill'})]));
+  node.appendChild(el('div',{class:'think-pct'}, '0%'));
   const t0 = Date.now(), per = cfg.secondsPerStep || 4;
   const tick = () => {
     const secs = (Date.now() - t0) / 1000;
     const active = Math.min(cfg.steps.length - 1, Math.floor(secs / per));
-    node.querySelector('.think-phase').textContent = cfg.steps[active] + '…';
+    node.querySelector('.judge-phase').textContent = cfg.steps[active] + '…';
     const p = Math.round(96 * (1 - Math.exp(-secs / (per * cfg.steps.length * 0.7))));
-    node.querySelector('.think-bar__fill').style.width = p + '%';
+    node.querySelector('.judge-bar__fill').style.width = p + '%';
+    node.querySelector('.think-pct').textContent = p + '%';
   };
   tick();
   thinkStages[id] = { node, timer: setInterval(tick, 250) };
@@ -2781,6 +2792,15 @@ function bigPortrait(url){
   if(/^https:\/\/upload\.wikimedia\.org\/.*\/thumb\/.*\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, '/900px-$1');
   if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=900');
   return null;
+}
+// Waits (up to 8 seconds) for the background portrait of the card, so the card appears complete.
+function preloadCardPortrait(){
+  const m = savedCardMatches();
+  const who = m && m.leaders.filter(l => l.era === 'modern' || l.era === 'historical').slice().sort((a, b) => b.pct - a.pct)[0];
+  if(!who) return Promise.resolve();
+  const load = (url) => new Promise(done => { if(!url || url.startsWith('data:')) return done(); const img = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = img.onerror = () => done(); img.src = url; });
+  const work = who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? Promise.resolve() : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done)));
+  return Promise.race([work, new Promise(done => setTimeout(done, 8000))]);
 }
 const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
 // Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
@@ -3179,7 +3199,8 @@ function renderAssessment(){
     wrap.appendChild(thinkStage('assessment', {
       kicker: 'AI ANALYSIS', title: 'Mapping where you stand', secondsPerStep: 4,
       steps: ['Reading your answers', 'Placing you on the economic map', 'Placing you on the political map', 'Placing you on the social map',
-              'Studying your philosophy', 'Looking at your religious outlook', 'Grading your written case', 'Saving your results'],
+              'Studying your philosophy', 'Looking at your religious outlook', 'Grading your written case', 'Finding your closest leaders',
+              'Matching you to nations and ideologies', 'Building your result card'],
     }));
     return wrap;
   }
@@ -3490,12 +3511,16 @@ async function finishAssessment(position, viewText){
 
   clearDrafts('assessment-position', 'assessment-case');
   saveAnswersForAI(state.quiz.answers);
+  // The loading screen stays up until the card is complete: the AI finds your closest leaders, nations and
+  // ideologies, and the leader's portrait for the background has loaded.
+  if(signedIn){
+    state.cardMatches = { loading: false, error: null };
+    await fetchCardMatches();
+    await preloadCardPortrait();
+  }
   clearSavedQuiz();
   state.quiz.active = false;
   state.tab = signedIn ? 'compass' : 'assessment';   // the compass page shows the three maps with your result card beside them
-  state.cardMatches = { loading: false, error: null };
-  render();
-  if(signedIn) fetchCardMatches();   // the AI reads your answers and finds your closest leaders, nations and ideologies
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }

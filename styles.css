@@ -2113,32 +2113,50 @@ footer a.footer__founder:hover { color: var(--neon); border-bottom-color: var(--
 @keyframes mmPop { from { transform: scale(0); } to { transform: scale(1); } }
 @media (max-width: 640px) { .match-item { grid-template-columns: 1fr; } }
 
-/* ---- AI "thinking" screen: a plain white robot checking cards ---- */
-.think-stage { text-align: center; padding: 34px 20px 28px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: #0c0e10; color: #f2f2f2; }
-.think-scene { width: 250px; height: 200px; margin: 0 auto 14px; }
-.think-scene svg { width: 100%; height: 100%; overflow: visible; }
-.think-scene svg * { transform-box: fill-box; }
-.tk-line { fill: none; stroke: #f4f4f4; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.tk-ground { stroke: rgba(255,255,255,0.25); stroke-width: 2; stroke-linecap: round; }
-.tk-eyes circle { fill: #f4f4f4; }
+/* ---- AI "thinking" screen: a big radar finding people, a small white robot scanning in the middle ---- */
+.think-stage { text-align: center; }
+.think-scene { position: relative; width: 340px; max-width: 100%; aspect-ratio: 1; margin: 4px auto 8px; }
+.think-radar { position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,230,118,0.10) 0, rgba(0,230,118,0.03) 55%, transparent 70%);
+  border: 1px solid rgba(0,230,118,0.35); box-shadow: 0 0 40px rgba(0,230,118,0.18), inset 0 0 40px rgba(0,230,118,0.10); overflow: hidden; }
+.think-radar::before, .think-radar::after { content: ''; position: absolute; border-radius: 50%; border: 1px solid rgba(0,230,118,0.22); inset: 18%; }
+.think-radar::after { inset: 36%; }
+.think-sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(0,230,118,0.55), rgba(0,230,118,0) 28%, rgba(0,230,118,0) 100%); animation: thinkSpin 2.6s linear infinite; }
+/* each blip is a little person */
+.think-blip { position: absolute; z-index: 1; width: 22px; height: 22px; margin: -11px; border-radius: 50%; opacity: 0; animation: thinkBlip 3.3s ease-in-out infinite;
+  background: radial-gradient(circle at 50% 38%, #04110a 0 22%, transparent 23%), radial-gradient(ellipse at 50% 95%, #04110a 0 38%, transparent 39%), #e9fff2;
+  box-shadow: 0 0 12px 3px rgba(0,230,118,0.7); }
+@keyframes thinkSpin { to { transform: rotate(360deg); } }
+@keyframes thinkBlip { 0%, 100% { opacity: 0; transform: scale(0.3); } 30% { opacity: 1; transform: scale(1.2); } 60% { opacity: 0.5; transform: scale(1); } }
+.think-bot { position: absolute; z-index: 2; left: 50%; top: 50%; width: 30%; transform: translate(-50%, -54%); }
+.think-bot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.think-bot svg * { transform-box: fill-box; }
+.tk-robot { animation: tkBob 2.4s ease-in-out infinite; }
+.tk-shadow { fill: rgba(255,255,255,0.12); animation: tkShadow 2.4s ease-in-out infinite; transform-origin: center; }
+.tk-head, .tk-body { fill: #f4f6f8; stroke: #ffffff; stroke-width: 2.5; }
+.tk-face { fill: #0b1420; stroke: rgba(0,0,0,0.25); stroke-width: 1.5; }
+.tk-eyes ellipse { fill: #4fd8ff; filter: drop-shadow(0 0 4px #4fd8ff); }
 .tk-eyes { animation: tkBlink 3.6s infinite; transform-origin: center; }
-.tk-robot { animation: tkBob 2.6s ease-in-out infinite; }
-.think-scene .tk-arm { animation: tkScan 7.5s ease-in-out infinite; transform-origin: 92px 94px; transform-box: view-box; }
-.tk-lens { fill: rgba(255,255,255,0.08); }
-.tk-card__bg { fill: none; stroke: rgba(255,255,255,0.55); stroke-width: 2; }
-.tk-card__line { stroke: rgba(255,255,255,0.35); stroke-width: 2; stroke-linecap: round; }
-.tk-tick { fill: none; stroke: #f4f4f4; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0; animation: tkTick 7.5s infinite; }
-.tk-c2 .tk-tick { animation-delay: 2.5s; } .tk-c3 .tk-tick { animation-delay: 5s; }
-.think-title { font-family: var(--serif); font-size: 20px; margin-bottom: 4px; }
-.think-phase { font-size: 13px; opacity: 0.65; min-height: 1.3em; }
-.think-bar { height: 2px; max-width: 260px; margin: 18px auto 0; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; }
-.think-bar__fill { height: 100%; width: 0; background: #f4f4f4; transition: width 0.25s ease-out; }
-@keyframes tkBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.tk-mouth { fill: none; stroke: #4fd8ff; stroke-width: 2.4; stroke-linecap: round; }
+.tk-chestM { fill: none; stroke: #0b7cff; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.tk-limb { stroke: #e9edf2; stroke-width: 5; stroke-linecap: round; }
+.tk-ant { fill: #4fd8ff; filter: drop-shadow(0 0 6px #4fd8ff); animation: tkAnt 1.2s ease-in-out infinite; transform-origin: center; }
+.think-bot .tk-arm { animation: tkSearch 2.6s ease-in-out infinite; transform-origin: 152px 142px; transform-box: view-box; }
+.tk-lens { fill: rgba(0,176,255,0.18); stroke: #00b0ff; stroke-width: 3.5; }
+.tk-handle { stroke: #00b0ff; stroke-width: 5; stroke-linecap: round; }
+@keyframes tkBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes tkShadow { 0%,100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.88); opacity: 0.6; } }
 @keyframes tkBlink { 0%,92%,100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-/* the magnifying glass moves over each card in turn, and the card gets its tick */
-@keyframes tkScan { 0%,100% { transform: rotate(-36deg); } 12%,28% { transform: rotate(-36deg); } 45%,61% { transform: rotate(0deg); } 78%,94% { transform: rotate(36deg); } }
-@keyframes tkTick { 0%,22% { opacity: 0; } 28%,96% { opacity: 1; } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .think-scene svg * { animation: none !important; } .tk-tick { opacity: 1; } }
+@keyframes tkAnt { 0%,100% { transform: scale(1); } 50% { transform: scale(1.35); } }
+@keyframes tkSearch { 0%,100% { transform: rotate(-6deg); } 35% { transform: rotate(-26deg); } 70% { transform: rotate(10deg); } }
+.think-head { justify-content: center; text-align: left; margin: 14px 0 0; }
+.think-bar { height: 6px; }
+.think-bar .judge-bar__fill { background: linear-gradient(90deg, #00e676, #00b0ff, #00e676); background-size: 200% 100%; animation: thinkShimmer 1.6s linear infinite; }
+@keyframes thinkShimmer { to { background-position: -200% 0; } }
+.think-pct { position: relative; text-align: right; font-size: 12px; letter-spacing: 0.12em; color: var(--jt-dim); margin-top: 8px; font-variant-numeric: tabular-nums; }
+.think-stage .judge-orb__arc { animation-duration: 1.1s; }
+@media (max-width: 640px) { .think-scene { width: 260px; } }
+@media (prefers-reduced-motion: reduce) { .think-sweep, .think-blip, .think-bar .judge-bar__fill, .think-bot svg * { animation: none !important; } .think-blip { opacity: 0.8; } }
 
 
 .role-tag { margin-left: 7px; font-size: 0.62em; font-weight: 700; letter-spacing: 0.04em; vertical-align: middle; white-space: nowrap; }
