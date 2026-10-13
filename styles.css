@@ -2528,10 +2528,10 @@ h2 .role-tag { font-size: 0.5em; }
   --rc-panel: rgba(0,10,5,0.35); --rc-line: rgba(0,255,102,0.45); --rc-pct: #00ff66; --rc-era: #8dffbb; --rc-emb: linear-gradient(135deg, #00a845, #00b0ff);
   --rc-a1: #00ff66; --rc-a2: #00b0ff; --rc-a3: #ffd166; --rc-btn: #00a845; }
 [data-theme="light"] .rc9, [data-theme="mint"] .rc9 { --rc-bg: linear-gradient(180deg, #f6f8f6 0%, #e6ece8 60%, #d7e0da 100%);
-  --rc-glow: radial-gradient(70% 22% at 50% 24%, rgba(0,158,69,0.10), transparent 70%); --rc-grid: rgba(0,120,60,0.25); --rc-grid-op: 0.6;
+  --rc-glow: radial-gradient(70% 22% at 50% 24%, rgba(0,158,69,0.05), transparent 70%); --rc-grid: rgba(0,120,60,0.25); --rc-grid-op: 0.6;
   --rc-photo: grayscale(1) contrast(1.05) brightness(0.97); --rc-photo-op: 0.75;
-  --rc-ink: #102018; --rc-dim: #2a3d33; --rc-shadow: 0 0 0.25cqw rgba(255,255,255,0.45); --rc-head-shadow: 0 0 0.6cqw rgba(255,255,255,0.4);
-  --rc-panel: rgba(255,255,255,0.2); --rc-line: rgba(16,32,24,0.28); --rc-blur: blur(2px); --rc-h: #102018;
+  --rc-ink: #102018; --rc-dim: #2a3d33; --rc-shadow: 0 0 0.18cqw rgba(255,255,255,0.25); --rc-head-shadow: 0 0 0.4cqw rgba(255,255,255,0.2);
+  --rc-panel: rgba(255,255,255,0.12); --rc-line: rgba(16,32,24,0.28); --rc-blur: blur(2px); --rc-h: #102018;
   --rc-pct: #00863a; --rc-era: #00863a; --rc-emb: linear-gradient(135deg, #009e45, #0b7f8a); --rc-a1: #d6336c; --rc-a2: #1c7ed6; --rc-a3: #2b8a3e; --rc-btn: #009e45; }
 [data-theme="mint"] .rc9 { --rc-bg: linear-gradient(180deg, #f3fcf7 0%, #dcf4e6 60%, #c4ebd5 100%); --rc-r: 2.2cqw; --rc-font: 'Nunito', system-ui, sans-serif; --rc-hfont: 'Nunito', system-ui, sans-serif;
   --rc-pct: #0e9e53; --rc-era: #0e9e53; --rc-emb: linear-gradient(135deg, #11b862, #3fd6a0); --rc-line: rgba(17,184,98,0.45); }
@@ -2551,10 +2551,10 @@ h2 .role-tag { font-size: 0.5em; }
 [data-theme="retro"] .rc9__h { text-align: left; margin: -1cqw -0.6cqw 0; }
 [data-theme="retro"] .rc9-who__name, [data-theme="retro"] .rc9-who__pct, [data-theme="retro"] .rc9-who__era, [data-theme="retro"] .rc9-ax__row b, [data-theme="retro"] .rc9-wait { color: #000; }
 [data-theme="retro"] .rc9-who__pct, [data-theme="retro"] .rc9-ax__row { font-size: 2.1cqw; }
-[data-theme="kawaii"] .rc9 { --rc-bg: linear-gradient(180deg, #ffe3f1 0%, #ffcfe6 55%, #f9b4d8 100%); --rc-glow: radial-gradient(60% 20% at 50% 24%, rgba(255,255,255,0.2), transparent 70%);
+[data-theme="kawaii"] .rc9 { --rc-bg: linear-gradient(180deg, #ffe3f1 0%, #ffcfe6 55%, #f9b4d8 100%); --rc-glow: radial-gradient(60% 20% at 50% 24%, rgba(255,255,255,0.08), transparent 70%);
   --rc-grid: rgba(255,92,157,0.35); --rc-photo: grayscale(1) contrast(1.02) brightness(0.98); --rc-photo-op: 0.7;
-  --rc-ink: #4a1238; --rc-dim: #4a1238; --rc-shadow: 0 0 0.25cqw rgba(255,255,255,0.45); --rc-head-shadow: 0 0 0.6cqw rgba(255,255,255,0.4);
-  --rc-panel: rgba(255,255,255,0.2); --rc-line: #ff8cc6; --rc-bw: 0.3cqw; --rc-r: 2.6cqw; --rc-blur: blur(2px); --rc-h: #c2185b;
+  --rc-ink: #4a1238; --rc-dim: #4a1238; --rc-shadow: 0 0 0.18cqw rgba(255,255,255,0.25); --rc-head-shadow: 0 0 0.4cqw rgba(255,255,255,0.2);
+  --rc-panel: rgba(255,255,255,0.12); --rc-line: #ff8cc6; --rc-bw: 0.3cqw; --rc-r: 2.6cqw; --rc-blur: blur(2px); --rc-h: #c2185b;
   --rc-pct: #d6156f; --rc-era: #7a3fd6; --rc-emb: linear-gradient(135deg, #ff5ab0, #9b5cff); --rc-a1: #d6156f; --rc-a2: #6a3fd6; --rc-a3: #0f7f74;
   --rc-font: 'Quicksand', system-ui, sans-serif; --rc-hfont: 'Fredoka', system-ui, sans-serif; --rc-btn: #ff5c9d; }
 [data-theme="shonen"] .rc9 { --rc-bg: repeating-conic-gradient(from 0deg at 50% 22%, rgba(255,45,61,0.10) 0 4deg, transparent 4deg 10deg), linear-gradient(180deg, #120405 0%, #2a0709 55%, #120405 100%);
@@ -2562,10 +2562,10 @@ h2 .role-tag { font-size: 0.5em; }
   --rc-panel: rgba(10,0,2,0.45); --rc-line: #ff2d3d; --rc-bw: 0.35cqw; --rc-r: 0; --rc-hfont: 'Bebas Neue', system-ui, sans-serif;
   --rc-pct: #ff4b58; --rc-era: #ffb3b9; --rc-emb: linear-gradient(135deg, #ff2d3d, #6a0008); --rc-a1: #ff2d3d; --rc-a2: #ffffff; --rc-a3: #ffb000; --rc-btn: #ff2d3d; }
 [data-theme="shonen"] .rc9__h, [data-theme="shonen"] .rc9__res, [data-theme="shonen"] .rc9__axes-h { letter-spacing: 0.06em; font-weight: 400; }
-[data-theme="doge"] .rc9 { --rc-bg: linear-gradient(180deg, #fff1b8 0%, #ffd56a 55%, #f0a92a 100%); --rc-glow: radial-gradient(60% 20% at 50% 24%, rgba(255,255,255,0.2), transparent 70%);
+[data-theme="doge"] .rc9 { --rc-bg: linear-gradient(180deg, #fff1b8 0%, #ffd56a 55%, #f0a92a 100%); --rc-glow: radial-gradient(60% 20% at 50% 24%, rgba(255,255,255,0.08), transparent 70%);
   --rc-grid: rgba(150,90,0,0.3); --rc-photo: grayscale(1) sepia(0.35) contrast(1.05); --rc-photo-op: 0.75;
-  --rc-ink: #2c1c00; --rc-dim: #3a2400; --rc-shadow: 0 0 0.25cqw rgba(255,248,220,0.45); --rc-head-shadow: 0 0 0.6cqw rgba(255,248,220,0.4);
-  --rc-panel: rgba(255,250,235,0.2); --rc-line: #c8870a; --rc-bw: 0.3cqw; --rc-r: 1.4cqw; --rc-blur: blur(2px); --rc-h: #8a4b00;
+  --rc-ink: #2c1c00; --rc-dim: #3a2400; --rc-shadow: 0 0 0.18cqw rgba(255,248,220,0.25); --rc-head-shadow: 0 0 0.4cqw rgba(255,248,220,0.2);
+  --rc-panel: rgba(255,250,235,0.12); --rc-line: #c8870a; --rc-bw: 0.3cqw; --rc-r: 1.4cqw; --rc-blur: blur(2px); --rc-h: #8a4b00;
   --rc-pct: #a8320a; --rc-era: #7a3d00; --rc-emb: linear-gradient(135deg, #f0a92a, #c2410c); --rc-a1: #b8460a; --rc-a2: #5a36c9; --rc-a3: #237a35;
   --rc-font: 'Comic Neue', 'Comic Sans MS', system-ui, sans-serif; --rc-hfont: 'Comic Neue', 'Comic Sans MS', system-ui, sans-serif; --rc-btn: #c8870a; }
 [data-theme="midnight"] .rc9 { --rc-bg: radial-gradient(90% 40% at 80% 0%, rgba(64,120,220,0.35), transparent 60%), linear-gradient(180deg, #050a15 0%, #0b1730 55%, #070d1a 100%);
