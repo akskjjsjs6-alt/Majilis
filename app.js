@@ -449,9 +449,10 @@ const state = {
   tab: 'home',
   authMode: 'login',
   showAuth: false,
+  cardMatches: { loading: false, error: null },   // the AI's closest leaders, nations and ideologies for the result card
   exploreOpen: false,
   mobileNavOpen: false,
-  theme: (()=>{ try { return localStorage.getItem('majlis-theme') || 'dark'; } catch(e){ return 'dark'; } })(),
+  theme: (()=>{ try { const t = localStorage.getItem('majlis-theme') || 'dark'; return t === 'sigma' ? 'midnight' : t; } catch(e){ return 'dark'; } })(),
   cookieConsent: localStorage.getItem('cookieConsent') === 'true',
   searchQuery: '',
   searchResults: null,
@@ -494,8 +495,9 @@ document.documentElement.setAttribute('data-theme', state.theme);
    stored a big copy of every user in localStorage — clean that up. */
 try { localStorage.removeItem('majlis_state_v1'); } catch(e) {}
 
-const THEMES = ['dark', 'light', 'mint', 'glass', 'esports', 'retro', 'kawaii', 'shonen', 'doge', 'sigma', 'vapor', 'lofi'];
+const THEMES = ['dark', 'light', 'mint', 'glass', 'esports', 'retro', 'kawaii', 'shonen', 'doge', 'midnight', 'vapor', 'lofi'];
 function setTheme(name) {
+  if(name === 'sigma') name = 'midnight';   // Sigma Gold was replaced by Midnight
   state.theme = THEMES.includes(name) ? name : 'dark';
   try { localStorage.setItem('majlis-theme', state.theme); } catch(e) {}
   document.documentElement.setAttribute('data-theme', state.theme);
@@ -503,7 +505,7 @@ function setTheme(name) {
 }
 // The quick sun/moon button flips between dark and light (Retro is picked in Settings).
 function toggleTheme() { setTheme(state.theme === 'dark' ? 'light' : 'dark'); }
-const THEME_LABELS = [['dark','Neon'],['light','Light'],['mint','Mint'],['glass','Glass'],['esports','Esports'],['retro','Retro'],['kawaii','Kawaii Pink'],['shonen','Shonen Red'],['doge','Much Wow'],['sigma','Sigma Gold'],['vapor','Vaporwave'],['lofi','Lofi Night']];
+const THEME_LABELS = [['dark','Neon'],['light','Light'],['mint','Mint'],['glass','Glass'],['esports','Esports'],['retro','Retro'],['kawaii','Kawaii Pink'],['shonen','Shonen Red'],['doge','Much Wow'],['midnight','Midnight'],['vapor','Vaporwave'],['lofi','Lofi Night']];
 
 // The glowing M in the home hero, and the faint giant M behind the page (Update 15).
 const M_PATH = 'M 55,140 L 55,60 L 100,105 L 145,60 L 145,140';
@@ -2656,7 +2658,7 @@ function portraitNode(name, photo, note){
 
 /* ================= RESULT CARD (9:16, on the Compass page and full size after the test) ================= */
 // Every axis of the test, each with both ends, where you sit (0 = the left-hand end) and a colour per group.
-const AXIS_GROUP_COLORS = { compass: '#c2255c', detail: '#1971c2', phil: '#2b8a3e' };
+const AXIS_GROUP_COLORS = { compass: 'var(--rc-a1)', detail: 'var(--rc-a2)', phil: 'var(--rc-a3)' };   // set per theme in styles.css
 function allAxes(u){
   const rows = [];
   ['economic', 'political', 'social'].forEach(key => {
@@ -2682,126 +2684,188 @@ function flagNode(c){
   img.onerror = () => { const f = el('span',{class:'rc-flag rc-flag--code'}, c.code.toUpperCase()); img.replaceWith(f); };
   return img;
 }
-// One name for the whole compass: the nearest of these ideologies across all six axes
-// (economic left-right, state-market, nation-world, authority-liberty, tradition-progress, group-individual).
-const IDEOLOGY_PROFILES = [
-  ['Social Democrat',        [25, 35, 65, 65, 70, 45]],
-  ['Democratic Socialist',   [12, 25, 60, 60, 75, 35]],
-  ['Marxist-Leninist',       [ 5, 10, 55, 20, 60, 15]],
-  ['Libertarian Socialist',  [15, 40, 70, 90, 85, 60]],
-  ['Social Liberal',         [40, 50, 70, 75, 80, 65]],
-  ['Classical Liberal',      [70, 80, 65, 85, 65, 85]],
-  ['Libertarian',            [85, 95, 60, 95, 60, 95]],
-  ['Anarcho-Capitalist',     [98, 98, 55, 98, 60, 98]],
-  ['Conservative',           [70, 65, 35, 45, 25, 55]],
-  ['National Conservative',  [65, 55, 15, 35, 15, 45]],
-  ['Religious Conservative', [55, 50, 35, 35,  5, 40]],
-  ['Christian Democrat',     [45, 45, 55, 45, 30, 35]],
-  ['Authoritarian Nationalist', [60, 40, 5, 5, 15, 10]],
-  ['Left Nationalist',       [20, 25, 15, 40, 35, 25]],
-  ['Right-Wing Populist',    [65, 50, 15, 45, 25, 60]],
-  ['Left-Wing Populist',     [25, 30, 25, 55, 45, 45]],
-  ['Communitarian',          [35, 40, 40, 45, 25, 15]],
-  ['Technocrat',             [50, 40, 70, 35, 60, 50]],
-  ['Green Progressive',      [25, 30, 75, 60, 80, 40]],
-  ['Centrist',               [50, 50, 50, 50, 50, 50]],
-];
-/* Closeness across all six compass axes. 100% would be an exact match; the furthest corner of the space is about 0%. */
-const compassVec = (c) => [c.economic.x, c.economic.y, c.political.x, c.political.y, c.social.x, c.social.y];
-function nearestOverall(list, c){
-  if(!c || !c.economic || !c.political || !c.social) return [];
-  const v = compassVec(c);
-  return list.map(it => {
-    const dist = Math.sqrt(it.v.reduce((n, x, i) => n + Math.pow(x - v[i], 2), 0));
-    return Object.assign({}, it, { dist, pct: Math.max(0, Math.round(100 - dist / 1.8)) });
-  }).sort((a, b) => a.dist - b.dist);
+/* ================= CLOSEST LEADERS, NATIONS AND IDEOLOGIES (found by the AI) =================
+   The AI reads your answers and scores, proposes leaders of any era and country, nations and named ideologies, and
+   places each on the three maps; the server then works out who is really closest. Kept on this device until your
+   results change. */
+const cardMatchKey = () => 'majlis-card-' + (state.user && state.user.id || 'guest');
+const answersKey = () => 'majlis-answers-' + (state.user && state.user.id || 'guest');
+const compassSig = (c) => ['economic', 'political', 'social'].map(k => c[k].x + ',' + c[k].y).join('|');
+function savedCardMatches(){
+  const c = state.user && state.user.compass;
+  if(!c) return null;
+  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 1 && m.sig === compassSig(c) ? m : null; } catch(e){ return null; }
 }
-function ideologyMatches(c){
-  return nearestOverall(IDEOLOGY_PROFILES.map(([name, v]) => ({ name, v })), c);
+// Your chosen positions are kept so the AI can read them, not just the scores.
+function saveAnswersForAI(answers){
+  try { localStorage.setItem(answersKey(), JSON.stringify(answers.filter(a => a.section === 'compass').map(a => [a.q, a.choice]))); } catch(e){}
 }
-function overallIdeology(c){
-  const m = ideologyMatches(c);
-  return m.length ? m[0].name : null;
+const okPos = (p) => p && ['economic', 'political', 'social'].every(k => p[k] && typeof p[k].x === 'number' && typeof p[k].y === 'number');
+const MATCH_PHOTO = /^https:\/\/(upload\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/)/;
+async function fetchCardMatches(){
+  const u = state.user;
+  if(!u || u.isGuest || !u.id || !u.compass || state.cardMatches.loading) return;
+  state.cardMatches = { loading: true, error: null };
+  render();
+  try {
+    let answers = [];
+    try { answers = JSON.parse(localStorage.getItem(answersKey()) || '[]'); } catch(e){}
+    const maps = {};
+    ['economic', 'political', 'social'].forEach(k => {
+      const d = COMPASS_DEFS[k];
+      maps[k] = { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1], me: u.compass[k], label: ideologyLabel(u, k) };
+    });
+    const axes = allAxes(u).slice(6).map(r => r.lo + ' ' + (100 - r.v) + '% / ' + r.hi + ' ' + r.v + '%').join('\n');
+    const extra = [u.archetype && !/not yet/i.test(u.archetype) ? 'Philosophy: ' + u.archetype : '',
+      u.religion && u.religion !== 'Prefer not to say' ? 'Religion: ' + u.religion + (u.denomination ? ', ' + u.denomination : '') : ''].filter(Boolean).join('. ');
+    const { data, error } = await sb.functions.invoke('ai-matches', { region: FN_REGION,
+      body: { mode: 'card', maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') } });
+    if(data && data.error) throw new Error(data.error);
+    if(error || !data || !data.card) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
+    const card = data.card;
+    const out = { v: 1, sig: compassSig(u.compass), at: Date.now(),
+      leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
+        name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
+        photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
+        photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
+      countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
+        name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
+      ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
+    if(!out.leaders.length) throw new Error('no leaders came back');
+    try { localStorage.setItem(cardMatchKey(), JSON.stringify(out)); } catch(e){}
+    state.cardMatches = { loading: false, error: null };
+  } catch(e){
+    console.warn('card matches unavailable', e);
+    state.cardMatches = { loading: false, error: String(e && e.message || e).slice(0, 160) };
+  }
+  render();
 }
-// The modern and the historical leader (FIGURES in questions.js) closest to you across all six axes.
-function closestLeaders(c){
-  const all = nearestOverall(FIGURES, c);
-  return { modern: all.find(f => f.era === 'modern'), historical: all.find(f => f.era === 'historical') };
+// The AI's results for the card, asking for them the first time they're needed.
+function cardMatches(){
+  const m = savedCardMatches();
+  if(!m && !state.cardMatches.loading && !state.cardMatches.error && state.user && !state.user.isGuest) setTimeout(fetchCardMatches, 0);
+  return m;
 }
-// The closest leader on one map only (its two axes), for the dots on the Compass page.
-const SECTION_DIMS = { economic: [0, 1], political: [2, 3], social: [4, 5] };
-function closestOnMap(section, pair, era){
-  const [i, j] = SECTION_DIMS[section];
-  return FIGURES.filter(f => f.era === era).map(f => {
-    const dist = Math.hypot(f.v[i] - pair.x, f.v[j] - pair.y);
-    return Object.assign({}, f, { x: f.v[i], y: f.v[j], dist, pct: Math.max(0, Math.round(100 - dist / 1.414)) });
-  }).sort((a, b) => a.dist - b.dist)[0];
+// The closest of the AI's leaders on one map only (its two axes), for the portraits on the Compass page.
+function closestOnMap(m, section, era){
+  const me = state.user.compass[section];
+  return (m ? m.leaders : []).filter(l => l.era === era).map(l => {
+    const p = l.pos[section], dist = Math.hypot(p.x - me.x, p.y - me.y);
+    return Object.assign({}, l, { x: p.x, y: p.y, dist, mapPct: Math.max(0, Math.round(100 - dist / 1.414)) });
+  }).sort((a, b) => a.dist - b.dist)[0] || null;
 }
 
 const M_SVG = (w) => '<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const initialsOf = (name) => name.split(/[\s-]+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('');
-// Laid out like the sketch: logo and "Your results" on top, every axis on the left, closest leaders
-// (modern and historical), nation and ideology on the right, other ideologies along the bottom.
+// Circular emblems for the ideologies, picked from words in the name; anything else gets its initials.
+const IDEOLOGY_ICONS = [
+  [/monarch|royal|legitim|tradition/i, '<path d="M3 17h18l-1.5-9-4.5 4-3-6-3 6-4.5-4z"/><rect x="3" y="18.5" width="18" height="2.2" rx="1"/>'],
+  [/christian|catholic|protestant|orthodox|distribut/i, '<path d="M10 2h4v6h6v4h-6v10h-4V12H4V8h6z"/>'],
+  [/islam|muslim/i, '<path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.4A7 7 0 1 1 14.5 3.5z"/>'],
+  [/national|patriot|sovereign|kemal|gaull|fascis|falang/i, '<path d="M5 2h2v20H5z"/><path d="M8 3h12l-3 4.5 3 4.5H8z"/>'],
+  [/green|eco|environment/i, '<path d="M20 3C9 3 4 9 4 16c0 1.6.3 3 .8 4.2L6.5 19C8 13 12 9 17 7c-4 3-7 7-8 13 9 0 11-8 11-17z"/>'],
+  [/social|labou?r|worker|syndical|marx|lenin|trotsk|mao/i, '<path d="M9 21v-6.5L6.5 12V7.5a1.5 1.5 0 0 1 3 0V11h1V5.5a1.5 1.5 0 0 1 3 0V11h1V6.5a1.5 1.5 0 0 1 3 0V11h.5V9a1.5 1.5 0 0 1 3 0v5.5L17 21z"/>'],
+  [/libert|anarch|minarch|objectiv/i, '<path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z"/>'],
+  [/liberal|democra|republic/i, '<path d="M12 2 2 7v2h20V7zM4 10h3v8H4zm6.5 0h3v8h-3zM17 10h3v8h-3zM2 19h20v3H2z"/>'],
+  [/conserv|paternal|order|author/i, '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/>'],
+  [/techno|futur|transhuman|accelera/i, '<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 2.5V13l-2.3.6-.7 1.7 1.2 2-1.8 1.8-2-1.2-1.7.7L13 21h-2.5l-.6-2.3-1.7-.7-2 1.2-1.8-1.8 1.2-2-.7-1.7L3 13v-2.5l2.3-.6.7-1.7-1.2-2 1.8-1.8 2 1.2 1.7-.7L10.5 3H13l.6 2.3 1.7.7 2-1.2 1.8 1.8-1.2 2 .7 1.7z"/>'],
+  [/communit|georg|cooperat|mutual/i, '<circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M1 20c0-4 3-6.5 6-6.5s6 2.5 6 6.5zM11 20c0-4 3-6.5 6-6.5s6 2.5 6 6.5z"/>'],
+  [/centr|third way|pragmat|moderat/i, '<path d="M11 3h2v3h6l3 7a4 4 0 0 1-8 0l2.7-6H13v13h4v2H7v-2h4V7H6.3L9 13a4 4 0 0 1-8 0l3-7h7z"/>'],
+];
+function ideologyEmblem(name){
+  const hit = IDEOLOGY_ICONS.find(([re]) => re.test(name));
+  return hit ? el('span',{class:'rc9-emb', html:'<svg viewBox="0 0 24 24" fill="#fff">' + hit[1] + '</svg>'}) : el('span',{class:'rc9-emb'}, initialsOf(name));
+}
+// Wikipedia thumbnails come at 320px; the background asks for a bigger copy and falls back to the small one.
+function bigPortrait(url){
+  if(/^https:\/\/upload\.wikimedia\.org\/.*\/thumb\/.*\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, '/900px-$1');
+  if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=900');
+  return null;
+}
+const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
+// Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
+// behind everything, every axis in one tall panel on the left, three stacked panels on the right (leader, nation,
+// ideology) and the other ideologies in a wide panel along the bottom.
 function buildResultCard(){
   const u = state.user;
   if(!u || !u.compass) return null;
   loadExtras();
-  const leaders = closestLeaders(u.compass);
-  const nation = nearestOverall(NATIONS, u.compass)[0];
-  const ideos = ideologyMatches(u.compass);
+  const m = cardMatches();
+  const leaders = m ? { modern: m.leaders.find(l => l.era === 'modern'), historical: m.leaders.find(l => l.era === 'historical') } : {};
+  const nation = m && m.countries[0];
+  const ideos = m ? m.ideologies : [];
   const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
   outer.appendChild(card);
 
-  // The closest leader of the two is the faded background, like the sketch.
+  // The closer of the two leaders is the big black-and-white portrait behind the card.
   const bg = el('div',{class:'rc9__bg'});
-  const bgWho = [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => a.dist - b.dist)[0];
-  if(bgWho) loadPortrait(bgWho.name, url => { if(url && /^https:\/\/upload\.wikimedia\.org\/[^"'()\s\\]+$/.test(url)) bg.style.backgroundImage = 'url("' + url + '")'; });
+  const bgWho = [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
+  if(bgWho){
+    const setBg = (url) => { if(url && SAFE_BG.test(url)) bg.style.backgroundImage = 'url("' + url + '")'; };
+    const tryBig = (url) => {
+      const big = url && bigPortrait(url);
+      if(!big){ setBg(url); return; }
+      const probe = new Image(); probe.referrerPolicy = 'no-referrer';
+      probe.onload = () => setBg(big); probe.onerror = () => setBg(url);
+      probe.src = big;
+    };
+    if(bgWho.photoUrl) tryBig(bgWho.photoUrl);
+    else if(bgWho.photo) setBg(bgWho.photo);
+    else loadPortrait(bgWho.name, tryBig);
+  }
   card.appendChild(bg);
+  card.appendChild(el('div',{class:'rc9__glow'}));
   card.appendChild(el('div',{class:'rc9__grid'}));
 
-  card.appendChild(el('div',{class:'rc9__top'},[
-    el('div',{class:'rc9__logo'},[el('span',{html: M_SVG(16)}), 'MAJLIS']),
-    el('div',{class:'rc9__you'},[el('b',{}, 'YOUR RESULTS'), u.username ? el('span',{}, '@' + u.username) : null]),
-  ]));
+  card.appendChild(el('div',{class:'rc9__logo'},[el('span',{html: M_SVG(16)}), 'MAJLIS']));
+  card.appendChild(el('div',{class:'rc9__res'}, 'YOUR RESULTS'));
+  card.appendChild(el('div',{class:'rc9__axes-h'}, 'YOUR AXES'));
 
-  const axes = el('div',{class:'rc9__panel rc9__axes'},[el('div',{class:'rc9__h'}, 'Your axes')]);
+  const axes = el('div',{class:'rc9__panel rc9__axes'});
   allAxes(u).forEach(r => {
     const high = r.v >= 50;
     axes.appendChild(el('div',{class:'rc9-ax'},[
       el('div',{class:'rc9-ax__row'},[
         el('span',{class: high ? '' : 'is-lean', style: high ? '' : 'color:' + r.color}, r.lo),
-        el('b',{}, (high ? r.v : 100 - r.v) + '%'),
+        el('b',{style:'color:' + r.color}, (high ? r.v : 100 - r.v) + '%'),
         el('span',{class: high ? 'is-lean' : '', style: high ? 'color:' + r.color : ''}, r.hi),
       ]),
-      el('div',{class:'rc9-ax__bar'},[el('i',{style:'left:' + r.v + '%;background:' + r.color + ';box-shadow:0 0 6px ' + r.color + ';'})]),
+      el('div',{class:'rc9-ax__bar', style:'--c:' + r.color},[el('i',{class:'rc9-ax__mk', style:'left:' + r.v + '%;'})]),
     ]));
   });
+  card.appendChild(axes);
 
-  const person = (f, era) => f ? el('div',{class:'rc9-who'},[
-    portraitNode(f.name),
+  const person = (f, era) => f ? el('div',{class:'rc9-who', title: f.why || ''},[
+    portraitNode(f.name, f.photo),
     el('div',{class:'rc9-who__era'}, era),
     el('div',{class:'rc9-who__name'}, f.name),
     el('div',{class:'rc9-who__pct'}, f.pct + '%'),
   ]) : null;
-  const badge = (m, big) => el('div',{class:'rc9-who'},[
-    el('div',{class:'rc9-badge' + (big ? ' is-big' : '')}, initialsOf(m.name)),
-    el('div',{class:'rc9-who__name'}, m.name),
-    el('div',{class:'rc9-who__pct'}, m.pct + '%'),
+  const ideology = (i) => el('div',{class:'rc9-who', title: i.blurb || ''},[
+    ideologyEmblem(i.name),
+    el('div',{class:'rc9-who__name'}, i.name),
+    el('div',{class:'rc9-who__pct'}, i.pct + '%'),
   ]);
-  const side = el('div',{class:'rc9__side'},[
-    el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest leader'),
-      el('div',{class:'rc9-pair'},[person(leaders.modern, 'Modern'), person(leaders.historical, 'Historical')])]),
-    nation ? el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest nation'),
-      el('div',{class:'rc9-who'},[flagNode(nation), el('div',{class:'rc9-who__name'}, nation.name), el('div',{class:'rc9-who__pct'}, nation.pct + '%')])]) : null,
-    ideos[0] ? el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest ideology'), badge(ideos[0], true)]) : null,
-  ]);
-  card.appendChild(el('div',{class:'rc9__main'},[axes, side]));
-
-  if(ideos.length > 1) card.appendChild(el('div',{class:'rc9__panel rc9__others'},[
-    el('div',{class:'rc9__h'}, 'Other ideologies'),
-    el('div',{class:'rc9-trio'}, ideos.slice(1, 4).map(m => badge(m))),
+  // Until the AI has answered: a short note (or a retry button) in place of each match.
+  const waiting = () => {
+    if(!state.user || state.user.isGuest) return el('div',{class:'rc9-wait'}, 'Sign in to see your matches');
+    if(state.cardMatches.error) return el('div',{class:'rc9-wait'},[
+      'The AI couldn\'t be reached.',
+      el('button',{class:'rc9-retry', onclick:(e)=>{ e.stopPropagation(); state.cardMatches = { loading: false, error: null }; fetchCardMatches(); }}, 'Try again'),
+    ]);
+    return el('div',{class:'rc9-wait is-loading'}, 'The AI is reading your answers…');
+  };
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p1'},[el('div',{class:'rc9__h'}, 'CLOSEST LEADER'),
+    m ? el('div',{class:'rc9-pair'},[person(leaders.modern, 'MODERN'), person(leaders.historical, 'HISTORICAL')]) : waiting()]));
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p2'},[el('div',{class:'rc9__h'}, 'CLOSEST NATION'),
+    nation ? el('div',{class:'rc9-who rc9-solo'},[flagNode(nation), el('div',{class:'rc9-who__name'}, nation.name), el('div',{class:'rc9-who__pct'}, nation.pct + '%')]) : waiting()]));
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p3'},[el('div',{class:'rc9__h'}, 'CLOSEST IDEOLOGY'),
+    ideos[0] ? el('div',{class:'rc9-solo'}, ideology(ideos[0])) : waiting()]));
+  card.appendChild(el('div',{class:'rc9__panel rc9__others'},[
+    el('div',{class:'rc9__h'}, 'OTHER IDEOLOGIES'),
+    ideos.length > 1 ? el('div',{class:'rc9-trio'}, ideos.slice(1, 4).map(ideology)) : waiting(),
   ]));
-  card.appendChild(el('div',{class:'rc9__foot'}, 'Find where you stand · Majlis'));
+  card.appendChild(el('div',{class:'rc9__foot'}, 'FIND WHERE YOU STAND · MAJLIS'));
   return outer;
 }
 function renderResultOverlay(){
@@ -3425,10 +3489,13 @@ async function finishAssessment(position, viewText){
   state.user.philosophyScore = philosophyScore;
 
   clearDrafts('assessment-position', 'assessment-case');
+  saveAnswersForAI(state.quiz.answers);
   clearSavedQuiz();
   state.quiz.active = false;
   state.tab = signedIn ? 'compass' : 'assessment';   // the compass page shows the three maps with your result card beside them
+  state.cardMatches = { loading: false, error: null };
   render();
+  if(signedIn) fetchCardMatches();   // the AI reads your answers and finds your closest leaders, nations and ideologies
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
@@ -5852,7 +5919,7 @@ function compassMap(section, focus, dots, farthest, figures){
   // Well-known leaders: a small portrait (their names are in the text beside the map, and on hover).
   (figures || []).forEach(f => {
     const p = clampDot(f);
-    map.appendChild(el('div',{class:'opp-fig is-' + f.era, style:'left:' + p.x + '%;top:' + (100 - p.y) + '%;', title: f.name + ' (' + f.era + ')'}, portraitNode(f.name)));
+    map.appendChild(el('div',{class:'opp-fig is-' + f.era, style:'left:' + p.x + '%;top:' + (100 - p.y) + '%;', title: f.name + ' (' + f.era + ')' + (f.label ? ': ' + f.label : '')}, portraitNode(f.name, f.photo)));
   });
   if(focus && focus.compass){
     const fp = clampDot(focus.compass[section]);
@@ -5930,7 +5997,8 @@ function renderCompassSection(section){
   const me = state.user;
   const def = COMPASS_DEFS[section];
   const crowd = compassCrowd();
-  const figures = [closestOnMap(section, me.compass[section], 'modern'), closestOnMap(section, me.compass[section], 'historical')].filter(Boolean);
+  const m = savedCardMatches();
+  const figures = [closestOnMap(m, section, 'modern'), closestOnMap(m, section, 'historical')].filter(Boolean);
   const far = crowd.map(x => ({ x, d: compassDistanceOn(section, me.compass, x.compass) })).sort((p, q) => q.d - p.d)[0];
   const panel = el('section',{class:'opposites compass-panel'});
   const text = el('div',{class:'opposites__text'});
@@ -5940,10 +6008,12 @@ function renderCompassSection(section){
   if(figures.length){
     text.appendChild(el('p',{class:'opposites__sub'}, [
       'On this map you\'re closest to ',
-      el('b',{}, figures[0].name), ' (' + figures[0].pct + '%)',
+      el('b',{}, figures[0].name), ' (' + figures[0].mapPct + '%)',
       figures[1] ? ' today, and ' : '.',
-      figures[1] ? el('b',{}, figures[1].name) : null, figures[1] ? ' (' + figures[1].pct + '%) in history.' : null,
+      figures[1] ? el('b',{}, figures[1].name) : null, figures[1] ? ' (' + figures[1].mapPct + '%) in history.' : null,
     ]));
+  } else if(state.cardMatches.loading){
+    text.appendChild(el('p',{class:'opposites__sub'}, 'The AI is finding the leaders closest to you on this map…'));
   }
   text.appendChild(el('div',{class:'compass-legend'},[
     el('span',{},[el('i',{class:'is-you'}), 'You']), el('span',{},[el('i',{class:'is-modern'}), 'Modern leader']),
