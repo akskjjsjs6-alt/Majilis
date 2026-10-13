@@ -2657,7 +2657,7 @@ function portraitNode(name, photo, note){
 
 /* ================= RESULT CARD (9:16, on the Compass page and full size after the test) ================= */
 // Every axis of the test, each with both ends, where you sit (0 = the left-hand end) and a colour per group.
-const AXIS_GROUP_COLORS = { compass: '#c2255c', detail: '#1971c2', phil: '#2b8a3e' };
+const AXIS_GROUP_COLORS = { compass: '#ff7aa8', detail: '#7cc0ff', phil: '#7be08f' };
 function allAxes(u){
   const rows = [];
   ['economic', 'political', 'social'].forEach(key => {
@@ -2725,6 +2725,7 @@ async function fetchCardMatches(){
     const out = { v: 1, sig: compassSig(u.compass), at: Date.now(),
       leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
         name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
+        photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
         photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
       countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
         name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
@@ -2755,8 +2756,35 @@ function closestOnMap(m, section, era){
 
 const M_SVG = (w) => '<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const initialsOf = (name) => name.split(/[\s-]+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('');
-// Laid out like the sketch: logo and "Your results" on top, every axis on the left, closest leaders
-// (modern and historical), nation and ideology on the right, other ideologies along the bottom.
+// Circular emblems for the ideologies, picked from words in the name; anything else gets its initials.
+const IDEOLOGY_ICONS = [
+  [/monarch|royal|legitim|tradition/i, '<path d="M3 17h18l-1.5-9-4.5 4-3-6-3 6-4.5-4z"/><rect x="3" y="18.5" width="18" height="2.2" rx="1"/>'],
+  [/christian|catholic|protestant|orthodox|distribut/i, '<path d="M10 2h4v6h6v4h-6v10h-4V12H4V8h6z"/>'],
+  [/islam|muslim/i, '<path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.4A7 7 0 1 1 14.5 3.5z"/>'],
+  [/national|patriot|sovereign|kemal|gaull|fascis|falang/i, '<path d="M5 2h2v20H5z"/><path d="M8 3h12l-3 4.5 3 4.5H8z"/>'],
+  [/green|eco|environment/i, '<path d="M20 3C9 3 4 9 4 16c0 1.6.3 3 .8 4.2L6.5 19C8 13 12 9 17 7c-4 3-7 7-8 13 9 0 11-8 11-17z"/>'],
+  [/social|labou?r|worker|syndical|marx|lenin|trotsk|mao/i, '<path d="M9 21v-6.5L6.5 12V7.5a1.5 1.5 0 0 1 3 0V11h1V5.5a1.5 1.5 0 0 1 3 0V11h1V6.5a1.5 1.5 0 0 1 3 0V11h.5V9a1.5 1.5 0 0 1 3 0v5.5L17 21z"/>'],
+  [/libert|anarch|minarch|objectiv/i, '<path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z"/>'],
+  [/liberal|democra|republic/i, '<path d="M12 2 2 7v2h20V7zM4 10h3v8H4zm6.5 0h3v8h-3zM17 10h3v8h-3zM2 19h20v3H2z"/>'],
+  [/conserv|paternal|order|author/i, '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/>'],
+  [/techno|futur|transhuman|accelera/i, '<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 2.5V13l-2.3.6-.7 1.7 1.2 2-1.8 1.8-2-1.2-1.7.7L13 21h-2.5l-.6-2.3-1.7-.7-2 1.2-1.8-1.8 1.2-2-.7-1.7L3 13v-2.5l2.3-.6.7-1.7-1.2-2 1.8-1.8 2 1.2 1.7-.7L10.5 3H13l.6 2.3 1.7.7 2-1.2 1.8 1.8-1.2 2 .7 1.7z"/>'],
+  [/communit|georg|cooperat|mutual/i, '<circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M1 20c0-4 3-6.5 6-6.5s6 2.5 6 6.5zM11 20c0-4 3-6.5 6-6.5s6 2.5 6 6.5z"/>'],
+  [/centr|third way|pragmat|moderat/i, '<path d="M11 3h2v3h6l3 7a4 4 0 0 1-8 0l2.7-6H13v13h4v2H7v-2h4V7H6.3L9 13a4 4 0 0 1-8 0l3-7h7z"/>'],
+];
+function ideologyEmblem(name){
+  const hit = IDEOLOGY_ICONS.find(([re]) => re.test(name));
+  return hit ? el('span',{class:'rc9-emb', html:'<svg viewBox="0 0 24 24" fill="#fff">' + hit[1] + '</svg>'}) : el('span',{class:'rc9-emb'}, initialsOf(name));
+}
+// Wikipedia thumbnails come at 320px; the background asks for a bigger copy and falls back to the small one.
+function bigPortrait(url){
+  if(/^https:\/\/upload\.wikimedia\.org\/.*\/thumb\/.*\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, '/900px-$1');
+  if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=900');
+  return null;
+}
+const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
+// Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
+// behind everything, every axis in one tall panel on the left, three stacked panels on the right (leader, nation,
+// ideology) and the other ideologies in a wide panel along the bottom.
 function buildResultCard(){
   const u = state.user;
   if(!u || !u.compass) return null;
@@ -2768,33 +2796,43 @@ function buildResultCard(){
   const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
   outer.appendChild(card);
 
-  // The closest leader of the two is the faded background, like the sketch.
+  // The closer of the two leaders is the big black-and-white portrait behind the card.
   const bg = el('div',{class:'rc9__bg'});
   const bgWho = [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
   if(bgWho){
-    const setBg = (url) => { if(url && (/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/.test(url) || /^https:\/\/upload\.wikimedia\.org\/[^"'()\s\\]+$/.test(url))) bg.style.backgroundImage = 'url("' + url + '")'; };
-    if(bgWho.photo) setBg(bgWho.photo); else loadPortrait(bgWho.name, setBg);
+    const setBg = (url) => { if(url && SAFE_BG.test(url)) bg.style.backgroundImage = 'url("' + url + '")'; };
+    const tryBig = (url) => {
+      const big = url && bigPortrait(url);
+      if(!big){ setBg(url); return; }
+      const probe = new Image(); probe.referrerPolicy = 'no-referrer';
+      probe.onload = () => setBg(big); probe.onerror = () => setBg(url);
+      probe.src = big;
+    };
+    if(bgWho.photoUrl) tryBig(bgWho.photoUrl);
+    else if(bgWho.photo) setBg(bgWho.photo);
+    else loadPortrait(bgWho.name, tryBig);
   }
   card.appendChild(bg);
+  card.appendChild(el('div',{class:'rc9__glow'}));
   card.appendChild(el('div',{class:'rc9__grid'}));
 
-  card.appendChild(el('div',{class:'rc9__top'},[
-    el('div',{class:'rc9__logo'},[el('span',{html: M_SVG(16)}), 'MAJLIS']),
-    el('div',{class:'rc9__you'},[el('b',{}, 'YOUR RESULTS'), u.username ? el('span',{}, '@' + u.username) : null]),
-  ]));
+  card.appendChild(el('div',{class:'rc9__logo'},[el('span',{html: M_SVG(16)}), 'MAJLIS']));
+  card.appendChild(el('div',{class:'rc9__res'}, 'YOUR RESULTS'));
+  card.appendChild(el('div',{class:'rc9__axes-h'}, 'YOUR AXES'));
 
-  const axes = el('div',{class:'rc9__panel rc9__axes'},[el('div',{class:'rc9__h'}, 'Your axes')]);
+  const axes = el('div',{class:'rc9__panel rc9__axes'});
   allAxes(u).forEach(r => {
     const high = r.v >= 50;
     axes.appendChild(el('div',{class:'rc9-ax'},[
       el('div',{class:'rc9-ax__row'},[
         el('span',{class: high ? '' : 'is-lean', style: high ? '' : 'color:' + r.color}, r.lo),
-        el('b',{}, (high ? r.v : 100 - r.v) + '%'),
+        el('b',{style:'color:' + r.color}, (high ? r.v : 100 - r.v) + '%'),
         el('span',{class: high ? 'is-lean' : '', style: high ? 'color:' + r.color : ''}, r.hi),
       ]),
-      el('div',{class:'rc9-ax__bar'},[el('i',{style:'left:' + r.v + '%;background:' + r.color + ';box-shadow:0 0 6px ' + r.color + ';'})]),
+      el('div',{class:'rc9-ax__bar', style:'--c:' + r.color},[el('i',{class:'rc9-ax__mk', style:'left:' + r.v + '%;'})]),
     ]));
   });
+  card.appendChild(axes);
 
   const person = (f, era) => f ? el('div',{class:'rc9-who', title: f.why || ''},[
     portraitNode(f.name, f.photo),
@@ -2802,8 +2840,8 @@ function buildResultCard(){
     el('div',{class:'rc9-who__name'}, f.name),
     el('div',{class:'rc9-who__pct'}, f.pct + '%'),
   ]) : null;
-  const badge = (i, big) => el('div',{class:'rc9-who', title: i.blurb || ''},[
-    el('div',{class:'rc9-badge' + (big ? ' is-big' : '')}, initialsOf(i.name)),
+  const ideology = (i) => el('div',{class:'rc9-who', title: i.blurb || ''},[
+    ideologyEmblem(i.name),
     el('div',{class:'rc9-who__name'}, i.name),
     el('div',{class:'rc9-who__pct'}, i.pct + '%'),
   ]);
@@ -2816,20 +2854,17 @@ function buildResultCard(){
     ]);
     return el('div',{class:'rc9-wait is-loading'}, 'The AI is reading your answers…');
   };
-  const side = el('div',{class:'rc9__side'},[
-    el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest leader'),
-      m ? el('div',{class:'rc9-pair'},[person(leaders.modern, 'Modern'), person(leaders.historical, 'Historical')]) : waiting()]),
-    el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest nation'),
-      nation ? el('div',{class:'rc9-who'},[flagNode(nation), el('div',{class:'rc9-who__name'}, nation.name), el('div',{class:'rc9-who__pct'}, nation.pct + '%')]) : waiting()]),
-    el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest ideology'), ideos[0] ? badge(ideos[0], true) : waiting()]),
-  ]);
-  card.appendChild(el('div',{class:'rc9__main'},[axes, side]));
-
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p1'},[el('div',{class:'rc9__h'}, 'CLOSEST LEADER'),
+    m ? el('div',{class:'rc9-pair'},[person(leaders.modern, 'MODERN'), person(leaders.historical, 'HISTORICAL')]) : waiting()]));
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p2'},[el('div',{class:'rc9__h'}, 'CLOSEST NATION'),
+    nation ? el('div',{class:'rc9-who rc9-solo'},[flagNode(nation), el('div',{class:'rc9-who__name'}, nation.name), el('div',{class:'rc9-who__pct'}, nation.pct + '%')]) : waiting()]));
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p3'},[el('div',{class:'rc9__h'}, 'CLOSEST IDEOLOGY'),
+    ideos[0] ? el('div',{class:'rc9-solo'}, ideology(ideos[0])) : waiting()]));
   card.appendChild(el('div',{class:'rc9__panel rc9__others'},[
-    el('div',{class:'rc9__h'}, 'Other ideologies'),
-    ideos.length > 1 ? el('div',{class:'rc9-trio'}, ideos.slice(1, 4).map(i => badge(i))) : waiting(),
+    el('div',{class:'rc9__h'}, 'OTHER IDEOLOGIES'),
+    ideos.length > 1 ? el('div',{class:'rc9-trio'}, ideos.slice(1, 4).map(ideology)) : waiting(),
   ]));
-  card.appendChild(el('div',{class:'rc9__foot'}, 'Find where you stand · Majlis'));
+  card.appendChild(el('div',{class:'rc9__foot'}, 'FIND WHERE YOU STAND · MAJLIS'));
   return outer;
 }
 function renderResultOverlay(){
