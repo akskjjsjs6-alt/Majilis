@@ -44,256 +44,559 @@ const RELIGION_QUESTIONS = {
   "Spiritual but not religious": [{"q": "When you say you are \"spiritual\", what do you mainly mean?", "opts": ["I feel connected to something larger than myself", "I follow personal practices like meditation or ritual", "I try to live by deep values and meaning", "I believe in unseen forces or beings beyond the physical world"]}, {"q": "Which best describes what you mean by \"God\"?", "opts": ["No personal God; God is another word for nature or the universe (pantheism)", "God is in everything but also more than it (panentheism)", "A loving higher power or Source that cares about people", "Not a being at all, just energy or consciousness"]}, {"q": "What is your view of the Law of Attraction (the idea that positive thoughts attract matching outcomes)?", "opts": ["It works literally: thoughts send out energy that shapes events", "It works mainly by changing my mindset and actions", "It is a useful idea but often blames people for bad luck", "It is not real; outcomes depend on circumstances and effort"]}, {"q": "What do you think happens to the self after death?", "opts": ["Reincarnation: the soul returns in new lives", "The soul continues in a spirit world or afterlife", "Consciousness merges back into the universe or oneness", "Nothing survives, but life still has deep meaning"]}, {"q": "How do you understand karma?", "opts": ["Actions return to you, possibly across lifetimes", "Good and bad actions shape your inner life in this life", "It is a moral reminder, not a literal law of the universe", "I don't believe in karma; I act ethically for other reasons"]}, {"q": "Which meditation or mindfulness practice do you actually use most?", "opts": ["Silent sitting or breath focus (Zen or Vipassana style)", "Guided meditations through apps like Headspace, Calm or Insight Timer", "Mantra or Transcendental Meditation", "Moving practices like yoga, tai chi or walking meditation"]}, {"q": "What does yoga mean in your life?", "opts": ["Mostly physical exercise and stretching", "Exercise plus relaxation and stress relief", "A spiritual path including breathwork and philosophy", "I don't practise yoga"]}, {"q": "How do you use astrology?", "opts": ["I follow my natal chart (birth-time planet positions) for self-understanding", "I read daily or weekly horoscopes for guidance", "I watch planetary events like Mercury retrograde to plan my life", "I find it fun or symbolic but don't rely on it"]}, {"q": "How do you use tarot or oracle cards?", "opts": ["As a tool for reflection and journaling prompts", "To get real guidance about the future", "As a way to tap into intuition or spirit guides", "I don't use them"]}, {"q": "What do you think crystals do?", "opts": ["They hold or channel energy that affects mood and health", "They help by focusing my intention, like a ritual object", "They are beautiful objects with symbolic meaning only", "I don't use crystals"]}, {"q": "What is your view of reiki and other energy healing (practitioners channel energy through their hands)?", "opts": ["It moves real energy that heals the body", "It helps relaxation and wellbeing, even if the mechanism is unclear", "It is a placebo, though a comforting one", "I avoid it as unproven"]}, {"q": "Which describes your belief about chakras (energy centres in the body)?", "opts": ["They are real energy centres I actively work with", "They are a useful map of emotional and physical states", "They are an old symbolic system from Indian traditions, not literal", "I don't use the idea of chakras"]}, {"q": "Which teacher or writer has shaped your spirituality most?", "opts": ["Eckhart Tolle (living in the present moment)", "Alan Watts or Ram Dass (Eastern ideas for Western readers)", "Carl Jung (archetypes, the unconscious, synchronicity)", "A Course in Miracles, Marianne Williamson or Deepak Chopra"]}, {"q": "Where do you look first when you need spiritual guidance?", "opts": ["My own intuition or inner voice", "Spirit guides, angels or ancestors through meditation or mediums", "Books, teachers or podcasts from many traditions", "Time in nature"]}, {"q": "What do you think about mediums and people who say they talk to the dead?", "opts": ["Some are genuinely able to contact spirits", "They may sense something, but it is hard to verify", "Mostly cold reading (guessing from cues) and wishful thinking", "I'd rather connect with loved ones through my own dreams or prayer"]}, {"q": "What is your view of past lives?", "opts": ["I remember or have explored mine through regression or meditation", "I believe I had past lives but can't access them", "I use past lives as a metaphor for patterns in my life", "I don't believe in past lives"]}, {"q": "How do you mark moon cycles or seasons?", "opts": ["I do rituals at the new and full moon", "I celebrate solstices and equinoxes (Wheel of the Year, Pagan style)", "I use the moon for journaling and goal setting only", "I don't mark them"]}, {"q": "How often do you treat time outdoors as a spiritual act?", "opts": ["Daily or weekly, such as walks, hikes or sitting in nature, as worship", "Occasionally, on retreats or trips to wild places", "Gardening or caring for the land is my main way", "Rarely; I find spirituality indoors"]}, {"q": "How would you describe your relationship with the Christian tradition you grew up with, if any?", "opts": ["I still pray or use Jesus's teachings, without a church", "I kept some of its values but rejected its doctrines", "I moved toward Eastern or Pagan traditions", "I wasn't raised in any Christian tradition"]}, {"q": "What is your main reason for not joining an organised religion?", "opts": ["I don't want to be told what to believe", "I disagree with its stances on issues like sexuality or gender", "I was hurt or disillusioned by a religious institution", "I find all religions point to the same truth (the Perennial Philosophy)"]}, {"q": "Do you think the world's religions share one truth?", "opts": ["Yes, they are different paths up the same mountain", "They share an ethical core but differ in beliefs", "Some traditions are closer to the truth than others", "No, they make different claims and cannot all be right"]}, {"q": "How do you view science and skeptics of spirituality?", "opts": ["Science will eventually explain spiritual experiences", "Science and spirituality answer different questions", "Science is too limited to measure consciousness or energy", "Skeptics are right about many claims, and I keep only what survives scrutiny"]}, {"q": "What is your view of psychedelics and plant medicine (like psilocybin or ayahuasca) for spiritual growth?", "opts": ["They give real encounters with the divine or deeper reality", "They are useful therapy tools when used carefully", "I'd try them in a ceremony led by an experienced guide", "I avoid them, preferring meditation or breathwork"]}, {"q": "How do you decide what is right and wrong?", "opts": ["Do no harm and treat all life as connected", "Follow my conscience or inner knowing", "Use karma as a guide: what goes around comes around", "Follow values from a mix of traditions I have studied"]}, {"q": "How do you handle illness and medicine?", "opts": ["Conventional medicine first, with spiritual practice as support", "Mix conventional and alternative treatments such as acupuncture or Ayurveda", "Prefer natural and energy-based healing when possible", "I believe the mind or emotions largely cause illness"]}, {"q": "Where do you find a spiritual community, if anywhere?", "opts": ["Yoga studios, meditation groups or retreat centres", "Online groups, podcasts and social media", "Close friends who share my views", "I practise alone"]}, {"q": "What do you do on a spiritual retreat or ritual, if you go?", "opts": ["Silent meditation retreat (for example Vipassana, ten days)", "Yoga or wellness retreat", "Ceremony with a shaman, drumming circle or sweat lodge", "Camping or solo time in nature"]}, {"q": "How does your spirituality affect your politics?", "opts": ["It pushes me toward environmentalism and protecting the planet", "It makes me value compassion and social justice", "It makes me suspicious of both parties and mainstream institutions", "It stays personal and doesn't affect how I vote"]}, {"q": "How do you mark a birth or raise children spiritually?", "opts": ["A naming ceremony or blessing I create myself", "I'd still choose a traditional christening or baptism for family reasons", "I teach meditation, gratitude and care for nature at home", "Let them choose their own path when they're older"]}, {"q": "How would you mark a marriage or commitment?", "opts": ["A handfasting or ceremony I design myself, in nature", "A civil or secular ceremony with spiritual touches", "A traditional religious wedding for family", "Skip the ceremony and rely on private vows"]}, {"q": "What kind of funeral or farewell do you want?", "opts": ["A nature burial or ashes scattered somewhere meaningful", "A celebration of life with no religious service", "A traditional religious service for the family's sake", "A ritual where people share energy, music or meditation"]}, {"q": "What do you make of synchronicity (meaningful coincidences, Jung's term) and signs like repeating numbers?", "opts": ["They are messages from the universe, spirit guides or angels", "They are real meaning my mind picks up on intuitively", "They are a psychological pattern worth reflecting on, nothing more", "Just coincidence; the brain finds patterns everywhere"]}, {"q": "How does nature figure in your spirituality?", "opts": ["It is sacred, a direct path to the divine", "A place to recharge and reflect", "A teacher of cycles and balance", "Part of a healthy life"]}, {"q": "How did you build your own practices?", "opts": ["I create my own from many traditions", "I follow one tradition loosely", "I experiment and change often", "I keep it simple and private"]}],
 };
 
-/* Compass sections (scored like 8values: w: 2 marks the core statements of an axis, everything else counts 1): specific agree/disagree statements about one concrete proposal each, like most online tests.
-   dir = +1 means agreeing pushes toward the high end of the axis (Right, Laissez-faire, Globalist,
-   Libertarian, Progressive, Individualist); -1 means agreeing pushes toward the low end. */
-const LIKERT = ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'];
-const ECON_X_QUESTIONS = [
-  { q: 'Households earning over $500,000 a year should pay at least half of their income in tax.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'The government should run one public health insurance system that covers everyone.', dir: -1, opts: LIKERT },
-  { q: 'The minimum wage should be abolished, leaving pay to be agreed between workers and employers.', dir: 1, opts: LIKERT },
-  { q: 'Companies with over 500 employees should be required to give workers seats on their board.', dir: -1, opts: LIKERT },
-  { q: 'Unemployment benefits should stop after six months so people look for work faster.', dir: 1, opts: LIKERT },
-  { q: 'Inheritances over $2 million should be taxed at 50% or more.', dir: -1, opts: LIKERT },
-  { q: 'The corporate tax rate should be cut to attract investment, even if government spending falls.', dir: 1, opts: LIKERT },
-  { q: 'State pensions should be replaced with private retirement accounts that each person controls.', dir: 1, opts: LIKERT },
-  { q: 'The government should guarantee every adult a basic income, paid for by higher taxes.', dir: -1, opts: LIKERT },
-  { q: 'Billionaires\' wealth should be taxed every year, even if they have not sold anything.', dir: -1, opts: LIKERT },
-  { q: 'Free-market competition, not government programmes, is the best way to lift people out of poverty.', w: 2, dir: 1, opts: LIKERT },
-  { q: 'Trade unions have too much power and slow down the economy.', dir: 1, opts: LIKERT },
-];
-const ECON_Y_QUESTIONS = [
-  { q: 'The government should cap rents in big cities.', dir: -1, opts: LIKERT },
-  { q: 'Airlines, railways and energy companies should be privately owned.', dir: 1, opts: LIKERT },
-  { q: 'The government should put tariffs on cheap imports to protect factories at home.', dir: -1, opts: LIKERT },
-  { q: 'The government should let a failing major bank collapse instead of bailing it out.', dir: 1, opts: LIKERT },
-  { q: 'The state should own the major banks and energy companies.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'Occupational licences, such as for hairdressers and tour guides, should mostly be scrapped.', dir: 1, opts: LIKERT },
-  { q: 'The government should use public money to subsidise green energy and electric cars.', dir: -1, opts: LIKERT },
-  { q: 'Companies should be free to set their own prices and working conditions with minimal government rules.', w: 2, dir: 1, opts: LIKERT },
-  { q: 'During a crisis, the government should set maximum prices for essentials such as bread, fuel and electricity.', dir: -1, opts: LIKERT },
-  { q: 'Taxis, ride-share and short-term rentals should be allowed to operate without city licences.', dir: 1, opts: LIKERT },
-  { q: 'The state should run a national plan for key sectors such as steel, microchips and shipbuilding.', dir: -1, opts: LIKERT },
-  { q: 'Free-trade deals that remove tariffs should be signed with as many countries as possible.', dir: 1, opts: LIKERT },
-];
-const POL_X_QUESTIONS = [
-  { q: 'My country should leave international organisations like the UN or the WTO if they limit its freedom to act.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'Anyone with a job offer should be allowed to move to my country to work.', dir: 1, opts: LIKERT },
-  { q: 'International courts should be able to overrule my country\'s laws on human rights.', dir: 1, opts: LIKERT },
-  { q: 'Immigration should be cut sharply to protect jobs and national identity.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'My country should hand some independence to a larger body, like the EU, to solve shared problems.', dir: 1, opts: LIKERT },
-  { q: 'Foreign companies should be banned from buying key national industries such as ports and energy.', dir: -1, opts: LIKERT },
-  { q: 'Rich countries should accept refugees even when it is costly.', dir: 1, opts: LIKERT },
-  { q: 'Schools should give priority to teaching the national language, history and culture over other cultures.', dir: -1, opts: LIKERT },
-];
-const POL_Y_QUESTIONS = [
-  { q: 'Police should be allowed to read a suspect\'s private messages without a court order.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'People should be allowed to publish any opinion, even hateful ones.', w: 2, dir: 1, opts: LIKERT },
-  { q: 'Anyone convicted of a violent crime should get a long prison sentence with no early release.', dir: -1, opts: LIKERT },
-  { q: 'Cannabis and other recreational drugs should be legal for adults.', dir: 1, opts: LIKERT },
-  { q: 'The government should be able to ban protests it considers disruptive.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'Facial-recognition cameras should be allowed in public places to catch criminals.', dir: -1, opts: LIKERT },
-  { q: 'Citizens should be allowed to carry firearms with few restrictions.', dir: 1, opts: LIKERT },
-  { q: 'Apps and companies should be allowed to use encryption that police cannot break.', dir: 1, opts: LIKERT },
-];
-const SOC_X_QUESTIONS = [
-  { q: 'Same-sex couples should have exactly the same marriage rights as everyone else.', w: 2, dir: 1, opts: LIKERT },
-  { q: 'Abortion should be legal for any reason in the first 12 weeks of pregnancy.', w: 2, dir: 1, opts: LIKERT },
-  { q: 'Prayer or religious teaching should be part of daily life in public schools.', dir: -1, opts: LIKERT },
-  { q: 'Schools should teach students about different gender identities and sexual orientations.', dir: 1, opts: LIKERT },
-  { q: 'Divorce should be harder to get when a couple has young children.', dir: -1, opts: LIKERT },
-  { q: 'Public holidays should centre on the country\'s traditional religion.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'Children should be expected to follow their parents\' religion.', dir: -1, opts: LIKERT },
-  { q: 'People should be able to change their gender on official documents on request.', dir: 1, opts: LIKERT },
-];
-const SOC_Y_QUESTIONS = [
-  { q: 'A person should be free to leave their family\'s religion or career path without it being treated as shameful.', dir: 1, opts: LIKERT },
-  { q: 'Vaccines should be required to attend school or work during an outbreak.', dir: -1, opts: LIKERT },
-  { q: 'Adults should be free to live however they like, as long as they harm no one else.', w: 2, dir: 1, opts: LIKERT },
-  { q: 'Every young person should do a year of national service, military or civilian.', w: 2, dir: -1, opts: LIKERT },
-  { q: 'Adult children should be expected to look after their elderly parents instead of relying on the state.', dir: -1, opts: LIKERT },
-  { q: 'Neighbours should be able to set shared community rules, like noise and house appearance, even if some residents object.', dir: -1, opts: LIKERT },
-  { q: 'A person should be able to refuse a medical treatment even if it puts others at small risk.', dir: 1, opts: LIKERT },
-  { q: 'Terminally ill adults should be allowed to choose assisted dying.', dir: 1, opts: LIKERT },
-];
-const ECONOMIC_QUESTIONS = ECON_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(ECON_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
-const POLITICAL_QUESTIONS = POL_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(POL_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
-const SOCIAL_QUESTIONS = SOC_X_QUESTIONS.map(q=>({...q, axis:'x'})).concat(SOC_Y_QUESTIONS.map(q=>({...q, axis:'y'})));
-
 /* ======================================================================
-   Compass test, modelled on 8values: one mixed list of statements, and every answer can move
-   several axes at once. Weights run from -10 to 10 per axis (positive = agreeing pushes toward the HIGH end:
-   Right, Laissez-faire, Globalist, Libertarian, Progressive, Individualist). Answers count
-   Strongly agree +1, Agree +0.5, Neutral 0, Disagree -0.5, Strongly disagree -1.
+   Politics and society test. Same format as the philosophy questions: a question, then four real
+   positions to pick from (in the style of iSideWith's "other stances" and the Pew typology's paired
+   statements), not agree/disagree. Axes and weights draw on 8values, 12axes, SapplyValues, the
+   Political Compass and the Moral Foundations Questionnaire.
+
+   Each item: [section, question, weights, [four positions]]. The four positions run from the one that
+   pushes fully in the direction of the weights (counts +1) to the one that pushes fully the other way
+   (counts -1); the two in between count +0.4 and -0.4. They are shown in a shuffled order.
+   Positive weights push toward the HIGH end of an axis: Right, Laissez-faire, Globalist, Libertarian,
+   Progressive, Individualist, and for the extra axes the second name in DETAIL_AXES.
    Your score on an axis is your total compared with the most it could be, as a percentage.
-   `sec` is the section a statement mainly belongs to (used for the AI summary).
+   `sec` is the section a question mainly belongs to (used for the AI summary).
    ====================================================================== */
 const COMPASS_AXES = ['ex', 'ey', 'px', 'py', 'sx', 'sy', 'dm', 'ml', 'as', 'rl', 'tc', 'fd', 'pr', 'fc', 'ff', 'fl', 'fa', 'fs'];
-/* Sources this test borrows from:
-   - 8values: one mixed list, statements that move several axes, score = total compared with the maximum.
-   - Political Compass: the themes (country and world, economy, personal values, wider society, religion, sex).
-   - 12axes: extra axes beyond the compass (democracy, militarism, assimilation, religion, technology).
-   - Moral Foundations Questionnaire: five moral foundations, each a 0-100 average of agreement.
-   dm: Autocratic (low) to Democratic   ml: Militarist to Pacifist   as: Assimilationist to Multicultural
+/* dm: Autocratic (low) to Democratic   ml: Militarist to Pacifist   as: Assimilationist to Multicultural
    rl: Religious to Secular   tc: Bioconservative to Accelerationist   fd: Unitary to Federal   pr: Protectionist to Free-trade
-   fc/ff/fl/fa/fs: Care, Fairness, Loyalty, Authority, Sanctity (one-sided: agreeing raises it). */
+   fc/ff/fl/fa/fs: Care, Fairness, Loyalty, Authority, Sanctity (picking the first position raises it). */
 const DETAIL_AXES = { dm: ['Autocratic', 'Democratic'], ml: ['Militarist', 'Pacifist'], as: ['Assimilationist', 'Multicultural'], rl: ['Religious', 'Secular'], tc: ['Bioconservative', 'Accelerationist'], fd: ['Unitary', 'Federal'], pr: ['Protectionist', 'Free-trade'] };
 const FOUNDATIONS = { fc: 'Care', ff: 'Fairness', fl: 'Loyalty', fa: 'Authority', fs: 'Sanctity' };
-const COMPASS_ITEMS = (function(){
-  const prim = { economic: { x: 'ex', y: 'ey' }, political: { x: 'px', y: 'py' }, social: { x: 'sx', y: 'sy' } };
-  // extra axis loads for statements that clearly touch more than one thing (matched by the start of the statement)
-  const CROSS = {
-    'The government should put tariffs on cheap imports': { px: -5, pr: -9 },
-    'Free-trade deals that remove tariffs': { px: 6, pr: 9 },
-    'The state should run a national plan': { py: -3 },
-    'Foreign companies should be banned': { ey: -5, pr: -7 },
-    'Immigration should be cut sharply': { sx: -5, as: -6 },
-    'Rich countries should accept refugees': { ex: -3, sx: 3, as: 4 },
-    'Schools should give priority to teaching the national': { sx: -6, as: -6 },
-    'Cannabis and other recreational drugs': { sx: 4 },
-    'Citizens should be allowed to carry firearms': { sy: 3 },
-    'Same-sex couples should have exactly': { py: 3 },
-    'Abortion should be legal for any reason': { py: 3, sy: 3, rl: 3 },
-    'Prayer or religious teaching should be part': { py: -3, rl: -6 },
-    'Children should be expected to follow their parents': { rl: -6 },
-    'Public holidays should centre on': { rl: -5 },
-    'My country should leave international organisations': { ml: -2 },
-    'The government should be able to ban protests': { dm: -4 },
-    'Police should be allowed to read': { dm: -2 },
-    'Vaccines should be required': { py: -4 },
-    'Every young person should do a year of national service': { py: -4, px: -3, ml: -5 },
-    'Adult children should be expected to look after': { ey: 4, ex: 3 },
-    'Terminally ill adults should be allowed': { py: 4, sx: 3, rl: 3 },
-  };
-  const out = [];
-  [['economic', ECONOMIC_QUESTIONS], ['political', POLITICAL_QUESTIONS], ['social', SOCIAL_QUESTIONS]].forEach(([sec, bank]) => {
-    bank.forEach((q) => {
-      const w = {};
-      w[prim[sec][q.axis]] = (q.dir || 1) * (q.w === 2 ? 10 : 6);
-      const key = Object.keys(CROSS).find((k) => q.q.startsWith(k));
-      if (key) Object.assign(w, CROSS[key]);
-      out.push({ q: q.q, sec, w, opts: LIKERT });
-    });
-  });
-  // Broad statements about principles, a few moving several axes at once.
-  [
-    ['political', 'All authority should be questioned.', { py: 8, sy: 4 }],
-    ['social', 'Traditions are worth keeping simply because they are old.', { sx: -8 }],
-    ['social', 'Society was better a few generations ago than it is today.', { sx: -8 }],
-    ['political', 'A single world government would benefit humanity.', { px: 10 }],
-    ['political', 'My country\'s interests should come before those of other countries.', { px: -8 }],
-    ['economic', 'Wealth that one person earns should mostly belong to them.', { ex: 8, sy: 5 }],
-    ['economic', 'The very rich have too much power over ordinary people\'s lives.', { ex: -8 }],
-    ['economic', 'Businesses treat workers better than government rules ever could.', { ey: 8, ex: 4 }],
-    ['political', 'Keeping order matters more than protecting every individual freedom.', { py: -8 }],
-    ['social', 'Reason matters more than keeping our culture the way it is.', { sx: 8 }],
-    ['social', 'A person\'s duty to their community comes before their own ambitions.', { sy: -8 }],
-    ['economic', 'People succeed or fail mostly because of their own efforts.', { sy: 6, ex: 4, ey: 3 }],
-  ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
-  // Extra axes, in the style of 12axes.
-  [
-    ['political', 'Important national decisions should be put to a public vote.', { dm: 8 }],
-    ['political', 'Experts, not voters, should make the big decisions about the economy.', { dm: -7, ey: -2 }],
-    ['political', 'A country should keep a strong military even in peacetime.', { ml: -8, px: -2 }],
-    ['political', 'Most wars could have been avoided with better diplomacy.', { ml: 7 }],
-    ['social', 'Newcomers should adopt the local culture and drop their old customs.', { as: -8, sx: -3 }],
-    ['social', 'A country is stronger when many cultures keep their own traditions.', { as: 8, sx: 3 }],
-    ['social', 'Religion should stay out of public life.', { rl: 8, sx: 4 }],
-    ['social', 'A society without religion loses its moral compass.', { rl: -8, sx: -4 }],
-    ['social', 'Technology that edits genes or enhances the human body should be encouraged.', { tc: 8, sx: 3 }],
-    ['social', 'Some technologies should never be built, even if they would work.', { tc: -7 }],
-  ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
-  // Moral foundations, in the style of the Moral Foundations Questionnaire (two statements for each foundation).
-  [
-    ['social', 'Compassion for people who are suffering is the most important virtue.', { fc: 10, ex: -2 }],
-    ['social', 'Being cruel to someone defenceless is among the worst things a person can do.', { fc: 10 }],
-    ['social', 'It is wrong that some children inherit fortunes while others inherit nothing.', { ff: 10, ex: -4 }],
-    ['social', 'Everyone should be held to exactly the same rules, whoever they are.', { ff: 10 }],
-    ['social', 'People should stay loyal to their family and group even when it costs them.', { fl: 10, sy: -3 }],
-    ['social', 'Betraying your own team or country is one of the worst things you can do.', { fl: 10, px: -3 }],
-    ['social', 'Children must be taught to respect authority.', { fa: 10, py: -3, sx: -2 }],
-    ['social', 'People should follow orders from those above them even when they disagree.', { fa: 10, py: -3 }],
-    ['social', 'Some acts are wrong because they are disgusting or unnatural, even if nobody is harmed.', { fs: 10, sx: -4 }],
-    ['social', 'People should keep their body and mind free from degrading things.', { fs: 10, sx: -2 }],
-  ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
-  // Round each section out to 50 economic, 50 political and 59 social statements.
-  [
-    ['economic', 'Workers should have seats on company boards.', { ex: -7, dm: 3 }],
-    ['economic', 'Minimum wage laws cost more jobs than they help.', { ex: 7, ey: 4 }],
-    ['economic', 'Everyone should be guaranteed a basic income, whether they work or not.', { ex: -8, ey: -4 }],
-    ['economic', 'Private companies run hospitals better than the government does.', { ey: 7, ex: 4 }],
-    ['economic', 'Billionaires should not exist.', { ex: -9 }],
-    ['economic', 'Lower taxes on businesses create more jobs for everyone.', { ex: 8, ey: 3 }],
-    ['economic', 'Strikes are a legitimate way to win better pay.', { ex: -6 }],
-    ['economic', 'The law should limit how much a boss can earn compared with their workers.', { ex: -7, ey: -4 }],
-    ['economic', 'Taxes on inherited wealth should be abolished.', { ex: 7, sy: 3, ff: -4 }],
-    ['economic', 'Housing should be treated as a public service, not an investment.', { ex: -7, ey: -5 }],
-    ['economic', 'Giant tech companies should be broken up into smaller ones.', { ey: -7 }],
-    ['economic', 'Welfare makes people dependent on the state.', { ex: 8, sy: 4 }],
-    ['economic', 'Public transport should be free for everyone.', { ex: -5, ey: -4 }],
-    ['economic', 'The government should bail out industries that employ many people.', { ey: -6 }],
-    ['economic', 'Competition between private and state schools improves education.', { ey: 7 }],
-    ['economic', 'Strong trade unions are essential for a fair economy.', { ex: -8 }],
-    ['economic', 'Gig workers, such as delivery riders, should get the same rights as employees.', { ex: -6, ey: -4 }],
-    ['economic', 'Rents should be agreed between landlords and tenants, not set by law.', { ey: 7 }],
-    ['economic', 'Natural resources such as oil and water should belong to the whole nation.', { ex: -6, ey: -5, px: -2 }],
-    ['economic', 'Cutting government spending matters more than keeping every public service running.', { ex: 8, ey: 4 }],
-    ['economic', 'A country should grow its own food and make its own energy even if imports are cheaper.', { ey: -5, px: -6, pr: -8 }],
-    ['economic', 'Global trade makes rich countries richer and poor countries poorer.', { ex: -5, ey: -3, pr: -5 }],
+const POSITION_VALUE = [1, 0.4, -0.4, -1];
+const COMPASS_ITEMS = [
+  /* ---------- Economy ---------- */
+  ['economic', 'How should healthcare be paid for?', { ex: -6, ey: -8 }, [
+    'The state runs it for everyone, paid for from taxes',
+    'Free public healthcare for all, with private options alongside',
+    'Mostly private insurance, with the state covering the poor and the old',
+    'Leave it to the market. People buy the cover they want']],
+  ['economic', 'Who should own energy, rail and water?', { ey: -9, ex: -4 }, [
+    'The state should own and run them',
+    'Public ownership, but run at arm\'s length like a business',
+    'Private companies under tight regulation',
+    'Private companies competing, with as little regulation as possible']],
+  ['economic', 'What should happen to income tax for the highest earners?', { ex: -8 }, [
+    'Raise it sharply. The top rate should be well above half',
+    'Raise it somewhat',
+    'Keep it about where it is, or lower it a little',
+    'Replace it with one low flat rate for everyone']],
+  ['economic', 'Should billionaires exist?', { ex: -9 }, [
+    'No. Wealth above a cap should be taxed away',
+    'Yes, but they should be taxed far more heavily',
+    'Yes, as long as the money was made legally',
+    'Yes. They got rich by building things people wanted']],
+  ['economic', 'What should the law say about the minimum wage?', { ex: -6, ey: -5 }, [
+    'Set it at a real living wage by law',
+    'Keep it, and raise it with inflation',
+    'Keep it low so that young and unskilled workers can get hired',
+    'Scrap it. Pay should be agreed between worker and employer']],
+  ['economic', 'What role should trade unions play?', { ex: -8 }, [
+    'A central one. Most workers should be in a union',
+    'A useful one, and the law should protect them',
+    'They should be allowed, but strikes in key services should be limited',
+    'A harmful one. They protect insiders and hold the economy back']],
+  ['economic', 'What should the welfare state look like?', { ex: -7, sy: -3 }, [
+    'A generous safety net is the mark of a decent society',
+    'Generous, but tied to looking for work',
+    'Minimal and temporary, so people don\'t come to depend on it',
+    'Family, charity and community should do this, not the state']],
+  ['economic', 'Should everyone get a basic income from the state, whether or not they work?', { ex: -7, ey: -4 }, [
+    'Yes, enough to live on',
+    'A small one, as a floor under everyone',
+    'Only as a limited trial',
+    'No. It pays people not to work']],
+  ['economic', 'Housing has become too expensive. What is the fix?', { ex: -6, ey: -6 }, [
+    'Treat housing as a public service: build social housing at scale and cap rents',
+    'Build much more public housing, but leave private rents alone',
+    'Cut planning rules so private builders can build more',
+    'Let the market set prices and rents. Prices tell builders where to build']],
+  ['economic', 'A handful of tech companies dominate their markets. What should be done?', { ey: -7 }, [
+    'Break them up',
+    'Regulate them like utilities',
+    'Act only when there is clear abuse',
+    'Nothing. Competitors will catch up, as they always have']],
+  ['economic', 'In a recession, big employers are about to go under. What should the government do?', { ey: -7 }, [
+    'Step in and save the firms and the jobs',
+    'Support the workers, but let failing firms fail',
+    'Only stop the banking system from collapsing',
+    'Nothing. Failure is how markets correct themselves']],
+  ['economic', 'How should large inheritances be taxed?', { ex: -6, ff: 3 }, [
+    'Heavily. Inherited fortunes entrench privilege',
+    'Moderately, above a high threshold',
+    'Only the very largest estates',
+    'Not at all. That money was already taxed once']],
+  ['economic', 'Should workers elect members of their company\'s board?', { ex: -6, dm: 3 }, [
+    'Yes, half the board, as in Germany',
+    'Yes, a few seats',
+    'Only if the owners choose to allow it',
+    'No. Owners take the risk, so owners decide']],
+  ['economic', 'Who should pay for university?', { ex: -5, ey: -5 }, [
+    'It should be free, paid for by taxes',
+    'Mostly the state, with modest fees',
+    'Students, with loans they repay once they earn enough',
+    'Students and their families. Universities should compete on price']],
+  ['economic', 'How much should a government plan the economy?', { ey: -9, py: -2 }, [
+    'Set targets for key industries and direct where investment goes',
+    'Steer it through an active industrial strategy',
+    'Set fair rules, then step back',
+    'Not at all. Central planning always fails']],
+  ['economic', 'Why do some people end up rich and others poor?', { ex: 6, sy: 5 }, [
+    'Mostly their own effort and choices',
+    'Effort matters most, but luck plays a part',
+    'Background and luck matter more than effort',
+    'The system is rigged in favour of people who are already rich']],
+  ['economic', 'The government is deep in debt. What should it do?', { ex: 7, ey: 4 }, [
+    'Cut spending hard, even on popular services',
+    'Trim spending and hold taxes steady',
+    'Raise taxes on those who can afford it and protect services',
+    'Keep spending. Investing in people pays for itself']],
+  ['economic', 'Should gig workers, such as delivery riders, have the same rights as employees?', { ex: -6, ey: -4 }, [
+    'Yes, full employee rights and benefits',
+    'Some protections, such as sick pay and a minimum wage',
+    'Only what they agree with the platform',
+    'No. The flexibility is the point, for both sides']],
+  ['economic', 'Food and fuel prices suddenly spike. What should the government do?', { ey: -8 }, [
+    'Cap prices by law',
+    'Give money to the households hit hardest',
+    'Cut taxes on fuel and food for a while',
+    'Nothing. High prices bring in new supply and fix themselves']],
+  ['economic', 'Who should own oil, gas, minerals and water?', { ex: -5, ey: -5, px: -2 }, [
+    'The nation as a whole, through state companies',
+    'The state, but private firms can extract under licence',
+    'Private firms, paying the state a share of the profits',
+    'Whoever owns the land or buys the rights']],
+  ['economic', 'What should the state do about private schools?', { ey: 7, ex: 3 }, [
+    'Encourage them. Competition between schools raises standards',
+    'Allow them as they are',
+    'Allow them, but tax them like any business',
+    'Abolish them. Every child should go to the same kind of school']],
+  ['economic', 'Should the law limit how much bosses can earn compared with their workers?', { ex: -6, ey: -4 }, [
+    'Yes, a fixed maximum ratio',
+    'No cap, but pay should be published and voted on by shareholders',
+    'It is for each company\'s owners to decide',
+    'No. High pay attracts talent and is nobody else\'s business']],
+  ['economic', 'How should we deal with climate change?', { ey: -6, ex: -3 }, [
+    'Strict caps and bans on polluting industries, whatever it costs',
+    'Carbon taxes and large public investment in clean energy',
+    'Light incentives. Let new technology solve it',
+    'Growth comes first. Most climate rules do more harm than good']],
+  ['economic', 'Cheap imports are undercutting factories at home. What should be done?', { pr: -9, px: -4 }, [
+    'Put high tariffs on them',
+    'Targeted tariffs to protect key industries',
+    'Help the workers retrain, but keep trade open',
+    'Nothing. Cheaper goods help everyone, and free trade wins in the end']],
+  ['economic', 'Should your country sign more trade deals that remove tariffs?', { pr: 9, px: 5 }, [
+    'Yes, with as many countries as possible',
+    'Yes, if they include protections for workers and the environment',
+    'Only with close allies',
+    'No. They ship jobs abroad']],
+  ['economic', 'Should a country grow its own food and make its own energy, even when imports are cheaper?', { pr: -7, px: -5, ey: -3 }, [
+    'Yes. Self-sufficiency is a matter of national security',
+    'For essentials only, such as food and power',
+    'Mostly buy from whoever is cheapest, but keep a reserve',
+    'No. Buy from whoever is cheapest']],
+  ['economic', 'A foreign company wants to buy a major national firm. What should happen?', { pr: -6, ey: -4 }, [
+    'Block it. Key firms should stay in national hands',
+    'Allow it only after a security review',
+    'Allow it unless it is a defence company',
+    'Allow it. Capital should flow freely']],
+  ['economic', 'Is the gap between rich and poor a problem in itself?', { ex: -8, ff: 3 }, [
+    'Yes. A just society has to narrow it',
+    'Yes, when it gets extreme',
+    'No, as long as the poor are getting better off',
+    'No. Inequality is the natural result of freedom']],
+  ['economic', 'How should people get a pension?', { ex: -5, ey: -5 }, [
+    'A generous state pension for everyone',
+    'A basic state pension, topped up by workplace saving',
+    'Mostly private saving, with a small state safety net',
+    'People should save for their own retirement']],
+  ['economic', 'How much should the government regulate business?', { ey: -7 }, [
+    'Heavily, to protect workers, consumers and nature',
+    'Clear rules, firmly enforced',
+    'Less than now. Much of it is red tape',
+    'As little as possible. Reputations and the courts keep business honest']],
+  ['economic', 'How much of what you earn is rightly yours?', { ex: 7, sy: 4 }, [
+    'All of it. Taxation should be kept to the bare minimum',
+    'Most of it, minus a fair share for public services',
+    'Society made your income possible, so it can claim a good part',
+    'Income is a product of society and should be shared out by need']],
 
-    ['political', 'Governments should be allowed to monitor social media to stop extremism.', { py: -8, dm: -2 }],
-    ['political', 'People who reveal state secrets to the public should be protected by law.', { py: 7, dm: 3 }],
-    ['political', 'Voting should be compulsory.', { py: -4 }],
-    ['political', 'Politicians should face strict term limits.', { dm: 6 }],
-    ['political', 'Judges should be elected by the public.', { dm: 6 }],
-    ['political', 'A country should be free to ignore rulings from international courts.', { px: -8 }],
-    ['political', 'Countries should share the cost of global problems like climate change fairly.', { px: 7, ex: -3 }],
-    ['political', 'The army should be used to keep order during riots.', { py: -7, ml: -5 }],
-    ['political', 'One set of national laws should apply in the same way everywhere in the country.', { fd: -9 }],
-    ['political', 'Nuclear weapons make the world safer.', { ml: -8 }],
-    ['political', 'Countries should give up their nuclear weapons.', { ml: 8 }],
-    ['political', 'Hateful speech should be banned by law.', { py: -6 }],
-    ['political', 'People should be free to leave their country and live anywhere in the world.', { px: 6, py: 4 }],
-    ['political', 'Referendums are a better way to settle big issues than parliaments.', { dm: 7 }],
-    ['political', 'The press must be free to criticise the government without limits.', { py: 8, dm: 4 }],
-    ['political', 'A leader who gets results matters more than whether he follows every rule.', { py: -8, dm: -7 }],
-    ['political', 'Local communities should decide most things for themselves, not the national government.', { dm: 4, px: -3, fd: 8 }],
-    ['political', 'Regions should be able to make their own laws and set their own taxes, even if that means differences across the country.', { fd: 9, dm: 2 }],
-    ['political', 'The death penalty should exist for the worst crimes.', { py: -7 }],
-    ['political', 'Powerful countries have a duty to step in when a government commits atrocities.', { px: 5, ml: -4 }],
-    ['political', 'My country should spend less on its army and more on schools and hospitals.', { ml: 7, ex: -3 }],
-    ['political', 'Cities and regions should be allowed to ignore national rules they disagree with.', { fd: 7, py: 3 }],
-    ['political', 'Citizens should be able to protest without needing permission.', { py: 7 }],
-    ['political', 'Private donations to political parties should be banned.', { dm: 6, ex: -3 }],
-    ['political', 'Police should be able to use force without having to explain it afterwards.', { py: -7 }],
-    ['political', 'A government that loses an election should hand over power, even if it believes the winner will do harm.', { dm: 7, py: 3 }],
+  /* ---------- State, nation and world ---------- */
+  ['political', 'Should police be able to read people\'s private messages to stop crime and terrorism?', { py: -8, dm: -2 }, [
+    'Yes, whenever security needs it',
+    'Yes, with a judge\'s warrant in serious cases',
+    'Only in extreme cases, with strict oversight',
+    'Never. Private messages must stay private']],
+  ['political', 'Should the government be able to ban protests?', { py: -7, dm: -3 }, [
+    'Yes, any that threaten public order',
+    'Only violent ones, or ones that block essential services',
+    'Only with a court order',
+    'No. Protest needs nobody\'s permission']],
+  ['political', 'Should hateful speech be illegal?', { py: -6 }, [
+    'Yes, and enforced strictly online as well',
+    'Yes, but only clear incitement to violence or harassment',
+    'Only direct threats. Offence is not a crime',
+    'No. Any speech law will be abused by whoever is in power']],
+  ['political', 'Should the death penalty exist?', { py: -6 }, [
+    'Yes, for murder and other serious crimes',
+    'Yes, but only for the very worst crimes, such as terrorism',
+    'No, though I understand the case for it',
+    'No. The state should never kill its own citizens']],
+  ['political', 'What should the law do about recreational drugs?', { py: 7, sx: 4 }, [
+    'Legalise and regulate all of them',
+    'Legalise cannabis, and treat other drug use as a health problem',
+    'Stop prosecuting users, but keep selling illegal',
+    'Keep them illegal and enforce the law']],
+  ['political', 'Should ordinary citizens be allowed to own guns?', { py: 6, sy: 3 }, [
+    'Yes, and carry them. It is a basic right',
+    'Yes, with checks and a licence',
+    'Only for hunting and sport, under strict control',
+    'No. Only police and soldiers should have them']],
+  ['political', 'Is a strong leader who doesn\'t have to deal with parliament and elections good for a country?', { py: -8, dm: -7 }, [
+    'Yes. Results matter more than procedures',
+    'Sometimes, in a real crisis',
+    'Rarely. Power without checks goes bad',
+    'Never. Power has to be held to account']],
+  ['political', 'A government loses an election but believes the winner will do serious harm. What should it do?', { dm: 7, py: 3 }, [
+    'Hand over power anyway. The vote is the vote',
+    'Hand over power, then fight in parliament and the courts',
+    'Delay until the courts look into it',
+    'Stay on. Protecting the country matters more than the rules']],
+  ['political', 'How should big questions, such as leaving a union of countries, be decided?', { dm: 7 }, [
+    'By a public vote',
+    'By parliament, with a vote to confirm',
+    'By elected representatives alone',
+    'By experienced leaders and experts']],
+  ['political', 'Who should make the big decisions about the economy?', { dm: -6, ey: -2 }, [
+    'Independent experts, kept away from voters\' moods',
+    'Experts, with politicians signing off',
+    'Elected politicians who take expert advice',
+    'Voters, directly, as often as possible']],
+  ['political', 'How free should the press be to criticise the government?', { py: 7, dm: 4 }, [
+    'Completely free, with no limits',
+    'Free, with laws against lies about individuals',
+    'Free, but held back on matters of national security',
+    'Media that undermine the nation should be shut down']],
+  ['political', 'Someone leaks state secrets that reveal wrongdoing. What should happen to them?', { py: 6, dm: 3 }, [
+    'They should be protected by law',
+    'They should be protected if the wrongdoing was serious',
+    'They should be tried, and the motive can lower the sentence',
+    'They should be punished severely. Secrets are secret for a reason']],
+  ['political', 'Should vaccines be compulsory?', { py: -5 }, [
+    'Yes, for everyone who can safely have them',
+    'Only for school children and health workers',
+    'No, but they should be strongly encouraged',
+    'No. My body, my choice']],
+  ['political', 'Should young people have to do a year of national service?', { py: -4, px: -3, ml: -5 }, [
+    'Yes, military service for everyone',
+    'Yes, but they could choose military or community service',
+    'Only as a voluntary programme',
+    'No. The state has no right to a year of anyone\'s life']],
+  ['political', 'In a crisis, such as a pandemic or riots, what should come first?', { py: -8 }, [
+    'Order and safety, even if freedoms are suspended',
+    'Safety, with clear time limits on any emergency powers',
+    'Freedom, with only the most necessary restrictions',
+    'Freedom. Emergencies are when rights matter most']],
+  ['political', 'How much immigration should there be?', { px: 7, as: 4, sx: 3 }, [
+    'Open borders, or close to it',
+    'Generous, with sensible checks',
+    'Lower, and carefully selected',
+    'Much lower. My country comes first']],
+  ['political', 'Should rich countries take in refugees from wars?', { px: 6, ex: -2, as: 3 }, [
+    'Yes, as many as need safety',
+    'Yes, their fair share',
+    'A few, but mostly help them in their own region',
+    'No. Neighbouring countries should take them']],
+  ['political', 'An international court rules against your country. What should it do?', { px: 8 }, [
+    'Obey. International law has to apply to everyone',
+    'Obey, and argue for reform afterwards',
+    'Obey only if the ruling fits our constitution',
+    'Ignore it. No foreign court is above our own']],
+  ['political', 'What should your country\'s relationship with the UN and similar bodies be?', { px: 9 }, [
+    'Give them more power over global issues',
+    'Stay in and work through them',
+    'Stay in, but put our interests first',
+    'Leave them. They undermine our sovereignty']],
+  ['political', 'Would a single world government be good for humanity?', { px: 10 }, [
+    'Yes. It is the only way to end war and fix global problems',
+    'Some day, built up slowly from today\'s institutions',
+    'No. Strong cooperation between nations is enough',
+    'No. It would be a tyranny with nowhere to escape to']],
+  ['political', 'Your country\'s interests clash with what is best for the world. What wins?', { px: -8 }, [
+    'My country\'s interests, every time',
+    'Mostly my country, unless the global stakes are huge',
+    'Usually the world. We share one planet',
+    'The world. Nations are arbitrary lines']],
+  ['political', 'Who should pay for fighting climate change?', { px: 6, ex: -2 }, [
+    'Rich countries should pay poor ones to adapt',
+    'Every country its fair share, under a binding treaty',
+    'Each country should decide its own efforts',
+    'Not my country, while others pollute more']],
+  ['political', 'How strong should a country\'s army be in peacetime?', { ml: -8, px: -2 }, [
+    'As strong as possible. Strength keeps the peace',
+    'Strong enough to defend itself and its allies',
+    'Small, mainly for defence and disasters',
+    'As small as possible. Spend the money on people']],
+  ['political', 'Should countries give up their nuclear weapons?', { ml: 7 }, [
+    'Yes, all of them, starting with ours',
+    'Yes, but only if everyone does it together',
+    'No, while dangerous states still have them',
+    'No. They are why the great powers haven\'t fought each other']],
+  ['political', 'How should a country deal with a hostile neighbour?', { ml: 7 }, [
+    'Talk, trade and compromise. Almost every war can be avoided',
+    'Diplomacy first, with defences in reserve',
+    'Deterrence first. Talk from a position of strength',
+    'Show force early. Weakness invites attack']],
+  ['political', 'A government is massacring its own people. What should powerful countries do?', { px: 5, ml: -4 }, [
+    'Intervene militarily to stop it',
+    'Sanctions, and arms for those resisting',
+    'Condemn it and offer to mediate',
+    'Stay out. It is not our business']],
+  ['political', 'Should regions be able to make their own laws and set their own taxes?', { fd: 9, dm: 2 }, [
+    'Yes, on almost everything',
+    'Yes, on local matters such as schools and policing',
+    'Only small things. One country, one set of laws',
+    'No. Laws should be the same everywhere in the country']],
+  ['political', 'Who should decide most things in your town?', { fd: 7, px: -2 }, [
+    'The town itself',
+    'The town, within national rules',
+    'The national government, after asking local people',
+    'The national government. Local politics is too easily captured']],
+  ['political', 'Should politicians face term limits?', { dm: 5 }, [
+    'Yes, strict ones for every office',
+    'Yes, for the head of government',
+    'No. Voters can remove them',
+    'No. Experienced leaders are worth keeping']],
+  ['political', 'How should political parties be funded?', { dm: 5, ex: -3 }, [
+    'Only by the state. Ban private donations',
+    'Small donations only, with tight caps',
+    'Donations allowed, but all of them published',
+    'Freely. Giving money is a form of free speech']],
+  ['political', 'Police use force during an arrest. What should follow?', { py: -7 }, [
+    'Nothing. Officers need to act without second-guessing',
+    'A quick internal review',
+    'An independent investigation every time',
+    'An independent investigation, and prosecution when it was wrong']],
+  ['political', 'Should people be free to live and work in any country they like?', { px: 6, py: 4 }, [
+    'Yes. Free movement is a human right',
+    'Within regions, as in the EU',
+    'Only with a visa and a job',
+    'No. Each nation decides who comes in']],
+  ['political', 'Riots break out across several cities. Should the army be deployed?', { py: -6, ml: -4 }, [
+    'Yes, at once',
+    'Yes, if the police are overwhelmed',
+    'Only to protect buildings, never against crowds',
+    'No. The army should never be turned on citizens']],
+  ['political', 'Should voting be compulsory?', { py: -4, dm: 2 }, [
+    'Yes, with fines for not voting',
+    'Yes, but with a "none of the above" option',
+    'No, but voting should be made much easier',
+    'No. Not voting is a choice too']],
 
-    ['social', 'Parents should have the final say in how their children are raised, without the state interfering.', { sy: 4, sx: -3 }],
-    ['social', 'Housework and childcare should be shared equally between partners.', { sx: 8 }],
-    ['social', 'A woman\'s main duty is to her home and children.', { sx: -9 }],
-    ['social', 'Sex before marriage is wrong.', { sx: -8, fs: 4 }],
-    ['social', 'Schools should teach that there are more than two genders.', { sx: 7 }],
-    ['social', 'Gambling and pornography should be restricted by law to protect public morals.', { sx: -7, py: -4, fs: 4 }],
-    ['social', 'People should be free to merge with machines to become smarter and live longer.', { tc: 9, sx: 3 }],
-    ['social', 'People should be allowed to stay anonymous online, even when it makes abuse easier.', { py: 5, sy: 4 }],
-    ['social', 'Taking one\'s own life is always morally wrong.', { sx: -6, rl: -4 }],
-    ['social', 'Animals have rights similar to those of humans.', { sx: 6, fc: 4 }],
-    ['social', 'Eating meat is morally wrong.', { sx: 6, fc: 3 }],
-    ['social', 'Customs that cause harm should be changed, however old they are.', { sx: 6 }],
-    ['social', 'Marriage should be for life, whatever happens.', { sx: -7 }],
-    ['social', 'Children should be free to challenge their parents and teachers openly.', { sx: 5, fa: -4 }],
-    ['social', 'Immigrants should keep their own language alive at home, even across generations.', { as: 6 }],
-    ['social', 'Religious dress, such as headscarves, should be banned in public institutions.', { as: -6, rl: 4, py: -4 }],
-    ['social', 'Obedience is a more important quality in a child than independence.', { sx: -6, fa: 5, sy: -3 }],
-    ['social', 'Everyone is responsible for their own happiness. Society cannot provide it.', { sy: 7, ex: 3 }],
-    ['social', 'Artificial intelligence should be allowed to make important decisions, such as medical or legal ones.', { tc: 8, dm: -2 }],
-    ['social', 'Having children is a duty to your family and nation.', { sx: -6, sy: -4, fl: 4 }],
-    ['social', 'People of the same faith should be able to live by that faith\'s own rules in their communities.', { rl: -6, sy: -3, as: 3 }],
-    ['social', 'Learning from the mistakes of the past matters more than pushing for new ideas.', { sx: -6, tc: -3 }],
-    ['social', 'Sports teams should be separated by sex at birth.', { sx: -6 }],
-  ].forEach(([sec, q, w]) => out.push({ q, sec, w, opts: LIKERT }));
-  return out;
-})();
+  /* ---------- Society, culture and morals ---------- */
+  ['social', 'Should same-sex couples have the same marriage rights as everyone else?', { sx: 9, py: 2 }, [
+    'Yes, fully equal, including adoption',
+    'Yes, though religious groups shouldn\'t have to perform the weddings',
+    'Civil partnerships, but not marriage',
+    'No. Marriage is between a man and a woman']],
+  ['social', 'When should abortion be legal?', { sx: 7, py: 3, rl: 3 }, [
+    'Always. It is the woman\'s choice',
+    'In the first few months',
+    'Only in cases of rape, incest or danger to the mother',
+    'Never. It is the taking of a life']],
+  ['social', 'What should schools teach about gender?', { sx: 7 }, [
+    'That gender is a spectrum, not just male and female',
+    'That trans people exist and deserve respect',
+    'Biological sex only. The rest is for parents',
+    'Nothing. It is not a school\'s business']],
+  ['social', 'What is a woman\'s main role?', { sx: -8 }, [
+    'Her first duty is to her home and children',
+    'Family first, but working is fine if she wants to',
+    'Whatever she chooses, with chores shared equally',
+    'There is no such thing as a woman\'s role']],
+  ['social', 'Is sex before marriage wrong?', { sx: -7, fs: 4 }, [
+    'Yes, always',
+    'It is best avoided',
+    'It is fine in a committed relationship',
+    'It is nobody else\'s business']],
+  ['social', 'Should terminally ill adults be allowed to end their lives with a doctor\'s help?', { sx: 5, py: 4, rl: 3 }, [
+    'Yes, their life, their choice',
+    'Yes, with strict safeguards',
+    'Only in the most extreme cases',
+    'No. Life is not ours to end']],
+  ['social', 'Is a custom worth keeping just because it is old?', { sx: -8 }, [
+    'Yes. Old customs hold wisdom we don\'t fully understand',
+    'Usually, unless it clearly does harm',
+    'Only if it still makes sense today',
+    'No. Every custom should be judged on its merits']],
+  ['social', 'Was society better a few generations ago?', { sx: -7 }, [
+    'Yes, clearly. We have lost a lot',
+    'In some ways: family, community, manners',
+    'In a few ways, but most of the change was for the better',
+    'No. Things are far better now']],
+  ['social', 'What place should religion have in public life?', { rl: 8, sx: 4 }, [
+    'None. Faith is a private matter',
+    'Respected, but kept out of law and schools',
+    'A recognised role, such as an official church or religious schools',
+    'It should guide the nation\'s laws']],
+  ['social', 'Can a society keep its morals without religion?', { rl: -8, sx: -3 }, [
+    'No. Without God, morality collapses',
+    'With difficulty. Religion holds a lot together',
+    'Yes. Morality can stand on reason and empathy',
+    'Yes, and it is better off without it']],
+  ['social', 'Should prayer or religious teaching be part of the school day?', { rl: -6, py: -2 }, [
+    'Yes, every day',
+    'Yes, but families can opt out',
+    'Teaching about all religions, but no worship',
+    'No. Schools should be entirely secular']],
+  ['social', 'Should religious communities be able to live by their own religious rules?', { rl: -5, sy: -3, as: 3 }, [
+    'Yes, including their own courts for family matters',
+    'Yes, for marriage, food and dress',
+    'Only where it doesn\'t clash with national law',
+    'No. One law for everyone']],
+  ['social', 'What should be expected of immigrants?', { as: -8, sx: -3 }, [
+    'To fully adopt the local culture and leave old customs behind',
+    'To learn the language and respect local values',
+    'To obey the law. Their culture is their own business',
+    'Nothing more than anyone else. Diversity enriches the country']],
+  ['social', 'Is a country stronger when it has many cultures?', { as: 8, sx: 3 }, [
+    'Yes. Diversity is a strength',
+    'Yes, if there is a shared civic identity',
+    'Only up to a point',
+    'No. Shared culture holds a nation together']],
+  ['social', 'Should religious dress, such as headscarves, be banned in schools and public offices?', { as: -6, rl: 4, py: -4 }, [
+    'Yes, in all public institutions',
+    'Only full face coverings',
+    'Only where it gets in the way of the job',
+    'No. People should wear what they like']],
+  ['social', 'Should immigrant families keep their own language alive at home?', { as: 5 }, [
+    'Yes, and schools should help them',
+    'Yes, at home, but the national language comes first',
+    'It doesn\'t matter much either way',
+    'No. They should switch to the national language']],
+  ['social', 'Which comes first: your duty to your community, or your own ambitions?', { sy: -8 }, [
+    'My community. We owe everything to it',
+    'Mostly the community, with room for my own goals',
+    'Mostly my own goals, while being a good neighbour',
+    'My own life. Nobody owes their life to a group']],
+  ['social', 'Should adult children be expected to look after their ageing parents?', { sy: -6 }, [
+    'Yes. It is a basic duty',
+    'Yes, with the state\'s help',
+    'If they can, but the state should be the main carer',
+    'No. Everyone should plan for their own old age']],
+  ['social', 'Which matters more in a child: obedience or independence?', { sx: -5, fa: 6, sy: -3 }, [
+    'Obedience',
+    'Mostly obedience, with some independence',
+    'Mostly independence, with respect',
+    'Independence. Children should question everything']],
+  ['social', 'Is having children a duty?', { sx: -5, sy: -4, fl: 3 }, [
+    'Yes, to your family and your nation',
+    'It is the natural path for most people',
+    'It is a personal choice',
+    'No, and the world has enough people']],
+  ['social', 'Who is responsible for your happiness?', { sy: 7, ex: 3 }, [
+    'Only me',
+    'Mostly me, with help from those close to me',
+    'Me and my community together',
+    'Society. A fair society makes happy people']],
+  ['social', 'Should gene editing and human enhancement be allowed?', { tc: 8, sx: 3 }, [
+    'Yes. Let\'s make people healthier, smarter and longer-lived',
+    'For curing disease, yes. For enhancement, carefully',
+    'Only to cure serious disease',
+    'No. We shouldn\'t play God with human nature']],
+  ['social', 'Should artificial intelligence make important decisions, such as in medicine or law?', { tc: 7, dm: -2 }, [
+    'Yes, when it is more accurate than people',
+    'As an assistant, with a human signing off',
+    'Only for small, routine decisions',
+    'No. People must stay in charge']],
+  ['social', 'Should people be free to merge with machines to become smarter and live longer?', { tc: 8 }, [
+    'Yes. It is the next step for humanity',
+    'Yes, once it is proven safe',
+    'Only to treat disability or illness',
+    'No. It would end what makes us human']],
+  ['social', 'Are there technologies that should never be built, even if they would work?', { tc: -7 }, [
+    'Yes, many. Some doors shouldn\'t be opened',
+    'A few, such as weapons of mass destruction',
+    'Very few. Regulate them rather than ban them',
+    'No. Progress can\'t and shouldn\'t be stopped']],
+  ['social', 'Is it wrong to kill animals for food?', { sx: 5, fc: 4 }, [
+    'Yes. Animals have rights too',
+    'Factory farming is, but humane farming is fine',
+    'No, though cruelty should be banned',
+    'No. Animals are here for our use']],
+  ['social', 'Should people be able to stay anonymous online?', { py: 5, sy: 4 }, [
+    'Yes, always',
+    'Yes, but platforms should know who people are',
+    'Only in special cases, such as whistleblowing',
+    'No. Real names stop abuse']],
+  ['social', 'How should sports be divided?', { sx: -6 }, [
+    'By sex at birth, without exceptions',
+    'Mostly by sex at birth, with open categories',
+    'By sex, with case-by-case rules for trans athletes',
+    'By gender identity']],
+  ['social', 'Strangers far away are suffering from famine. How much do you owe them?', { fc: 9, ex: -2 }, [
+    'A great deal. Their suffering is as real as my family\'s',
+    'Something. I should give what I can',
+    'A little, after my own people are looked after',
+    'Nothing. Charity is a choice, not a duty']],
+  ['social', 'Should everyone be held to exactly the same rules, whoever they are?', { ff: 9 }, [
+    'Yes, no exceptions for anyone',
+    'Yes, almost always',
+    'Mostly, but status and circumstance can count',
+    'No. Different people need different rules']],
+  ['social', 'Some children inherit fortunes while others inherit nothing. Is that unjust?', { ff: 8, ex: -3 }, [
+    'Yes, deeply',
+    'Somewhat. It should be balanced out',
+    'Not really. Parents can help their children',
+    'No. Life isn\'t meant to be equal']],
+  ['social', 'Should you stay loyal to your family and group even when it costs you?', { fl: 9, sy: -3 }, [
+    'Yes, always',
+    'Usually',
+    'Only if they are in the right',
+    'No. Loyalty must be earned each time']],
+  ['social', 'How bad is it to betray your own country?', { fl: 8, px: -3 }, [
+    'One of the worst things a person can do',
+    'Very bad, unless the country is doing evil',
+    'It depends on what the country is doing',
+    'Countries are not owed loyalty']],
+  ['social', 'Should children be taught to respect authority?', { fa: 9, py: -3 }, [
+    'Yes, parents, teachers and elders, without question',
+    'Yes, but they can question it politely',
+    'Respect has to be earned',
+    'No. They should be taught to challenge it']],
+  ['social', 'Should people follow orders from those above them when they disagree?', { fa: 8, py: -3 }, [
+    'Yes. Order depends on it',
+    'Usually, and object through proper channels',
+    'Only if the order is clearly lawful and moral',
+    'No. Follow your own conscience']],
+  ['social', 'Can an act be wrong because it is degrading or unnatural, even if nobody is harmed?', { fs: 9, sx: -4 }, [
+    'Yes, certainly',
+    'Sometimes',
+    'Rarely. Harm is what usually matters',
+    'No. If nobody is harmed, it is not wrong']],
+  ['social', 'Should people keep their body and mind free from degrading things?', { fs: 8, sx: -2 }, [
+    'Yes. The body is sacred',
+    'Mostly. Some things debase a person',
+    'It is up to each person',
+    'No. "Degrading" is just a matter of taste']],
+  ['social', 'How bad is it to be cruel to someone who cannot defend themselves?', { fc: 8 }, [
+    'Among the worst things a person can do',
+    'Very bad',
+    'Bad, but people sometimes have their reasons',
+    'Life is hard. The strong survive']],
+  ['social', 'Should gambling and pornography be restricted by law?', { sx: -6, py: -4, fs: 4 }, [
+    'Yes, banned to protect public morals',
+    'Tightly restricted',
+    'Allowed for adults, with age checks',
+    'Fully legal. Adults can decide for themselves']],
+  ['social', 'Should marriage be for life?', { sx: -6 }, [
+    'Yes, whatever happens',
+    'Yes, except in cases of abuse',
+    'Ideally, but divorce should be easy when it fails',
+    'Marriage is an outdated contract']],
+].map(([sec, q, w, opts]) => ({ sec, q, w, opts }));
 
 /* ======================================================================
    Philosophy test: six scored axes (like the other online philosophy quizzes), each answer carries
@@ -404,3 +707,84 @@ PHIL_EFFECTS.push(
   [{"W": -2}, {"W": -1}, {"W": 1}, {"W": 2}],
   [{"K": 2}, {"K": 1}, {"K": -1}, {"K": -2, "C": 1}],
 );
+
+/* ======================================================================
+   Well-known leaders and nations placed on the same six compass axes as the test, so you can be
+   compared with them directly. Order: [economic x (Left to Right), economic y (Interventionist to
+   Laissez-faire), political x (Nationalist to Globalist), political y (Authoritarian to Libertarian),
+   social x (Traditional to Progressive), social y (Collectivist to Individualist)], each 0 to 100.
+   Rough estimates from public records and stated views, for fun and comparison only.
+   ====================================================================== */
+const FIGURES = [
+  // modern
+  ['Bernie Sanders', 'modern', [20, 30, 60, 65, 80, 45]],
+  ['Barack Obama', 'modern', [42, 45, 75, 58, 72, 52]],
+  ['Joe Biden', 'modern', [42, 42, 72, 58, 70, 50]],
+  ['Donald Trump', 'modern', [68, 55, 12, 35, 30, 62]],
+  ['Javier Milei', 'modern', [95, 95, 55, 85, 40, 90]],
+  ['Xi Jinping', 'modern', [30, 15, 30, 5, 30, 10]],
+  ['Vladimir Putin', 'modern', [55, 30, 8, 8, 15, 25]],
+  ['Emmanuel Macron', 'modern', [60, 55, 85, 50, 68, 60]],
+  ['Narendra Modi', 'modern', [60, 45, 15, 30, 15, 30]],
+  ['Recep Tayyip Erdoğan', 'modern', [50, 40, 18, 20, 15, 30]],
+  ['Viktor Orbán', 'modern', [55, 40, 10, 30, 12, 35]],
+  ['Justin Trudeau', 'modern', [38, 38, 82, 55, 88, 45]],
+  ['Angela Merkel', 'modern', [50, 45, 75, 50, 55, 45]],
+  ['Giorgia Meloni', 'modern', [58, 48, 20, 40, 15, 40]],
+  ['Luiz Inácio Lula da Silva', 'modern', [22, 30, 62, 55, 60, 40]],
+  ['Imran Khan', 'modern', [35, 35, 25, 40, 20, 30]],
+  ['Alexandria Ocasio-Cortez', 'modern', [12, 25, 70, 62, 90, 45]],
+  ['Nigel Farage', 'modern', [72, 68, 10, 55, 28, 65]],
+  ['Mohammed bin Salman', 'modern', [55, 35, 30, 8, 20, 25]],
+  ['Ron Paul', 'modern', [92, 95, 30, 92, 35, 92]],
+  ['Jacinda Ardern', 'modern', [30, 35, 72, 52, 82, 40]],
+  ['Keir Starmer', 'modern', [40, 40, 65, 50, 65, 45]],
+  ['Marine Le Pen', 'modern', [40, 30, 10, 35, 30, 35]],
+  ['Nayib Bukele', 'modern', [60, 55, 40, 12, 30, 40]],
+  // historical
+  ['Franklin D. Roosevelt', 'historical', [25, 25, 60, 40, 55, 35]],
+  ['Winston Churchill', 'historical', [65, 55, 25, 45, 25, 55]],
+  ['Margaret Thatcher', 'historical', [88, 85, 30, 50, 30, 85]],
+  ['Ronald Reagan', 'historical', [85, 82, 35, 55, 28, 80]],
+  ['Karl Marx', 'historical', [5, 15, 90, 40, 75, 15]],
+  ['Vladimir Lenin', 'historical', [5, 8, 80, 10, 70, 10]],
+  ['Joseph Stalin', 'historical', [5, 5, 30, 2, 30, 5]],
+  ['Mao Zedong', 'historical', [3, 5, 45, 3, 55, 5]],
+  ['Mahatma Gandhi', 'historical', [30, 45, 50, 80, 35, 30]],
+  ['Otto von Bismarck', 'historical', [45, 35, 10, 15, 20, 30]],
+  ['Wilhelm II', 'historical', [45, 35, 8, 8, 8, 30]],
+  ['Abraham Lincoln', 'historical', [55, 55, 40, 45, 55, 55]],
+  ['Thomas Jefferson', 'historical', [65, 80, 35, 85, 50, 85]],
+  ['Napoleon', 'historical', [50, 40, 20, 10, 50, 35]],
+  ['Mustafa Kemal Atatürk', 'historical', [40, 25, 15, 15, 85, 30]],
+  ['Charles de Gaulle', 'historical', [45, 35, 12, 25, 25, 35]],
+  ['Simón Bolívar', 'historical', [45, 40, 55, 40, 65, 45]],
+  ['Gamal Abdel Nasser', 'historical', [20, 15, 25, 15, 60, 20]],
+  ['Muhammad Ali Jinnah', 'historical', [50, 45, 35, 45, 45, 45]],
+  ['Nelson Mandela', 'historical', [30, 35, 75, 65, 75, 40]],
+  ['Che Guevara', 'historical', [5, 10, 85, 25, 70, 15]],
+  ['Augusto Pinochet', 'historical', [88, 85, 15, 5, 15, 60]],
+  ['Francisco Franco', 'historical', [55, 35, 8, 5, 5, 25]],
+  ['Benito Mussolini', 'historical', [40, 15, 5, 2, 30, 5]],
+  ['Lee Kuan Yew', 'historical', [62, 40, 55, 15, 35, 25]],
+  ['Deng Xiaoping', 'historical', [45, 35, 35, 8, 40, 20]],
+  ['Clement Attlee', 'historical', [20, 20, 55, 50, 55, 35]],
+  ['John F. Kennedy', 'historical', [45, 45, 60, 55, 60, 55]],
+].map(([name, era, v]) => ({ name, era, v }));
+const NATIONS = [
+  ['United States', 'us', [68, 65, 40, 60, 50, 78]], ['Sweden', 'se', [35, 45, 75, 72, 85, 45]],
+  ['Norway', 'no', [30, 40, 65, 72, 82, 45]], ['Denmark', 'dk', [35, 52, 65, 75, 82, 48]],
+  ['Germany', 'de', [42, 48, 78, 62, 72, 50]], ['France', 'fr', [38, 35, 70, 52, 72, 45]],
+  ['United Kingdom', 'gb', [55, 58, 55, 62, 72, 62]], ['Switzerland', 'ch', [62, 72, 40, 80, 55, 70]],
+  ['Singapore', 'sg', [65, 55, 62, 18, 40, 40]], ['China', 'cn', [30, 15, 30, 5, 35, 12]],
+  ['Russia', 'ru', [50, 30, 10, 8, 15, 30]], ['Iran', 'ir', [30, 20, 12, 8, 5, 15]],
+  ['Saudi Arabia', 'sa', [55, 35, 30, 5, 8, 25]], ['Turkey', 'tr', [48, 38, 18, 18, 25, 30]],
+  ['India', 'in', [45, 40, 30, 40, 25, 30]], ['Japan', 'jp', [55, 48, 40, 55, 35, 30]],
+  ['Brazil', 'br', [40, 40, 45, 55, 48, 45]], ['Argentina', 'ar', [80, 85, 50, 65, 55, 70]],
+  ['Poland', 'pl', [45, 42, 25, 45, 25, 38]], ['Hungary', 'hu', [52, 40, 12, 30, 15, 35]],
+  ['Canada', 'ca', [42, 48, 82, 65, 85, 55]], ['Netherlands', 'nl', [50, 58, 75, 72, 85, 60]],
+  ['Cuba', 'cu', [5, 5, 40, 10, 40, 10]], ['Pakistan', 'pk', [45, 38, 20, 30, 10, 25]],
+  ['Israel', 'il', [58, 55, 25, 45, 40, 45]], ['New Zealand', 'nz', [48, 58, 72, 70, 82, 55]],
+  ['Estonia', 'ee', [70, 75, 70, 72, 60, 72]], ['Venezuela', 've', [10, 10, 30, 12, 45, 15]],
+  ['Mexico', 'mx', [38, 40, 45, 50, 45, 40]], ['Vietnam', 'vn', [35, 30, 40, 8, 40, 15]],
+].map(([name, code, v]) => ({ name, code, v }));
