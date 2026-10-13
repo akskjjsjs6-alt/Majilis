@@ -37,9 +37,17 @@ function b64(buf: Uint8Array): string {
 }
 const WIKI_IMG = /^https:\/\/upload\.wikimedia\.org\//;
 async function getJson(url: string): Promise<any> {
-  const r = await fetch(url, { headers: { 'User-Agent': UA, 'Api-User-Agent': UA, 'Accept': 'application/json' }, signal: AbortSignal.timeout(6000) });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+  let last: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {   // one retry: a single slow answer shouldn't cost someone their photo
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': UA, 'Api-User-Agent': UA, 'Accept': 'application/json' }, signal: AbortSignal.timeout(7000) });
+      if (r.ok) return await r.json();
+      last = new Error('HTTP ' + r.status);
+      if (r.status < 500 && r.status !== 429) break;
+    } catch (e) { last = e; }
+    await new Promise((res) => setTimeout(res, 400));
+  }
+  throw last;
 }
 // A last resort: the picture Wikidata lists for the person (served through Wikimedia Commons).
 async function wikidataImageUrl(name: string): Promise<string | null> {
@@ -62,6 +70,7 @@ async function wikiThumbUrl(name: string): Promise<string | null> {
   const pick = (j: any) => { const pages = Object.values(j?.query?.pages ?? {}) as any[]; pages.sort((a, b) => (a.index ?? 0) - (b.index ?? 0)); for (const p of pages) { const s = p?.thumbnail?.source; if (s && WIKI_IMG.test(s)) return s as string; } return null; };
   try { const s = pick(await getJson(q + '&redirects=1&titles=' + encodeURIComponent(name))); if (s) return s; } catch { /* next */ }
   try { const s = pick(await getJson(q + '&generator=search&gsrlimit=1&gsrsearch=' + encodeURIComponent(name))); if (s) return s; } catch { /* next */ }
+  try { const s = pick(await getJson(q + '&generator=search&gsrlimit=3&gsrsearch=' + encodeURIComponent(name + ' politician leader'))); if (s) return s; } catch { /* next */ }
   return await wikidataImageUrl(name);
 }
 async function fetchImage(url: string, maxBytes: number): Promise<{ data?: string; note?: string }> {
@@ -78,7 +87,8 @@ async function fetchImage(url: string, maxBytes: number): Promise<{ data?: strin
 async function portrait(name: string): Promise<{ photo?: string; photoUrl?: string; pnote?: string }> {
   const url = await wikiThumbUrl(name);
   if (!url) return { pnote: 'no Wikipedia photo found' };
-  const r = await fetchImage(url, 250000);
+  let r = await fetchImage(url, 250000);
+  if (!r.data) r = await fetchImage(url, 250000);
   return r.data ? { photo: r.data, photoUrl: url } : { photoUrl: url, pnote: r.note };
 }
 
@@ -230,19 +240,10 @@ async function cardMode(b: any) {
   if ('error' in leaders) return json({ error: leaders.error });
   const nations = 'error' in rest ? { countries: [], ideologies: [] } : rest;
 
-  // Photos for the leaders that are shown: the closest modern and historical overall, and the closest of each on every map.
-  const shown = new Set<any>();
-  for (const era of ['modern', 'historical']) {
-    const pool = leaders.filter((l: any) => l.era === era);
-    if (pool[0]) shown.add(pool[0]);
-    for (const k of MAPS) {
-      const near = pool.slice().sort((a: any, c: any) => Math.hypot(a.pos[k].x - maps[k].me.x, a.pos[k].y - maps[k].me.y) - Math.hypot(c.pos[k].x - maps[k].me.x, c.pos[k].y - maps[k].me.y))[0];
-      if (near) shown.add(near);
-    }
-  }
+  // Photos for every leader, fetched in parallel, so the page can always show the closest leader who has a face.
   await Promise.all([
-    ...[...shown].map(async (l: any) => { Object.assign(l, await portrait(l.name).catch((e) => ({ pnote: String(e).slice(0, 60) }))); }),
-    ...nations.countries.slice(0, 1).map(async (c: any) => { const r = await fetchImage(`https://flagcdn.com/w80/${c.code}.png`, 30000); if (r.data) c.flag = r.data; }),
+    ...leaders.map(async (l: any) => { Object.assign(l, await portrait(l.name).catch((e) => ({ pnote: String(e).slice(0, 60) }))); }),
+    ...nations.countries.slice(0, 3).map(async (c: any) => { const r = await fetchImage(`https://flagcdn.com/w160/${c.code}.png`, 60000); if (r.data) c.flag = r.data; }),
   ]);
   return json({ card: { leaders, countries: nations.countries, ideologies: nations.ideologies } });
 }

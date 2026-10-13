@@ -2562,9 +2562,9 @@ function statCard(label, value){
   ]);
 }
 
-/* A reusable "the AI is working" screen: a plain white robot checking cards with a magnifying glass,
-   one line saying what it is doing, and a thin progress line. Steps tick over on a timer and the last one
-   holds until stopThink() is called, so a slow answer never looks frozen. */
+/* A reusable "the AI is working" screen: a big radar sweeping for people, with a small white robot scanning
+   in the middle, then the title, what it is doing now, and a progress bar. Steps tick over on a timer and the
+   last one holds until stopThink() is called, so a slow answer never looks frozen. */
 const thinkStages = {};
 function stopThink(id){
   const t = thinkStages[id];
@@ -2572,36 +2572,47 @@ function stopThink(id){
 }
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
-  const node = el('div',{class:'think-stage'});
-  // three small cards placed where the glass lands as the arm swings from the shoulder
-  const card = (cls, cx, cy) => { const x = cx - 15, y = cy - 18;
-    return '<g class="tk-card ' + cls + '"><rect x="' + x + '" y="' + y + '" width="30" height="36" rx="4" class="tk-card__bg"/>' +
-      '<line x1="' + (x + 6) + '" y1="' + (y + 9) + '" x2="' + (x + 24) + '" y2="' + (y + 9) + '" class="tk-card__line"/>' +
-      '<line x1="' + (x + 6) + '" y1="' + (y + 16) + '" x2="' + (x + 20) + '" y2="' + (y + 16) + '" class="tk-card__line"/>' +
-      '<path class="tk-tick" d="M' + (x + 8) + ' ' + (y + 25) + ' l4 4 l9 -10"/></g>'; };
-  node.appendChild(el('div',{class:'think-scene', 'aria-hidden':'true', html:
-    '<svg viewBox="0 0 250 200">' +
-    '<line x1="20" y1="190" x2="230" y2="190" class="tk-ground"/>' +
-    card('tk-c1', 158, 53) + card('tk-c2', 170, 100) + card('tk-c3', 151, 145) +
+  const node = el('div',{class:'judge-stage think-stage'});
+  const radar = el('div',{class:'think-radar', 'aria-hidden':'true'});
+  // the blips are people being found
+  [[22,30],[70,24],[38,70],[76,68],[56,44],[26,52]].forEach(([x,y], i) => radar.appendChild(el('span',{class:'think-blip', style:'left:'+x+'%;top:'+y+'%;animation-delay:'+(i*0.55)+'s'})));
+  radar.appendChild(el('div',{class:'think-sweep'}));
+  radar.appendChild(el('div',{class:'think-bot', html:
+    '<svg viewBox="70 40 150 172">' +
+    '<ellipse class="tk-shadow" cx="125" cy="206" rx="34" ry="5"/>' +
     '<g class="tk-robot">' +
-      '<line x1="70" y1="20" x2="70" y2="34" class="tk-line"/><circle cx="70" cy="16" r="4" class="tk-line"/>' +
-      '<rect x="44" y="34" width="52" height="40" rx="10" class="tk-line"/>' +
-      '<g class="tk-eyes"><circle cx="60" cy="54" r="3.5"/><circle cx="80" cy="54" r="3.5"/></g>' +
-      '<rect x="48" y="80" width="44" height="54" rx="8" class="tk-line"/>' +
-      '<line x1="48" y1="94" x2="34" y2="118" class="tk-line"/>' +
-      '<g class="tk-arm"><line x1="92" y1="94" x2="159" y2="99" class="tk-line"/><circle cx="170" cy="100" r="11" class="tk-line tk-lens"/></g>' +
-      '<line x1="60" y1="134" x2="60" y2="188" class="tk-line"/><line x1="80" y1="134" x2="80" y2="188" class="tk-line"/>' +
+      '<line x1="125" y1="52" x2="125" y2="70" class="tk-limb"/><circle cx="125" cy="48" r="6" class="tk-ant"/>' +
+      '<rect x="89" y="70" width="72" height="54" rx="17" class="tk-head"/>' +
+      '<rect x="99" y="80" width="52" height="32" rx="11" class="tk-face"/>' +
+      '<g class="tk-eyes"><ellipse cx="112" cy="95" rx="6" ry="7.5"/><ellipse cx="138" cy="95" rx="6" ry="7.5"/></g>' +
+      '<path d="M116 106 q9 7 18 0" class="tk-mouth"/>' +
+      '<rect x="97" y="128" width="56" height="52" rx="15" class="tk-body"/>' +
+      '<path d="M112 160 L112 144 L125 154 L138 144 L138 160" class="tk-chestM"/>' +
+      '<line x1="98" y1="142" x2="80" y2="164" class="tk-limb"/>' +
+      '<g class="tk-arm"><line x1="152" y1="142" x2="176" y2="152" class="tk-limb"/><circle cx="190" cy="146" r="15" class="tk-lens"/><line x1="201" y1="157" x2="214" y2="172" class="tk-handle"/></g>' +
+      '<rect x="105" y="182" width="14" height="22" rx="7" class="tk-body"/><rect x="131" y="182" width="14" height="22" rx="7" class="tk-body"/>' +
     '</g></svg>'}));
-  node.appendChild(el('div',{class:'think-title'}, cfg.title));
-  node.appendChild(el('div',{class:'think-phase'}, cfg.steps[0]));
-  node.appendChild(el('div',{class:'think-bar'},[el('div',{class:'think-bar__fill'})]));
+  node.appendChild(el('div',{class:'think-scene'}, radar));
+  node.appendChild(el('div',{class:'judge-head think-head'},[
+    el('div',{class:'judge-orb', html:
+      '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="judge-orb__track"/><circle cx="60" cy="60" r="54" class="judge-orb__arc"/>' +
+      '<path d="M 38,78 L 38,42 L 60,66 L 82,42 L 82,78" class="judge-orb__m"/></svg>'}),
+    el('div',{},[
+      el('div',{class:'judge-kicker'}, cfg.kicker),
+      el('div',{class:'judge-title'}, cfg.title),
+      el('div',{class:'judge-phase'}, cfg.steps[0]),
+    ]),
+  ]));
+  node.appendChild(el('div',{class:'judge-bar think-bar'},[el('div',{class:'judge-bar__fill'})]));
+  node.appendChild(el('div',{class:'think-pct'}, '0%'));
   const t0 = Date.now(), per = cfg.secondsPerStep || 4;
   const tick = () => {
     const secs = (Date.now() - t0) / 1000;
     const active = Math.min(cfg.steps.length - 1, Math.floor(secs / per));
-    node.querySelector('.think-phase').textContent = cfg.steps[active] + '…';
+    node.querySelector('.judge-phase').textContent = cfg.steps[active] + '…';
     const p = Math.round(96 * (1 - Math.exp(-secs / (per * cfg.steps.length * 0.7))));
-    node.querySelector('.think-bar__fill').style.width = p + '%';
+    node.querySelector('.judge-bar__fill').style.width = p + '%';
+    node.querySelector('.think-pct').textContent = p + '%';
   };
   tick();
   thinkStages[id] = { node, timer: setInterval(tick, 250) };
@@ -2691,10 +2702,18 @@ function flagNode(c){
 const cardMatchKey = () => 'majlis-card-' + (state.user && state.user.id || 'guest');
 const answersKey = () => 'majlis-answers-' + (state.user && state.user.id || 'guest');
 const compassSig = (c) => ['economic', 'political', 'social'].map(k => c[k].x + ',' + c[k].y).join('|');
+let cardMatchesMemory = null;   // kept here too, in case the device can't store it
 function savedCardMatches(){
   const c = state.user && state.user.compass;
   if(!c) return null;
-  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 1 && m.sig === compassSig(c) ? m : null; } catch(e){ return null; }
+  const sig = compassSig(c);
+  if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return cardMatchesMemory;
+  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 2 && m.sig === sig ? m : null; } catch(e){ return null; }
+}
+// The leader shown for an era: the closest one who has a photo, so the card always shows a face.
+function leaderFor(m, era){
+  const pool = m ? m.leaders.filter(l => l.era === era) : [];
+  return pool.find(l => l.photo) || pool[0] || null;
 }
 // Your chosen positions are kept so the AI can read them, not just the scores.
 function saveAnswersForAI(answers){
@@ -2707,37 +2726,50 @@ async function fetchCardMatches(){
   if(!u || u.isGuest || !u.id || !u.compass || state.cardMatches.loading) return;
   state.cardMatches = { loading: true, error: null };
   render();
-  try {
-    let answers = [];
-    try { answers = JSON.parse(localStorage.getItem(answersKey()) || '[]'); } catch(e){}
-    const maps = {};
-    ['economic', 'political', 'social'].forEach(k => {
-      const d = COMPASS_DEFS[k];
-      maps[k] = { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1], me: u.compass[k], label: ideologyLabel(u, k) };
-    });
-    const axes = allAxes(u).slice(6).map(r => r.lo + ' ' + (100 - r.v) + '% / ' + r.hi + ' ' + r.v + '%').join('\n');
-    const extra = [u.archetype && !/not yet/i.test(u.archetype) ? 'Philosophy: ' + u.archetype : '',
-      u.religion && u.religion !== 'Prefer not to say' ? 'Religion: ' + u.religion + (u.denomination ? ', ' + u.denomination : '') : ''].filter(Boolean).join('. ');
-    const { data, error } = await sb.functions.invoke('ai-matches', { region: FN_REGION,
-      body: { mode: 'card', maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') } });
-    if(data && data.error) throw new Error(data.error);
-    if(error || !data || !data.card) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
-    const card = data.card;
-    const out = { v: 1, sig: compassSig(u.compass), at: Date.now(),
-      leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
-        name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
-        photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
-        photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
-      countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
-        name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
-      ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
-    if(!out.leaders.length) throw new Error('no leaders came back');
-    try { localStorage.setItem(cardMatchKey(), JSON.stringify(out)); } catch(e){}
-    state.cardMatches = { loading: false, error: null };
-  } catch(e){
-    console.warn('card matches unavailable', e);
-    state.cardMatches = { loading: false, error: String(e && e.message || e).slice(0, 160) };
+  let answers = [];
+  try { answers = JSON.parse(localStorage.getItem(answersKey()) || '[]'); } catch(e){}
+  const maps = {};
+  ['economic', 'political', 'social'].forEach(k => {
+    const d = COMPASS_DEFS[k];
+    maps[k] = { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1], me: u.compass[k], label: ideologyLabel(u, k) };
+  });
+  const axes = allAxes(u).slice(6).map(r => r.lo + ' ' + (100 - r.v) + '% / ' + r.hi + ' ' + r.v + '%').join('\n');
+  const extra = [u.archetype && !/not yet/i.test(u.archetype) ? 'Philosophy: ' + u.archetype : '',
+    u.religion && u.religion !== 'Prefer not to say' ? 'Religion: ' + u.religion + (u.denomination ? ', ' + u.denomination : '') : ''].filter(Boolean).join('. ');
+  const body = { mode: 'card', maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') };
+  let lastErr = null;
+  // A busy AI is the usual reason for a miss, so try up to three times before showing "Try again".
+  for(let attempt = 0; attempt < 3; attempt++){
+    if(attempt) await new Promise(r => setTimeout(r, attempt * 3000));
+    try {
+      const { data, error } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body });
+      if(data && data.error) throw new Error(data.error);
+      if(error || !data || !data.card) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
+      const card = data.card;
+      const out = { v: 2, sig: compassSig(u.compass), key: cardMatchKey(), at: Date.now(),
+        leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
+          name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
+          photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
+          photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
+        countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
+          name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
+        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
+      if(!out.leaders.some(l => l.era === 'modern') || !out.leaders.some(l => l.era === 'historical')) throw new Error('no leaders came back');
+      // Keep embedded photos only for the leaders that are shown (card and maps), so it fits in the device's storage.
+      const shown = new Set(['modern', 'historical'].map(era => leaderFor(out, era)));
+      ['economic', 'political', 'social'].forEach(k => ['modern', 'historical'].forEach(era => shown.add(closestOnMap(out, k, era, true))));
+      out.leaders.forEach(l => { if(!shown.has(l) && l.photo && l.photo.startsWith('data:')) l.photo = l.photoUrl; });
+      cardMatchesMemory = out;
+      try { localStorage.setItem(cardMatchKey(), JSON.stringify(out)); } catch(e){}
+      state.cardMatches = { loading: false, error: null };
+      render();
+      return;
+    } catch(e){
+      console.warn('card matches unavailable (try ' + (attempt + 1) + ')', e);
+      lastErr = e;
+    }
   }
+  state.cardMatches = { loading: false, error: String(lastErr && lastErr.message || lastErr).slice(0, 160) };
   render();
 }
 // The AI's results for the card, asking for them the first time they're needed.
@@ -2747,12 +2779,18 @@ function cardMatches(){
   return m;
 }
 // The closest of the AI's leaders on one map only (its two axes), for the portraits on the Compass page.
-function closestOnMap(m, section, era){
+// Among the nearest, one with a photo is preferred (within 10 points of the very nearest), so the map shows a face.
+function closestOnMap(m, section, era, raw){
   const me = state.user.compass[section];
-  return (m ? m.leaders : []).filter(l => l.era === era).map(l => {
+  const ranked = (m ? m.leaders : []).filter(l => l.era === era).map(l => {
     const p = l.pos[section], dist = Math.hypot(p.x - me.x, p.y - me.y);
-    return Object.assign({}, l, { x: p.x, y: p.y, dist, mapPct: Math.max(0, Math.round(100 - dist / 1.414)) });
-  }).sort((a, b) => a.dist - b.dist)[0] || null;
+    return { l, dist };
+  }).sort((a, b) => a.dist - b.dist);
+  if(!ranked.length) return null;
+  const pick = ranked.find(r => r.l.photo && r.dist <= ranked[0].dist + 10) || ranked[0];
+  if(raw) return pick.l;
+  const p = pick.l.pos[section];
+  return Object.assign({}, pick.l, { x: p.x, y: p.y, dist: pick.dist, mapPct: Math.max(0, Math.round(100 - pick.dist / 1.414)) });
 }
 
 const M_SVG = (w) => '<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -2782,6 +2820,15 @@ function bigPortrait(url){
   if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=900');
   return null;
 }
+// Waits (up to 8 seconds) for the background portrait of the card, so the card appears complete.
+function preloadCardPortrait(){
+  const m = savedCardMatches();
+  const who = m && [leaderFor(m, 'modern'), leaderFor(m, 'historical')].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
+  if(!who) return Promise.resolve();
+  const load = (url) => new Promise(done => { if(!url || url.startsWith('data:')) return done(); const img = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = img.onerror = () => done(); img.src = url; });
+  const work = who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? Promise.resolve() : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done)));
+  return Promise.race([work, new Promise(done => setTimeout(done, 8000))]);
+}
 const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
 // Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
 // behind everything, every axis in one tall panel on the left, three stacked panels on the right (leader, nation,
@@ -2791,7 +2838,7 @@ function buildResultCard(){
   if(!u || !u.compass) return null;
   loadExtras();
   const m = cardMatches();
-  const leaders = m ? { modern: m.leaders.find(l => l.era === 'modern'), historical: m.leaders.find(l => l.era === 'historical') } : {};
+  const leaders = m ? { modern: leaderFor(m, 'modern'), historical: leaderFor(m, 'historical') } : {};
   const nation = m && m.countries[0];
   const ideos = m ? m.ideologies : [];
   const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
@@ -3179,7 +3226,8 @@ function renderAssessment(){
     wrap.appendChild(thinkStage('assessment', {
       kicker: 'AI ANALYSIS', title: 'Mapping where you stand', secondsPerStep: 4,
       steps: ['Reading your answers', 'Placing you on the economic map', 'Placing you on the political map', 'Placing you on the social map',
-              'Studying your philosophy', 'Looking at your religious outlook', 'Grading your written case', 'Saving your results'],
+              'Studying your philosophy', 'Looking at your religious outlook', 'Grading your written case', 'Finding your closest leaders',
+              'Matching you to nations and ideologies', 'Building your result card'],
     }));
     return wrap;
   }
@@ -3490,12 +3538,16 @@ async function finishAssessment(position, viewText){
 
   clearDrafts('assessment-position', 'assessment-case');
   saveAnswersForAI(state.quiz.answers);
+  // The loading screen stays up until the card is complete: the AI finds your closest leaders, nations and
+  // ideologies, and the leader's portrait for the background has loaded.
+  if(signedIn){
+    state.cardMatches = { loading: false, error: null };
+    await fetchCardMatches();
+    await preloadCardPortrait();
+  }
   clearSavedQuiz();
   state.quiz.active = false;
   state.tab = signedIn ? 'compass' : 'assessment';   // the compass page shows the three maps with your result card beside them
-  state.cardMatches = { loading: false, error: null };
-  render();
-  if(signedIn) fetchCardMatches();   // the AI reads your answers and finds your closest leaders, nations and ideologies
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
