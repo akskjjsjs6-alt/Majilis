@@ -452,7 +452,7 @@ const state = {
   cardMatches: { loading: false, error: null },   // the AI's closest leaders, nations and ideologies for the result card
   exploreOpen: false,
   mobileNavOpen: false,
-  theme: (()=>{ try { return localStorage.getItem('majlis-theme') || 'dark'; } catch(e){ return 'dark'; } })(),
+  theme: (()=>{ try { const t = localStorage.getItem('majlis-theme') || 'dark'; return t === 'sigma' ? 'midnight' : t; } catch(e){ return 'dark'; } })(),
   cookieConsent: localStorage.getItem('cookieConsent') === 'true',
   searchQuery: '',
   searchResults: null,
@@ -495,8 +495,9 @@ document.documentElement.setAttribute('data-theme', state.theme);
    stored a big copy of every user in localStorage — clean that up. */
 try { localStorage.removeItem('majlis_state_v1'); } catch(e) {}
 
-const THEMES = ['dark', 'light', 'mint', 'glass', 'esports', 'retro', 'kawaii', 'shonen', 'doge', 'sigma', 'vapor', 'lofi'];
+const THEMES = ['dark', 'light', 'mint', 'glass', 'esports', 'retro', 'kawaii', 'shonen', 'doge', 'midnight', 'vapor', 'lofi'];
 function setTheme(name) {
+  if(name === 'sigma') name = 'midnight';   // Sigma Gold was replaced by Midnight
   state.theme = THEMES.includes(name) ? name : 'dark';
   try { localStorage.setItem('majlis-theme', state.theme); } catch(e) {}
   document.documentElement.setAttribute('data-theme', state.theme);
@@ -504,7 +505,7 @@ function setTheme(name) {
 }
 // The quick sun/moon button flips between dark and light (Retro is picked in Settings).
 function toggleTheme() { setTheme(state.theme === 'dark' ? 'light' : 'dark'); }
-const THEME_LABELS = [['dark','Neon'],['light','Light'],['mint','Mint'],['glass','Glass'],['esports','Esports'],['retro','Retro'],['kawaii','Kawaii Pink'],['shonen','Shonen Red'],['doge','Much Wow'],['sigma','Sigma Gold'],['vapor','Vaporwave'],['lofi','Lofi Night']];
+const THEME_LABELS = [['dark','Neon'],['light','Light'],['mint','Mint'],['glass','Glass'],['esports','Esports'],['retro','Retro'],['kawaii','Kawaii Pink'],['shonen','Shonen Red'],['doge','Much Wow'],['midnight','Midnight'],['vapor','Vaporwave'],['lofi','Lofi Night']];
 
 // The glowing M in the home hero, and the faint giant M behind the page (Update 15).
 const M_PATH = 'M 55,140 L 55,60 L 100,105 L 145,60 L 145,140';
@@ -2657,7 +2658,7 @@ function portraitNode(name, photo, note){
 
 /* ================= RESULT CARD (9:16, on the Compass page and full size after the test) ================= */
 // Every axis of the test, each with both ends, where you sit (0 = the left-hand end) and a colour per group.
-const AXIS_GROUP_COLORS = { compass: '#ff7aa8', detail: '#7cc0ff', phil: '#7be08f' };
+const AXIS_GROUP_COLORS = { compass: 'var(--rc-a1)', detail: 'var(--rc-a2)', phil: 'var(--rc-a3)' };   // set per theme in styles.css
 function allAxes(u){
   const rows = [];
   ['economic', 'political', 'social'].forEach(key => {
