@@ -1,20 +1,20 @@
 /* Majlis — assessment question banks (data only). Loaded before app.js. */
 const PHIL_QUESTIONS = [
   { q: 'A runaway train will kill five people unless you pull a lever that sends it onto a track where it will kill one person. What do you do?', opts: ['Pull the lever. Saving five is clearly better than saving one', 'Pull it, but I would feel guilty whichever way I went', 'Don\'t pull it. I shouldn\'t actively cause someone\'s death', 'There is no right answer. It just comes down to how people feel'] },
-  { q: 'Your friend asks what you think of their business plan, which you expect to fail. Do you tell them the truth?', opts: ['Yes, always. Honesty matters more than feelings', 'Yes, but kindly and with suggestions', 'It depends on the friend and what\'s at stake', 'No. A kind white lie is better'] },
-  { q: 'You find a wallet with $2,000 and an ID card. No one saw you pick it up. What do you do?', opts: ['Return it. It\'s the right thing whether or not anyone knows', 'Return it, mainly because of the kind of person I want to be', 'Return it, mostly because I would want mine back', 'Keep it. Nobody I know of gets hurt'] },
-  { q: 'A well-run scientific study contradicts something you strongly believe. What do you do?', opts: ['Check the study\'s methods, and change my mind if they hold up', 'Take it seriously, but lean toward my existing view', 'Look for other studies that agree with me', 'Ignore it. I trust my own experience more'] },
+  { q: 'Your closest friend is about to put their life savings into a business you\'re sure will fail. They ask what you honestly think. Do you tell them?', opts: ['Yes, bluntly. Their savings matter more than their feelings', 'Yes, gently, and help them fix the plan', 'Only if they seem ready to hear it', 'No. It is their dream, and my doubts could be wrong'] },
+  { q: 'You find a wallet with $2,000 and an ID card. No one saw you, and you\'re behind on rent. What do you do?', opts: ['Return it. It\'s the right thing whether or not anyone knows', 'Return it, mainly because of the kind of person I want to be', 'Return it, mostly because I would want mine back', 'Keep the cash and post back the cards. I need it more than they probably do'] },
+  { q: 'A well-run scientific study contradicts something you strongly believe. What do you do?', opts: ['Check the study\'s methods, and change my mind if they hold up', 'Take it seriously, but wait for others to repeat it before changing my mind', 'Look hard for its flaws. One study rarely settles anything', 'Keep my view. Studies get overturned, and my own experience is evidence too'] },
   { q: 'A perfect copy of you is made and the original is painlessly destroyed. Is the copy still you?', opts: ['Yes. The copy has all the same memories and personality', 'Only if it carries on my thoughts without a break', 'No. It is a new person who thinks it\'s me', 'There\'s no fact of the matter'] },
-  { q: 'Nobody can prove they aren\'t dreaming right now. How much does that bother you?', opts: ['Not at all. Reason tells me the world is real', 'A little, but everyday evidence is good enough', 'It bothers me. I can\'t be sure of much', 'I can\'t be sure of anything'] },
+  { q: 'Nobody can prove they aren\'t dreaming right now. How much does that bother you?', opts: ['Not at all. Doubting everything is a game, not a real problem', 'A little, but everyday evidence is good enough', 'It bothers me. I can\'t be sure of much', 'Deeply. Almost everything I believe could be wrong'] },
   { q: 'Someone says: "Morality is just opinion, so nothing is truly wrong." What\'s your reaction?', tag: 'morality', opts: ['They\'re wrong. Some things, like torture, are wrong whatever anyone thinks', 'Partly wrong. Morality is rooted in human nature but shaped by culture', 'Partly right. Morality changes a lot between cultures and eras', 'They\'re right. Morality is invented by people'] },
   { q: 'A criminal\'s brain scan shows his violent urges came from a childhood injury he didn\'t choose. Should he be punished like anyone else?', tag: 'freewill', opts: ['Yes. He still chose to act', 'Somewhat less, but he is still responsible', 'Much less. He was largely not in control', 'No. Nobody truly chooses their actions, so the idea of free will is incoherent'] },
-  { q: 'Your doctor, a respected expert, recommends a treatment that your gut says is wrong. What do you do?', opts: ['Follow the expert. Gut feelings are unreliable', 'Follow the expert, but ask a lot of questions', 'Get a second opinion and weigh both', 'Trust my gut'] },
+  { q: 'Your doctor, a respected expert, recommends a treatment that your gut says is wrong. What do you do?', opts: ['Follow the expert. Gut feelings are unreliable', 'Follow the expert, but ask a lot of questions', 'Get a second opinion and weigh both', 'Go with my instinct. I know my own body better than any expert'] },
   { q: 'Two cultures disagree about something one sees as normal and the other as terrible. Can reason settle who is right?', opts: ['Yes. Reason can find the truth', 'Often, through shared human values and evidence', 'Sometimes, but some differences have no right answer', 'No. Each culture sets its own standards'] },
   { q: 'After you die, your brain stops working. What happens to your mind?', opts: ['It continues. The mind is more than the brain', 'It ends, but the mind was never just neurons', 'It ends. The mind is what the brain does', 'Nobody can know'] },
   { q: 'A friend holds a strong belief with no evidence, and it makes them happy. Is that okay?', opts: ['Yes. Some beliefs have to be taken on faith', 'Yes, as long as it harms nobody', 'Not really, but it\'s their right', 'No. Beliefs should follow the evidence'] },
   { q: 'A painting is praised by art experts, but you find it ugly. Who is right?', opts: ['The experts. Beauty has real standards', 'Both are partly right', 'Neither. It depends on your culture', 'I am. Beauty is personal taste'] },
-  { q: 'Looking at the last few centuries, is the world getting better?', opts: ['Yes, clearly. Reason and morality have advanced', 'Mostly yes, with serious setbacks', 'Only technology improves', 'No. Things just change'] },
-  { q: 'A man commits a crime, is truly remorseful, and is no danger to anyone. Should he still go to prison?', opts: ['Yes. He deserves to be punished', 'Yes, but for a shorter time', 'Probably not. Punishment should prevent future crime', 'No. The goal should be rehabilitation'] },
+  { q: 'Looking at the last few centuries, is the world getting better?', opts: ['Yes, clearly. Reason and morality have advanced', 'Mostly yes, with serious setbacks', 'Only our tools improve. People are as cruel as ever', 'No. Every gain brings a new loss'] },
+  { q: 'A man commits a crime, is truly remorseful, and is no danger to anyone. Should he still go to prison?', opts: ['Yes. Justice means paying for what you did, whatever you feel now', 'Yes, but for a shorter time', 'Probably not. Punishment should prevent future crime', 'No. The goal should be rehabilitation'] },
 ];
 
 /* Religion: a top-level pick, then a short set of follow-up questions specific to
@@ -67,535 +67,535 @@ const FOUNDATIONS = { fc: 'Care', ff: 'Fairness', fl: 'Loyalty', fa: 'Authority'
 const POSITION_VALUE = [1, 0.4, -0.4, -1];
 const COMPASS_ITEMS = [
   /* ---------- Economy ---------- */
-  ['economic', 'How should healthcare be paid for?', { ex: -6, ey: -8 }, [
-    'The state runs it for everyone, paid for from taxes',
-    'Free public healthcare for all, with private options alongside',
-    'Mostly private insurance, with the state covering the poor and the old',
-    'Leave it to the market. People buy the cover they want']],
-  ['economic', 'Who should own energy, rail and water?', { ey: -9, ex: -4 }, [
-    'The state should own and run them',
-    'Public ownership, but run at arm\'s length like a business',
-    'Private companies under tight regulation',
-    'Private companies competing, with as little regulation as possible']],
-  ['economic', 'What should happen to income tax for the highest earners?', { ex: -8 }, [
-    'Raise it sharply. The top rate should be well above half',
-    'Raise it somewhat',
-    'Keep it about where it is, or lower it a little',
-    'Replace it with one low flat rate for everyone']],
-  ['economic', 'Should billionaires exist?', { ex: -9 }, [
-    'No. Wealth above a cap should be taxed away',
-    'Yes, but they should be taxed far more heavily',
-    'Yes, as long as the money was made legally',
-    'Yes. They got rich by building things people wanted']],
-  ['economic', 'What should the law say about the minimum wage?', { ex: -6, ey: -5 }, [
-    'Set it at a real living wage by law',
-    'Keep it, and raise it with inflation',
-    'Keep it low so that young and unskilled workers can get hired',
-    'Scrap it. Pay should be agreed between worker and employer']],
-  ['economic', 'What role should trade unions play?', { ex: -8 }, [
-    'A central one. Most workers should be in a union',
-    'A useful one, and the law should protect them',
-    'They should be allowed, but strikes in key services should be limited',
-    'A harmful one. They protect insiders and hold the economy back']],
-  ['economic', 'What should the welfare state look like?', { ex: -7, sy: -3 }, [
-    'A generous safety net is the mark of a decent society',
-    'Generous, but tied to looking for work',
-    'Minimal and temporary, so people don\'t come to depend on it',
-    'Family, charity and community should do this, not the state']],
-  ['economic', 'Should everyone get a basic income from the state, whether or not they work?', { ex: -7, ey: -4 }, [
-    'Yes, enough to live on',
-    'A small one, as a floor under everyone',
-    'Only as a limited trial',
-    'No. It pays people not to work']],
-  ['economic', 'Housing has become too expensive. What is the fix?', { ex: -6, ey: -6 }, [
-    'Treat housing as a public service: build social housing at scale and cap rents',
-    'Build much more public housing, but leave private rents alone',
-    'Cut planning rules so private builders can build more',
-    'Let the market set prices and rents. Prices tell builders where to build']],
-  ['economic', 'A handful of tech companies dominate their markets. What should be done?', { ey: -7 }, [
-    'Break them up',
-    'Regulate them like utilities',
-    'Act only when there is clear abuse',
-    'Nothing. Competitors will catch up, as they always have']],
-  ['economic', 'In a recession, big employers are about to go under. What should the government do?', { ey: -7 }, [
-    'Step in and save the firms and the jobs',
-    'Support the workers, but let failing firms fail',
-    'Only stop the banking system from collapsing',
-    'Nothing. Failure is how markets correct themselves']],
-  ['economic', 'How should large inheritances be taxed?', { ex: -6, ff: 3 }, [
-    'Heavily. Inherited fortunes entrench privilege',
-    'Moderately, above a high threshold',
-    'Only the very largest estates',
-    'Not at all. That money was already taxed once']],
-  ['economic', 'Should workers elect members of their company\'s board?', { ex: -6, dm: 3 }, [
-    'Yes, half the board, as in Germany',
-    'Yes, a few seats',
-    'Only if the owners choose to allow it',
-    'No. Owners take the risk, so owners decide']],
-  ['economic', 'Who should pay for university?', { ex: -5, ey: -5 }, [
-    'It should be free, paid for by taxes',
-    'Mostly the state, with modest fees',
-    'Students, with loans they repay once they earn enough',
-    'Students and their families. Universities should compete on price']],
-  ['economic', 'How much should a government plan the economy?', { ey: -9, py: -2 }, [
-    'Set targets for key industries and direct where investment goes',
-    'Steer it through an active industrial strategy',
-    'Set fair rules, then step back',
-    'Not at all. Central planning always fails']],
-  ['economic', 'Why do some people end up rich and others poor?', { ex: 6, sy: 5 }, [
-    'Mostly their own effort and choices',
-    'Effort matters most, but luck plays a part',
-    'Background and luck matter more than effort',
-    'The system is rigged in favour of people who are already rich']],
-  ['economic', 'The government is deep in debt. What should it do?', { ex: 7, ey: 4 }, [
-    'Cut spending hard, even on popular services',
-    'Trim spending and hold taxes steady',
-    'Raise taxes on those who can afford it and protect services',
-    'Keep spending. Investing in people pays for itself']],
-  ['economic', 'Should gig workers, such as delivery riders, have the same rights as employees?', { ex: -6, ey: -4 }, [
-    'Yes, full employee rights and benefits',
-    'Some protections, such as sick pay and a minimum wage',
-    'Only what they agree with the platform',
-    'No. The flexibility is the point, for both sides']],
-  ['economic', 'Food and fuel prices suddenly spike. What should the government do?', { ey: -8 }, [
-    'Cap prices by law',
-    'Give money to the households hit hardest',
-    'Cut taxes on fuel and food for a while',
-    'Nothing. High prices bring in new supply and fix themselves']],
-  ['economic', 'Who should own oil, gas, minerals and water?', { ex: -5, ey: -5, px: -2 }, [
-    'The nation as a whole, through state companies',
-    'The state, but private firms can extract under licence',
-    'Private firms, paying the state a share of the profits',
-    'Whoever owns the land or buys the rights']],
-  ['economic', 'What should the state do about private schools?', { ey: 7, ex: 3 }, [
-    'Encourage them. Competition between schools raises standards',
-    'Allow them as they are',
-    'Allow them, but tax them like any business',
-    'Abolish them. Every child should go to the same kind of school']],
-  ['economic', 'Should the law limit how much bosses can earn compared with their workers?', { ex: -6, ey: -4 }, [
-    'Yes, a fixed maximum ratio',
-    'No cap, but pay should be published and voted on by shareholders',
-    'It is for each company\'s owners to decide',
-    'No. High pay attracts talent and is nobody else\'s business']],
-  ['economic', 'How should we deal with climate change?', { ey: -6, ex: -3 }, [
-    'Strict caps and bans on polluting industries, whatever it costs',
-    'Carbon taxes and large public investment in clean energy',
-    'Light incentives. Let new technology solve it',
-    'Growth comes first. Most climate rules do more harm than good']],
-  ['economic', 'Cheap imports are undercutting factories at home. What should be done?', { pr: -9, px: -4 }, [
-    'Put high tariffs on them',
-    'Targeted tariffs to protect key industries',
-    'Help the workers retrain, but keep trade open',
-    'Nothing. Cheaper goods help everyone, and free trade wins in the end']],
-  ['economic', 'Should your country sign more trade deals that remove tariffs?', { pr: 9, px: 5 }, [
-    'Yes, with as many countries as possible',
-    'Yes, if they include protections for workers and the environment',
-    'Only with close allies',
-    'No. They ship jobs abroad']],
-  ['economic', 'Should a country grow its own food and make its own energy, even when imports are cheaper?', { pr: -7, px: -5, ey: -3 }, [
-    'Yes. Self-sufficiency is a matter of national security',
-    'For essentials only, such as food and power',
-    'Mostly buy from whoever is cheapest, but keep a reserve',
-    'No. Buy from whoever is cheapest']],
-  ['economic', 'A foreign company wants to buy a major national firm. What should happen?', { pr: -6, ey: -4 }, [
-    'Block it. Key firms should stay in national hands',
-    'Allow it only after a security review',
-    'Allow it unless it is a defence company',
-    'Allow it. Capital should flow freely']],
-  ['economic', 'Is the gap between rich and poor a problem in itself?', { ex: -8, ff: 3 }, [
-    'Yes. A just society has to narrow it',
-    'Yes, when it gets extreme',
-    'No, as long as the poor are getting better off',
-    'No. Inequality is the natural result of freedom']],
-  ['economic', 'How should people get a pension?', { ex: -5, ey: -5 }, [
-    'A generous state pension for everyone',
-    'A basic state pension, topped up by workplace saving',
-    'Mostly private saving, with a small state safety net',
-    'People should save for their own retirement']],
-  ['economic', 'How much should the government regulate business?', { ey: -7 }, [
-    'Heavily, to protect workers, consumers and nature',
-    'Clear rules, firmly enforced',
-    'Less than now. Much of it is red tape',
-    'As little as possible. Reputations and the courts keep business honest']],
-  ['economic', 'How much of what you earn is rightly yours?', { ex: 7, sy: 4 }, [
-    'All of it. Taxation should be kept to the bare minimum',
-    'Most of it, minus a fair share for public services',
-    'Society made your income possible, so it can claim a good part',
-    'Income is a product of society and should be shared out by need']],
+  ['economic', "A new cancer drug costs $150,000 per patient and adds about a year of life. Who should decide whether people get it?", { ex: -6, ey: -8 }, [
+    "A public health service, for anyone who needs it. Health shouldn't depend on income",
+    "A public body that weighs its cost against other treatments and funds it only if it is good value",
+    "Insurers, with the state covering only those who cannot buy cover",
+    "Patients and their insurers. The state shouldn't ration care or pay for it"]],
+  ['economic', "Water bills have doubled since the water company was privatised, while it paid out large dividends. What should happen?", { ey: -9, ex: -4 }, [
+    "Bring it back into public ownership. A natural monopoly shouldn't make private profit",
+    "Turn it into a non-profit company owned by its customers",
+    "Keep it private, but cap prices and dividends through a tougher regulator",
+    "Open the network to competing suppliers. The problem is monopoly, not private ownership"]],
+  ['economic', "The top 1% earn about a fifth of national income. What should the top rate of income tax be?", { ex: -8 }, [
+    "70% or more, as in the post-war decades. Incomes that extreme shouldn't exist",
+    "Around 50%: enough to fund services without driving high earners away",
+    "Around 35%. Higher rates raise little, because the rich move or hide their income",
+    "One flat rate for everyone. Taxing success more heavily is unfair"]],
+  ['economic', "Should there be an annual tax on very large fortunes, say 2% a year on wealth above $50 million?", { ex: -9 }, [
+    "Yes, and higher. Concentrated wealth becomes concentrated political power",
+    "Yes, if it can be collected without the money simply leaving the country",
+    "No. Tax income and inheritance instead, which is simpler and fairer",
+    "No. That wealth was taxed when it was earned, and this punishes saving and investment"]],
+  ['economic', "Raising the minimum wage by a quarter would lift millions of incomes, but economists disagree on how many jobs it would cost. What would you do?", { ex: -6, ey: -5 }, [
+    "Raise it to a living wage by law. A firm that can't pay a decent wage shouldn't exist",
+    "Raise it step by step, with an independent commission watching the job numbers",
+    "Keep it low and top up low pay through tax credits instead",
+    "Abolish it. A low-paid job beats no job, and pay should be agreed freely"]],
+  ['economic', "Rail workers strike for a 10% pay rise, shutting down commuter trains for a week. Where do you stand?", { ex: -8 }, [
+    "With the strikers. Withdrawing labour is the only real power workers have",
+    "They have the right, but essential services should keep a minimum service running",
+    "Strikes in essential services should need a high ballot turnout and long notice",
+    "Essential workers shouldn't be allowed to strike. The public can't be held hostage"]],
+  ['economic', "A man has been on unemployment benefits for two years and has turned down three job offers. What should happen?", { ex: -7, sy: -3 }, [
+    "Keep paying. Support is a right, and forcing people into bad jobs helps no one",
+    "Keep paying, but require training or community work in return",
+    "Cut his benefits. Support has to depend on taking reasonable work",
+    "Benefits should be short and temporary for everyone. Long-term support belongs to family and charity"]],
+  ['economic', "Automation could wipe out millions of jobs. Should every adult get a monthly income from the state, with no conditions?", { ex: -7, ey: -4 }, [
+    "Yes, enough to live on, paid for by taxing the gains from automation",
+    "A small one, as a floor that lets people retrain or take risks",
+    "No. Target help at the people who actually lose their jobs",
+    "No. It would cost a fortune and erode the habit of work"]],
+  ['economic', "Young people in your city spend half their income on rent. Which policy would you back?", { ex: -6, ey: -6 }, [
+    "Rent controls and a huge programme of state-built housing",
+    "State-built housing, but no rent controls",
+    "Scrap most planning rules so private builders can build far more",
+    "Leave it to the market. High rents will draw in new building on their own"]],
+  ['economic', "One company handles most of the world's online searches and much of its advertising. What should be done?", { ey: -7 }, [
+    "Break it up, as America broke up Standard Oil",
+    "Regulate it like a utility, with rules on its fees and its use of data",
+    "Fine it when it abuses its position, case by case",
+    "Leave it alone. It won by being better, and rivals can win the same way"]],
+  ['economic', "A steelworks employing 4,000 people in a struggling town will close unless the state pays $300 million to keep it open. What should the state do?", { ey: -7 }, [
+    "Pay, and take an ownership stake. The town's survival matters more than the market's verdict",
+    "Let it close, but spend the money retraining the workers and reviving the town",
+    "Offer a loan, but only if private investors put money in too",
+    "Let it close. Propping up loss-making firms wastes money and delays change"]],
+  ['economic', "Someone inherits $10 million from their parents. How much of it should be taxed?", { ex: -6, ff: 3 }, [
+    "Most of it. Inherited fortunes create a class that never has to work",
+    "A substantial share, perhaps 40%, above a generous threshold",
+    "A small share, so family businesses and farms aren't broken up",
+    "None. Parents have every right to pass on what they built"]],
+  ['economic', "In Germany, workers at large firms elect half of the company's supervisory board. Should your country do the same?", { ex: -6, dm: 3 }, [
+    "Yes, half the board. Workers have as much at stake as shareholders",
+    "Yes, a few seats, so their voice is heard",
+    "Only where the owners choose to allow it",
+    "No. Those who risk their capital should control the company"]],
+  ['economic', "Graduates earn far more over their lives than non-graduates. Who should pay for their degrees?", { ex: -5, ey: -5 }, [
+    "Everyone, through taxes. Education is a public good",
+    "Mostly the state, with modest fees",
+    "Graduates, through loans repaid only once they earn enough",
+    "Students and their families, with universities competing on price"]],
+  ['economic', "Should the state decide which industries the country builds, such as chips or batteries, and steer money into them?", { ey: -9, py: -2 }, [
+    "Yes. Planned investment built the economies of South Korea and China",
+    "Yes, for a few strategic industries, through a public investment bank",
+    "Only by funding research. Let markets pick the winners",
+    "No. Politicians are bad at picking winners and good at subsidising their friends"]],
+  ['economic', "Two children grow up in the same city, one to rich parents and one to poor. Thirty years later the first is wealthy and the second is not. What mostly explains it?", { ex: 6, sy: 5 }, [
+    "Their own choices and effort. Background matters less than people claim",
+    "Mostly effort, though the rich child had a head start",
+    "Mostly the head start: schools, contacts and money",
+    "An economy that keeps wealth with the people who already have it"]],
+  ['economic', "Government debt has passed 100% of national income. What should be done?", { ex: 7, ey: 4 }, [
+    "Cut spending hard, popular programmes included. Debt is a bill we leave our children",
+    "Freeze spending and let growth shrink the debt over time",
+    "Raise taxes on high earners and big companies to protect public services",
+    "Keep borrowing to invest. A country that issues its own currency can afford it"]],
+  ['economic', "Delivery riders choose their own hours but get no sick pay or pension. Should the law treat them as employees?", { ex: -6, ey: -4 }, [
+    "Yes. Flexibility shouldn't mean giving up basic rights",
+    "Create a middle status with sick pay and a minimum wage, keeping the flexibility",
+    "Only if the rider and the platform both agree to it",
+    "No. Many riders choose this work precisely because it isn't a job"]],
+  ['economic', "A war cuts supply and energy prices triple. What should the government do?", { ey: -8 }, [
+    "Cap prices by law, and make energy firms pay through a windfall tax",
+    "Give cash to poorer households and leave prices alone",
+    "Cut energy taxes for a while and fast-track more domestic supply",
+    "Nothing. High prices are what make people use less and firms produce more"]],
+  ['economic', "Large oil reserves are found off your coast. Who should own them?", { ex: -5, ey: -5, px: -2 }, [
+    "A state company, with the profits saved in a national fund, as in Norway",
+    "The state, licensing private firms to extract them for a share of the revenue",
+    "Private firms that win the rights at auction and pay normal taxes",
+    "Whoever owns the rights. The state should only collect ordinary taxes"]],
+  ['economic', "Should parents be able to take the money the state spends on their child's education and spend it at any school they choose, private ones included?", { ey: 7, ex: 3 }, [
+    "Yes. Competition and choice raise standards for everyone",
+    "Yes, but only among publicly funded schools",
+    "No. It drains money from the schools most children depend on",
+    "No, and private schools should be abolished. Every child should share the same schools"]],
+  ['economic', "The head of a large company earns 300 times what the average worker there does. What should the law say?", { ex: -6, ey: -4 }, [
+    "Cap pay at a fixed multiple of the lowest wage in the company",
+    "No cap, but publish the ratio and give shareholders a binding vote",
+    "Nothing. Pay is for the company's owners to decide",
+    "Nothing. Top pay reflects what top talent is worth"]],
+  ['economic', "Meeting climate targets would raise energy costs and close some industries. What should a government do?", { ey: -6, ex: -3 }, [
+    "Ban the most polluting activities by fixed dates, whatever the short-term cost",
+    "Tax carbon heavily and spend the money on clean energy and on workers who lose out",
+    "Fund research and let cheaper clean technology win on its own",
+    "Put growth first. One country's cuts make little difference to the climate"]],
+  ['economic', "Cheap imported steel is putting the country's last steelworks out of business. What should be done?", { pr: -9, px: -4 }, [
+    "High tariffs. A country that can't make its own steel can't defend itself",
+    "Targeted tariffs on steel sold below its cost",
+    "Keep trade open and help the workers into new jobs",
+    "Welcome it. Cheap steel makes everything built with steel cheaper"]],
+  ['economic', "A trade deal would lower prices and boost exports, but expose local farmers to cheaper foreign food. Should your country sign it?", { pr: 9, px: 5 }, [
+    "Yes. Consumers gain more than farmers lose, and farmers can adapt",
+    "Yes, with support to help farmers adjust",
+    "Only with farming left out of the deal",
+    "No. A country should be able to feed itself"]],
+  ['economic', "In a pandemic your country couldn't get masks or medicines, because almost all of them were made abroad. What is the lesson?", { pr: -7, px: -5, ey: -3 }, [
+    "Bring production of essentials home, even if it costs more",
+    "Keep stockpiles and some home production for emergencies",
+    "Buy from many countries instead of one",
+    "There isn't one. Global trade coped about as well as anything could"]],
+  ['economic', "A foreign state-backed company wants to buy one of your country's leading tech firms. What should happen?", { pr: -6, ey: -4 }, [
+    "Block it. Key firms should stay in national hands",
+    "Allow it only after a strict security review",
+    "Allow it unless the firm works in defence or infrastructure",
+    "Allow it. Capital should flow freely and the shareholders should decide"]],
+  ['economic', "Suppose everyone got richer, but the rich got richer much faster. Would that be a good outcome?", { ex: -8, ff: 3 }, [
+    "No. A widening gap damages trust, health and democracy even if everyone gains",
+    "Partly. The growth is good, but taxes should narrow the gap",
+    "Mostly yes. What matters is whether the poor are better off",
+    "Yes. Inequality is what happens when people are free to succeed"]],
+  ['economic', "People live longer and pensions keep getting more expensive. What is the fairest fix?", { ex: -5, ey: -5 }, [
+    "Raise taxes and keep a generous state pension for everyone",
+    "Raise the pension age slowly and keep the state pension",
+    "Shrink the state pension and make workplace saving compulsory",
+    "Let people save for their own retirement and keep what they save"]],
+  ['economic', "A new food additive might be harmful, but there is no proof yet. What should regulators do?", { ey: -7 }, [
+    "Ban it until it is proven safe",
+    "Allow it with warning labels while it is studied",
+    "Allow it unless evidence of harm turns up",
+    "Allow it. Customers and the courts will punish any firm that harms people"]],
+  ['economic', "How much of the money you earn is rightly yours?", { ex: 7, sy: 4 }, [
+    "All of it. Tax takes what someone else earned",
+    "Most of it, minus a fair share for public services",
+    "A good part belongs to the society that made earning it possible",
+    "Income is produced together and should be shared out by need"]],
 
   /* ---------- State, nation and world ---------- */
-  ['political', 'Should police be able to read people\'s private messages to stop crime and terrorism?', { py: -8, dm: -2 }, [
-    'Yes, whenever security needs it',
-    'Yes, with a judge\'s warrant in serious cases',
-    'Only in extreme cases, with strict oversight',
-    'Never. Private messages must stay private']],
-  ['political', 'Should the government be able to ban protests?', { py: -7, dm: -3 }, [
-    'Yes, any that threaten public order',
-    'Only violent ones, or ones that block essential services',
-    'Only with a court order',
-    'No. Protest needs nobody\'s permission']],
-  ['political', 'Should hateful speech be illegal?', { py: -6 }, [
-    'Yes, and enforced strictly online as well',
-    'Yes, but only clear incitement to violence or harassment',
-    'Only direct threats. Offence is not a crime',
-    'No. Any speech law will be abused by whoever is in power']],
-  ['political', 'Should the death penalty exist?', { py: -6 }, [
-    'Yes, for murder and other serious crimes',
-    'Yes, but only for the very worst crimes, such as terrorism',
-    'No, though I understand the case for it',
-    'No. The state should never kill its own citizens']],
-  ['political', 'What should the law do about recreational drugs?', { py: 7, sx: 4 }, [
-    'Legalise and regulate all of them',
-    'Legalise cannabis, and treat other drug use as a health problem',
-    'Stop prosecuting users, but keep selling illegal',
-    'Keep them illegal and enforce the law']],
-  ['political', 'Should ordinary citizens be allowed to own guns?', { py: 6, sy: 3 }, [
-    'Yes, and carry them. It is a basic right',
-    'Yes, with checks and a licence',
-    'Only for hunting and sport, under strict control',
-    'No. Only police and soldiers should have them']],
-  ['political', 'Is a strong leader who doesn\'t have to deal with parliament and elections good for a country?', { py: -8, dm: -7 }, [
-    'Yes. Results matter more than procedures',
-    'Sometimes, in a real crisis',
-    'Rarely. Power without checks goes bad',
-    'Never. Power has to be held to account']],
-  ['political', 'A government loses an election but believes the winner will do serious harm. What should it do?', { dm: 7, py: 3 }, [
-    'Hand over power anyway. The vote is the vote',
-    'Hand over power, then fight in parliament and the courts',
-    'Delay until the courts look into it',
-    'Stay on. Protecting the country matters more than the rules']],
-  ['political', 'How should big questions, such as leaving a union of countries, be decided?', { dm: 7 }, [
-    'By a public vote',
-    'By parliament, with a vote to confirm',
-    'By elected representatives alone',
-    'By experienced leaders and experts']],
-  ['political', 'Who should make the big decisions about the economy?', { dm: -6, ey: -2 }, [
-    'Independent experts, kept away from voters\' moods',
-    'Experts, with politicians signing off',
-    'Elected politicians who take expert advice',
-    'Voters, directly, as often as possible']],
-  ['political', 'How free should the press be to criticise the government?', { py: 7, dm: 4 }, [
-    'Completely free, with no limits',
-    'Free, with laws against lies about individuals',
-    'Free, but held back on matters of national security',
-    'Media that undermine the nation should be shut down']],
-  ['political', 'Someone leaks state secrets that reveal wrongdoing. What should happen to them?', { py: 6, dm: 3 }, [
-    'They should be protected by law',
-    'They should be protected if the wrongdoing was serious',
-    'They should be tried, and the motive can lower the sentence',
-    'They should be punished severely. Secrets are secret for a reason']],
-  ['political', 'Should vaccines be compulsory?', { py: -5 }, [
-    'Yes, for everyone who can safely have them',
-    'Only for school children and health workers',
-    'No, but they should be strongly encouraged',
-    'No. My body, my choice']],
-  ['political', 'Should young people have to do a year of national service?', { py: -4, px: -3, ml: -5 }, [
-    'Yes, military service for everyone',
-    'Yes, but they could choose military or community service',
-    'Only as a voluntary programme',
-    'No. The state has no right to a year of anyone\'s life']],
-  ['political', 'In a crisis, such as a pandemic or riots, what should come first?', { py: -8 }, [
-    'Order and safety, even if freedoms are suspended',
-    'Safety, with clear time limits on any emergency powers',
-    'Freedom, with only the most necessary restrictions',
-    'Freedom. Emergencies are when rights matter most']],
-  ['political', 'How much immigration should there be?', { px: 7, as: 4, sx: 3 }, [
-    'Open borders, or close to it',
-    'Generous, with sensible checks',
-    'Lower, and carefully selected',
-    'Much lower. My country comes first']],
-  ['political', 'Should rich countries take in refugees from wars?', { px: 6, ex: -2, as: 3 }, [
-    'Yes, as many as need safety',
-    'Yes, their fair share',
-    'A few, but mostly help them in their own region',
-    'No. Neighbouring countries should take them']],
-  ['political', 'An international court rules against your country. What should it do?', { px: 8 }, [
-    'Obey. International law has to apply to everyone',
-    'Obey, and argue for reform afterwards',
-    'Obey only if the ruling fits our constitution',
-    'Ignore it. No foreign court is above our own']],
-  ['political', 'What should your country\'s relationship with the UN and similar bodies be?', { px: 9 }, [
-    'Give them more power over global issues',
-    'Stay in and work through them',
-    'Stay in, but put our interests first',
-    'Leave them. They undermine our sovereignty']],
-  ['political', 'Would a single world government be good for humanity?', { px: 10 }, [
-    'Yes. It is the only way to end war and fix global problems',
-    'Some day, built up slowly from today\'s institutions',
-    'No. Strong cooperation between nations is enough',
-    'No. It would be a tyranny with nowhere to escape to']],
-  ['political', 'Your country\'s interests clash with what is best for the world. What wins?', { px: -8 }, [
-    'My country\'s interests, every time',
-    'Mostly my country, unless the global stakes are huge',
-    'Usually the world. We share one planet',
-    'The world. Nations are arbitrary lines']],
-  ['political', 'Who should pay for fighting climate change?', { px: 6, ex: -2 }, [
-    'Rich countries should pay poor ones to adapt',
-    'Every country its fair share, under a binding treaty',
-    'Each country should decide its own efforts',
-    'Not my country, while others pollute more']],
-  ['political', 'How strong should a country\'s army be in peacetime?', { ml: -8, px: -2 }, [
-    'As strong as possible. Strength keeps the peace',
-    'Strong enough to defend itself and its allies',
-    'Small, mainly for defence and disasters',
-    'As small as possible. Spend the money on people']],
-  ['political', 'Should countries give up their nuclear weapons?', { ml: 7 }, [
-    'Yes, all of them, starting with ours',
-    'Yes, but only if everyone does it together',
-    'No, while dangerous states still have them',
-    'No. They are why the great powers haven\'t fought each other']],
-  ['political', 'How should a country deal with a hostile neighbour?', { ml: 7 }, [
-    'Talk, trade and compromise. Almost every war can be avoided',
-    'Diplomacy first, with defences in reserve',
-    'Deterrence first. Talk from a position of strength',
-    'Show force early. Weakness invites attack']],
-  ['political', 'A government is massacring its own people. What should powerful countries do?', { px: 5, ml: -4 }, [
-    'Intervene militarily to stop it',
-    'Sanctions, and arms for those resisting',
-    'Condemn it and offer to mediate',
-    'Stay out. It is not our business']],
-  ['political', 'Should regions be able to make their own laws and set their own taxes?', { fd: 9, dm: 2 }, [
-    'Yes, on almost everything',
-    'Yes, on local matters such as schools and policing',
-    'Only small things. One country, one set of laws',
-    'No. Laws should be the same everywhere in the country']],
-  ['political', 'Who should decide most things in your town?', { fd: 7, px: -2 }, [
-    'The town itself',
-    'The town, within national rules',
-    'The national government, after asking local people',
-    'The national government. Local politics is too easily captured']],
-  ['political', 'Should politicians face term limits?', { dm: 5 }, [
-    'Yes, strict ones for every office',
-    'Yes, for the head of government',
-    'No. Voters can remove them',
-    'No. Experienced leaders are worth keeping']],
-  ['political', 'How should political parties be funded?', { dm: 5, ex: -3 }, [
-    'Only by the state. Ban private donations',
-    'Small donations only, with tight caps',
-    'Donations allowed, but all of them published',
-    'Freely. Giving money is a form of free speech']],
-  ['political', 'Police use force during an arrest. What should follow?', { py: -7 }, [
-    'Nothing. Officers need to act without second-guessing',
-    'A quick internal review',
-    'An independent investigation every time',
-    'An independent investigation, and prosecution when it was wrong']],
-  ['political', 'Should people be free to live and work in any country they like?', { px: 6, py: 4 }, [
-    'Yes. Free movement is a human right',
-    'Within regions, as in the EU',
-    'Only with a visa and a job',
-    'No. Each nation decides who comes in']],
-  ['political', 'Riots break out across several cities. Should the army be deployed?', { py: -6, ml: -4 }, [
-    'Yes, at once',
-    'Yes, if the police are overwhelmed',
-    'Only to protect buildings, never against crowds',
-    'No. The army should never be turned on citizens']],
-  ['political', 'Should voting be compulsory?', { py: -4, dm: 2 }, [
-    'Yes, with fines for not voting',
-    'Yes, but with a "none of the above" option',
-    'No, but voting should be made much easier',
-    'No. Not voting is a choice too']],
+  ['political', "Police say they could have stopped a terrorist attack that killed 30 people if they could read encrypted messages. Should apps be forced to let them?", { py: -8, dm: -2 }, [
+    "Yes. Privacy can't come before preventing mass murder",
+    "Yes, with a judge's warrant for each case",
+    "No, but police should get more money for traditional methods",
+    "No. A back door for the police is a back door for hackers and future governments"]],
+  ['political', "Climate protesters block a motorway, and an ambulance is delayed. What should the law do?", { py: -7, dm: -3 }, [
+    "Ban disruptive protest and jail repeat offenders",
+    "Allow protest, but punish blocking roads and emergency services",
+    "Prosecute only violence and damage",
+    "Disruption is the point of protest. The state should put up with it"]],
+  ['political', "Someone posts online that a religious minority are \"parasites\" who should be driven out of the country. Should that be a crime?", { py: -6 }, [
+    "Yes. Speech like that leads to violence and should be punished",
+    "Only if it clearly calls for violence or targets particular people",
+    "No, but platforms should be free to take it down",
+    "No. The answer to bad speech is more speech, not prison"]],
+  ['political', "A man is convicted of murdering several children, on DNA and video evidence. Should he be executed?", { py: -6 }, [
+    "Yes. Some crimes deserve death",
+    "Only in cases this certain",
+    "No. Even if this case is certain, others won't be, and mistakes can't be undone",
+    "No. The state should never kill a prisoner"]],
+  ['political', "Portugal decriminalised possession of all drugs in 2001. Should your country do the same?", { py: 7, sx: 4 }, [
+    "Go further: legalise and regulate all drugs, like alcohol",
+    "Yes, treat drug use as a health problem, and legalise cannabis",
+    "Decriminalise cannabis only",
+    "No. Drugs wreck lives, and the law should say so"]],
+  ['political', "After a mass shooting, many people demand stricter gun laws. Where do you stand?", { py: 6, sy: 3 }, [
+    "Citizens have a right to own and carry guns. Disarming the law-abiding doesn't stop criminals",
+    "Allow guns, with background checks and licences",
+    "Only hunting and sporting guns, under strict control",
+    "Ban private guns. No right outweighs the lives lost"]],
+  ['political', "A president cut crime and corruption dramatically, but did it by ignoring the courts and jailing critics. Was it worth it?", { py: -8, dm: -7 }, [
+    "Yes. Results matter more than procedures",
+    "In a real crisis, for a limited time",
+    "No. The gains won't last once power is unchecked",
+    "No. Giving up the rule of law is never worth it"]],
+  ['political', "Your side narrowly loses an election, and the winners plan policies you believe will do serious harm. What should your side do?", { dm: 7, py: 3 }, [
+    "Accept it and fight them in parliament and at the next election",
+    "Accept it, but challenge any real irregularities in court",
+    "Refuse to recognise the result until every doubt is investigated",
+    "Block them by any means. Preventing the harm matters more than one vote"]],
+  ['political', "Should big constitutional decisions, like leaving a union of countries, be settled by a public vote?", { dm: 7 }, [
+    "Yes, always. The people are sovereign",
+    "Yes, but only with a high bar, such as 60%",
+    "No. Elected parliaments should decide after proper debate",
+    "No. Such decisions are too complex for a yes-or-no vote"]],
+  ['political', "Should interest rates be set by independent central bankers or by elected politicians?", { dm: -6, ey: -2 }, [
+    "Independent bankers. Politicians would cut rates before every election",
+    "Bankers, within targets set by parliament",
+    "Politicians, advised by experts",
+    "Politicians. Big economic choices should answer to voters"]],
+  ['political', "A newspaper publishes leaked documents showing the defence minister lied about a war. The government says publication endangers soldiers. What should happen?", { py: 7, dm: 4 }, [
+    "Nothing to the paper. The public's right to know comes first",
+    "Nothing, though the paper should leave out details that could get people killed",
+    "A judge should decide whether publication can be stopped",
+    "Prosecute the paper. National security comes before the press"]],
+  ['political', "How long should the state be able to hold a suspected terrorist without charging them?", { py: -7 }, [
+    "As long as intelligence says they are dangerous",
+    "A few weeks, with a judge's approval",
+    "A few days, then charge them or let them go",
+    "Not at all. No one should be held without charge"]],
+  ['political', "In a deadly epidemic, should vaccination be required for everyone who can safely have it?", { py: -5 }, [
+    "Yes, with fines for refusing",
+    "Required for health workers and teachers, not for everyone",
+    "Not required, but unvaccinated people can be kept out of some places",
+    "No. The state has no right to inject anyone against their will"]],
+  ['political', "Should every 18-year-old have to spend a year in national service?", { py: -4, px: -3, ml: -5 }, [
+    "Yes, in the military. It builds discipline and a ready defence",
+    "Yes, choosing military or civilian service",
+    "Only as a voluntary scheme with good incentives",
+    "No. The state has no claim on a year of anyone's life"]],
+  ['political', "In a deadly pandemic, the government orders everyone to stay home for three months. Was that right?", { py: -8 }, [
+    "Yes, and it should be strictly enforced. Lives come first",
+    "Yes, if it is short, reviewed often and approved by parliament",
+    "It should have been advice. Adults can weigh the risks themselves",
+    "No. Locking down a whole free society is never justified"]],
+  ['political', "Your country is short of workers, but many citizens say immigration is too high. What would you do?", { px: 7, as: 4, sx: 3 }, [
+    "Open the borders much wider. People should be free to move to where the work is",
+    "Keep immigration high, but choose people by skill and need",
+    "Cut the numbers and train citizens to fill the gaps",
+    "Cut immigration sharply. A cohesive nation matters more than filling jobs"]],
+  ['political', "A war next door sends a million refugees toward your border. What should your country do?", { px: 6, ex: -2, as: 3 }, [
+    "Take in as many as need safety. It's a basic duty",
+    "Take a fair share, agreed with other countries",
+    "Pay for camps in neighbouring countries instead of taking them in",
+    "Close the border. Our duty is to our own citizens"]],
+  ['political', "An international court rules that your country's new border policy breaks international law. What should your government do?", { px: 8 }, [
+    "Obey. International law has to bind everyone, us included",
+    "Obey, then argue for changing the treaty",
+    "Obey only if the ruling fits our own constitution",
+    "Ignore it. No foreign court stands above our parliament"]],
+  ['political', "Should bodies like the UN have the power to enforce decisions on member countries?", { px: 9 }, [
+    "Yes. Global problems need a global authority",
+    "In a few areas, such as climate and genocide",
+    "No. They should advise and coordinate, not command",
+    "No, and we should leave any that limit our sovereignty"]],
+  ['political', "In the long run, should humanity aim for a single world government?", { px: 10 }, [
+    "Yes. It's the only way to end war and solve global problems",
+    "Perhaps, built slowly from today's institutions",
+    "No. Cooperation between sovereign nations is enough",
+    "No. A bad world government would leave nowhere to escape to"]],
+  ['political', "Your country could gain a big trade advantage, but only by hurting a poorer country's economy. What should it do?", { px: -8 }, [
+    "Take it. A government's duty is to its own people",
+    "Take it, and give the poorer country some help",
+    "Pass it up unless the harm is small",
+    "Pass it up. Prosperity built on others' harm is wrong"]],
+  ['political', "Rich countries caused most past emissions; poorer countries now cause most new ones. Who should pay to cut them?", { px: 6, ex: -2 }, [
+    "Rich countries, including large payments to poorer ones",
+    "Everyone, under a binding treaty that weighs history and wealth",
+    "Each country for itself, as it chooses",
+    "Not my country while bigger emitters keep polluting"]],
+  ['political', "Your country spends 1% of its income on defence. A hostile neighbour spends 5%. What should you do?", { ml: -8, px: -2 }, [
+    "Rearm fast to match them. Strength is what prevents war",
+    "Raise spending steadily and deepen alliances",
+    "Rely mainly on alliances and diplomacy",
+    "Refuse an arms race. Spend the money at home and push for talks"]],
+  ['political', "Should a country with nuclear weapons give them up?", { ml: 7 }, [
+    "Yes, unilaterally. Someone has to go first",
+    "Yes, but only in a deal where everyone does",
+    "No, not while hostile states still have them",
+    "No. Nuclear weapons are why the great powers haven't fought each other since 1945"]],
+  ['political', "A neighbouring country seizes a disputed island. What should your government do?", { ml: 7 }, [
+    "Protest and take it to international courts. No island is worth a war",
+    "Impose sanctions and build alliances against them",
+    "Send forces to show any further move will be resisted",
+    "Take it back by force. Giving way invites more aggression"]],
+  ['political', "A government is massacring an ethnic minority. Should other countries intervene militarily without UN approval?", { px: 5, ml: -4 }, [
+    "Yes. Stopping genocide matters more than legal process",
+    "Arm the victims and impose sanctions, but send no troops",
+    "Only with UN approval",
+    "No. Foreign interventions usually make things worse"]],
+  ['political', "A region with its own language wants to set its own laws and taxes. Should it be allowed?", { fd: 9, dm: 2 }, [
+    "Yes, on almost everything, and to leave the country if it votes to",
+    "Yes, on local matters such as schools and policing",
+    "Only minor matters. One country needs one set of laws",
+    "No. Handing power to regions breaks countries apart"]],
+  ['political', "Who should decide whether a big wind farm or prison is built next to your town?", { fd: 7, px: -2 }, [
+    "The town, by a local vote",
+    "The town, within national rules",
+    "The national government, after consulting local people",
+    "The national government. Otherwise nothing ever gets built"]],
+  ['political', "A popular president wants to change the constitution so they can run for a third term. Should that be allowed?", { dm: 5 }, [
+    "No. Term limits protect democracy, even from popular leaders",
+    "Only through a referendum with a large majority",
+    "Yes, if parliament agrees",
+    "Yes. If the people want them, they should be able to keep them"]],
+  ['political', "A billionaire gives $50 million to a political party. Should that be allowed?", { dm: 5, ex: -3 }, [
+    "No. Only small donations, or state funding of parties",
+    "Yes, but capped at a modest amount",
+    "Yes, as long as it is made public",
+    "Yes. Giving money to a cause is a form of free speech"]],
+  ['political', "A police officer shoots an unarmed man during a chaotic arrest. What should follow?", { py: -7 }, [
+    "Back the officer. Police make split-second calls and need our support",
+    "A review by the police force itself",
+    "An independent investigation",
+    "An independent investigation, and prosecution if the shooting wasn't necessary"]],
+  ['political', "Should people be free to live and work in any country they choose?", { px: 6, py: 4 }, [
+    "Yes. Where you happen to be born shouldn't decide your life",
+    "Within groups of similar countries, as in the EU",
+    "Only with a visa and a job offer",
+    "No. Each nation decides who joins it"]],
+  ['political', "Riots spread across several cities and the police can't control them. Should the army be deployed?", { py: -6, ml: -4 }, [
+    "Yes, immediately",
+    "Yes, if the police are overwhelmed for days",
+    "Only to guard key buildings, never against crowds",
+    "No. Soldiers must never be turned on citizens"]],
+  ['political', "Should voting be compulsory, as it is in Australia?", { py: -4, dm: 2 }, [
+    "Yes, with fines for not voting",
+    "Yes, with a \"none of the above\" option",
+    "No, but voting should be made much easier",
+    "No. Not voting is a choice too"]],
 
   /* ---------- Society, culture and morals ---------- */
-  ['social', 'Should same-sex couples have the same marriage rights as everyone else?', { sx: 9, py: 2 }, [
-    'Yes, fully equal, including adoption',
-    'Yes, though religious groups shouldn\'t have to perform the weddings',
-    'Civil partnerships, but not marriage',
-    'No. Marriage is between a man and a woman']],
-  ['social', 'When should abortion be legal?', { sx: 7, py: 3, rl: 3 }, [
-    'Always. It is the woman\'s choice',
-    'In the first few months',
-    'Only in cases of rape, incest or danger to the mother',
-    'Never. It is the taking of a life']],
-  ['social', 'What should schools teach about gender?', { sx: 7 }, [
-    'That gender is a spectrum, not just male and female',
-    'That trans people exist and deserve respect',
-    'Biological sex only. The rest is for parents',
-    'Nothing. It is not a school\'s business']],
-  ['social', 'What is a woman\'s main role?', { sx: -8 }, [
-    'Her first duty is to her home and children',
-    'Family first, but working is fine if she wants to',
-    'Whatever she chooses, with chores shared equally',
-    'There is no such thing as a woman\'s role']],
-  ['social', 'Is sex before marriage wrong?', { sx: -7, fs: 4 }, [
-    'Yes, always',
-    'It is best avoided',
-    'It is fine in a committed relationship',
-    'It is nobody else\'s business']],
-  ['social', 'Should terminally ill adults be allowed to end their lives with a doctor\'s help?', { sx: 5, py: 4, rl: 3 }, [
-    'Yes, their life, their choice',
-    'Yes, with strict safeguards',
-    'Only in the most extreme cases',
-    'No. Life is not ours to end']],
-  ['social', 'Is a custom worth keeping just because it is old?', { sx: -8 }, [
-    'Yes. Old customs hold wisdom we don\'t fully understand',
-    'Usually, unless it clearly does harm',
-    'Only if it still makes sense today',
-    'No. Every custom should be judged on its merits']],
-  ['social', 'Was society better a few generations ago?', { sx: -7 }, [
-    'Yes, clearly. We have lost a lot',
-    'In some ways: family, community, manners',
-    'In a few ways, but most of the change was for the better',
-    'No. Things are far better now']],
-  ['social', 'What place should religion have in public life?', { rl: 8, sx: 4 }, [
-    'None. Faith is a private matter',
-    'Respected, but kept out of law and schools',
-    'A recognised role, such as an official church or religious schools',
-    'It should guide the nation\'s laws']],
-  ['social', 'Can a society keep its morals without religion?', { rl: -8, sx: -3 }, [
-    'No. Without God, morality collapses',
-    'With difficulty. Religion holds a lot together',
-    'Yes. Morality can stand on reason and empathy',
-    'Yes, and it is better off without it']],
-  ['social', 'Should prayer or religious teaching be part of the school day?', { rl: -6, py: -2 }, [
-    'Yes, every day',
-    'Yes, but families can opt out',
-    'Teaching about all religions, but no worship',
-    'No. Schools should be entirely secular']],
-  ['social', 'Should religious communities be able to live by their own religious rules?', { rl: -5, sy: -3, as: 3 }, [
-    'Yes, including their own courts for family matters',
-    'Yes, for marriage, food and dress',
-    'Only where it doesn\'t clash with national law',
-    'No. One law for everyone']],
-  ['social', 'What should be expected of immigrants?', { as: -8, sx: -3 }, [
-    'To fully adopt the local culture and leave old customs behind',
-    'To learn the language and respect local values',
-    'To obey the law. Their culture is their own business',
-    'Nothing more than anyone else. Diversity enriches the country']],
-  ['social', 'Is a country stronger when it has many cultures?', { as: 8, sx: 3 }, [
-    'Yes. Diversity is a strength',
-    'Yes, if there is a shared civic identity',
-    'Only up to a point',
-    'No. Shared culture holds a nation together']],
-  ['social', 'Should religious dress, such as headscarves, be banned in schools and public offices?', { as: -6, rl: 4, py: -4 }, [
-    'Yes, in all public institutions',
-    'Only full face coverings',
-    'Only where it gets in the way of the job',
-    'No. People should wear what they like']],
-  ['social', 'Should immigrant families keep their own language alive at home?', { as: 5 }, [
-    'Yes, and schools should help them',
-    'Yes, at home, but the national language comes first',
-    'It doesn\'t matter much either way',
-    'No. They should switch to the national language']],
-  ['social', 'Which comes first: your duty to your community, or your own ambitions?', { sy: -8 }, [
-    'My community. We owe everything to it',
-    'Mostly the community, with room for my own goals',
-    'Mostly my own goals, while being a good neighbour',
-    'My own life. Nobody owes their life to a group']],
-  ['social', 'Should adult children be expected to look after their ageing parents?', { sy: -6 }, [
-    'Yes. It is a basic duty',
-    'Yes, with the state\'s help',
-    'If they can, but the state should be the main carer',
-    'No. Everyone should plan for their own old age']],
-  ['social', 'Which matters more in a child: obedience or independence?', { sx: -5, fa: 6, sy: -3 }, [
-    'Obedience',
-    'Mostly obedience, with some independence',
-    'Mostly independence, with respect',
-    'Independence. Children should question everything']],
-  ['social', 'Is having children a duty?', { sx: -5, sy: -4, fl: 3 }, [
-    'Yes, to your family and your nation',
-    'It is the natural path for most people',
-    'It is a personal choice',
-    'No, and the world has enough people']],
-  ['social', 'Who is responsible for your happiness?', { sy: 7, ex: 3 }, [
-    'Only me',
-    'Mostly me, with help from those close to me',
-    'Me and my community together',
-    'Society. A fair society makes happy people']],
-  ['social', 'Should gene editing and human enhancement be allowed?', { tc: 8, sx: 3 }, [
-    'Yes. Let\'s make people healthier, smarter and longer-lived',
-    'For curing disease, yes. For enhancement, carefully',
-    'Only to cure serious disease',
-    'No. We shouldn\'t play God with human nature']],
-  ['social', 'Should artificial intelligence make important decisions, such as in medicine or law?', { tc: 7, dm: -2 }, [
-    'Yes, when it is more accurate than people',
-    'As an assistant, with a human signing off',
-    'Only for small, routine decisions',
-    'No. People must stay in charge']],
-  ['social', 'Should people be free to merge with machines to become smarter and live longer?', { tc: 8 }, [
-    'Yes. It is the next step for humanity',
-    'Yes, once it is proven safe',
-    'Only to treat disability or illness',
-    'No. It would end what makes us human']],
-  ['social', 'Are there technologies that should never be built, even if they would work?', { tc: -7 }, [
-    'Yes, many. Some doors shouldn\'t be opened',
-    'A few, such as weapons of mass destruction',
-    'Very few. Regulate them rather than ban them',
-    'No. Progress can\'t and shouldn\'t be stopped']],
-  ['social', 'Is it wrong to kill animals for food?', { sx: 5, fc: 4 }, [
-    'Yes. Animals have rights too',
-    'Factory farming is, but humane farming is fine',
-    'No, though cruelty should be banned',
-    'No. Animals are here for our use']],
-  ['social', 'Should people be able to stay anonymous online?', { py: 5, sy: 4 }, [
-    'Yes, always',
-    'Yes, but platforms should know who people are',
-    'Only in special cases, such as whistleblowing',
-    'No. Real names stop abuse']],
-  ['social', 'How should sports be divided?', { sx: -6 }, [
-    'By sex at birth, without exceptions',
-    'Mostly by sex at birth, with open categories',
-    'By sex, with case-by-case rules for trans athletes',
-    'By gender identity']],
-  ['social', 'Strangers far away are suffering from famine. How much do you owe them?', { fc: 9, ex: -2 }, [
-    'A great deal. Their suffering is as real as my family\'s',
-    'Something. I should give what I can',
-    'A little, after my own people are looked after',
-    'Nothing. Charity is a choice, not a duty']],
-  ['social', 'Should everyone be held to exactly the same rules, whoever they are?', { ff: 9 }, [
-    'Yes, no exceptions for anyone',
-    'Yes, almost always',
-    'Mostly, but status and circumstance can count',
-    'No. Different people need different rules']],
-  ['social', 'Some children inherit fortunes while others inherit nothing. Is that unjust?', { ff: 8, ex: -3 }, [
-    'Yes, deeply',
-    'Somewhat. It should be balanced out',
-    'Not really. Parents can help their children',
-    'No. Life isn\'t meant to be equal']],
-  ['social', 'Should you stay loyal to your family and group even when it costs you?', { fl: 9, sy: -3 }, [
-    'Yes, always',
-    'Usually',
-    'Only if they are in the right',
-    'No. Loyalty must be earned each time']],
-  ['social', 'How bad is it to betray your own country?', { fl: 8, px: -3 }, [
-    'One of the worst things a person can do',
-    'Very bad, unless the country is doing evil',
-    'It depends on what the country is doing',
-    'Countries are not owed loyalty']],
-  ['social', 'Should children be taught to respect authority?', { fa: 9, py: -3 }, [
-    'Yes, parents, teachers and elders, without question',
-    'Yes, but they can question it politely',
-    'Respect has to be earned',
-    'No. They should be taught to challenge it']],
-  ['social', 'Should people follow orders from those above them when they disagree?', { fa: 8, py: -3 }, [
-    'Yes. Order depends on it',
-    'Usually, and object through proper channels',
-    'Only if the order is clearly lawful and moral',
-    'No. Follow your own conscience']],
-  ['social', 'Can an act be wrong because it is degrading or unnatural, even if nobody is harmed?', { fs: 9, sx: -4 }, [
-    'Yes, certainly',
-    'Sometimes',
-    'Rarely. Harm is what usually matters',
-    'No. If nobody is harmed, it is not wrong']],
-  ['social', 'Should people keep their body and mind free from degrading things?', { fs: 8, sx: -2 }, [
-    'Yes. The body is sacred',
-    'Mostly. Some things debase a person',
-    'It is up to each person',
-    'No. "Degrading" is just a matter of taste']],
-  ['social', 'How bad is it to be cruel to someone who cannot defend themselves?', { fc: 8 }, [
-    'Among the worst things a person can do',
-    'Very bad',
-    'Bad, but people sometimes have their reasons',
-    'Life is hard. The strong survive']],
-  ['social', 'Should gambling and pornography be restricted by law?', { sx: -6, py: -4, fs: 4 }, [
-    'Yes, banned to protect public morals',
-    'Tightly restricted',
-    'Allowed for adults, with age checks',
-    'Fully legal. Adults can decide for themselves']],
-  ['social', 'Should marriage be for life?', { sx: -6 }, [
-    'Yes, whatever happens',
-    'Yes, except in cases of abuse',
-    'Ideally, but divorce should be easy when it fails',
-    'Marriage is an outdated contract']],
+  ['social', "Should same-sex couples be able to marry and adopt on the same terms as everyone else?", { sx: 9, py: 2 }, [
+    "Yes, fully equal in law",
+    "Yes, but religious groups shouldn't have to perform the weddings",
+    "Civil partnerships with the same rights, but not marriage",
+    "No. Marriage is between a man and a woman"]],
+  ['social', "A woman is 20 weeks pregnant and wants an abortion for personal reasons. Should it be legal?", { sx: 7, py: 3, rl: 3 }, [
+    "Yes. It's her body and her decision, at any stage",
+    "Yes, up to about 24 weeks, when the foetus could survive outside the womb",
+    "Only in the first 12 weeks, or later for serious medical reasons",
+    "No. Abortion ends a human life, except perhaps to save the mother"]],
+  ['social', "A 15-year-old says they are transgender. What should happen?", { sx: 7 }, [
+    "Support their identity, including medical treatment if doctors agree",
+    "Support a social transition, but delay medical steps until adulthood",
+    "Offer counselling first and be cautious about any transition",
+    "Treat it as something they will likely grow out of. Children can't make this decision"]],
+  ['social', "In a family with young children, who should mainly earn and who should mainly care?", { sx: -8 }, [
+    "The father should earn and the mother should care. That is the natural order",
+    "That usually works best, though each family can choose",
+    "Whatever suits the couple. Neither role belongs to one sex",
+    "Both should share both equally. Anything else holds women back"]],
+  ['social', "Is sex before marriage wrong?", { sx: -7, fs: 4 }, [
+    "Yes. Sex belongs inside marriage",
+    "It's best kept for a committed relationship",
+    "It's fine between consenting adults who care for each other",
+    "It's nobody's business but the people involved"]],
+  ['social', "A man with motor neurone disease, fully lucid, asks a doctor to help him die. Should that be legal?", { sx: 5, py: 4, rl: 3 }, [
+    "Yes. His life, his choice",
+    "Yes, with strict safeguards and approval from two doctors and a judge",
+    "No. Vulnerable people would come under pressure to choose death",
+    "No. Life is not ours to end"]],
+  ['social', "A custom has lasted for centuries, but no one can say exactly what it is for. Should it be kept?", { sx: -8 }, [
+    "Yes. Customs that survive usually hold wisdom we can't see",
+    "Usually, unless it clearly harms people",
+    "Only if it can still be justified today",
+    "No. A custom should be judged on its merits, whatever its age"]],
+  ['social', "Compared with 60 years ago, is society better or worse off morally?", { sx: -7 }, [
+    "Worse. Family, faith and community have collapsed",
+    "Worse in some ways, better in others",
+    "Mostly better, despite some real losses",
+    "Far better. We have shed a great deal of cruelty and prejudice"]],
+  ['social', "A religious group wants its teachings to shape national laws on marriage and alcohol. Should they?", { rl: 8, sx: 4 }, [
+    "No. Laws should be secular, whatever the majority believes",
+    "Religious people can argue their case, but laws need non-religious reasons",
+    "A nation's faith can rightly shape some of its laws",
+    "Yes. Laws should follow God's commands"]],
+  ['social', "Can a society stay moral without religion?", { rl: -8, sx: -3 }, [
+    "No. Without God, morality has no foundation",
+    "With difficulty. Religion holds much of it together",
+    "Yes. Morality can rest on reason and empathy",
+    "Yes, and it does better without religion"]],
+  ['social', "Should state schools hold daily prayers?", { rl: -6, py: -2 }, [
+    "Yes, in the country's main faith",
+    "Yes, with families free to opt out",
+    "Teach about all religions, but hold no worship",
+    "No. State schools should be fully secular"]],
+  ['social', "Should religious communities be able to run their own courts for marriage and inheritance disputes, if both sides agree?", { rl: -5, sy: -3, as: 3 }, [
+    "Yes. Communities should be able to live by their own law",
+    "Yes, as long as anyone can still go to a civil court",
+    "Only as mediation, with no legal force",
+    "No. One law for everyone"]],
+  ['social', "What should a country expect of newcomers?", { as: -8, sx: -3 }, [
+    "To adopt its culture fully and leave old customs behind",
+    "To learn the language and accept its core values",
+    "To obey the law. Their culture is their own business",
+    "Nothing special. Diversity enriches a country"]],
+  ['social', "Is a country stronger when many cultures keep their own traditions?", { as: 8, sx: 3 }, [
+    "Yes. Diversity brings new ideas and energy",
+    "Yes, if there is a strong shared civic identity",
+    "Only up to a point. Too much diversity erodes trust",
+    "No. A nation needs one shared culture"]],
+  ['social', "Should teachers in state schools be allowed to wear religious dress, such as a headscarf or a cross?", { as: -6, rl: 4, py: -4 }, [
+    "No. State institutions must be religiously neutral",
+    "Small symbols yes, face coverings no",
+    "Yes, unless it gets in the way of the job",
+    "Yes. People should wear what their faith asks of them"]],
+  ['social', "Should public services be offered in immigrants' own languages?", { as: 5 }, [
+    "Yes. Nobody should lose access to services because of language",
+    "For essentials such as health and the courts",
+    "Only for the first few years after arrival",
+    "No. Everything in the national language encourages people to learn it"]],
+  ['social', "You're offered your dream job abroad, but your elderly parents and community depend on you. What do you do?", { sy: -8 }, [
+    "Stay. My duty to them comes first",
+    "Stay, unless I can arrange good care for them",
+    "Go, and help them from a distance",
+    "Go. Nobody should give up their life for others' expectations"]],
+  ['social', "Who should mainly care for elderly parents who can no longer live alone?", { sy: -6 }, [
+    "Their children, at home. It's a family duty",
+    "Their children, with help from the state",
+    "Professional carers, paid for partly by the family",
+    "The state and professionals. Adult children owe no such duty"]],
+  ['social', "Which matters more to teach a child: obedience or independence?", { sx: -5, fa: 6, sy: -3 }, [
+    "Obedience. Independence comes later",
+    "Mostly obedience, with room to ask why",
+    "Mostly independence, within respect",
+    "Independence. Children should learn to question everything"]],
+  ['social', "Birth rates have fallen far below replacement level. Is having children a duty?", { sx: -5, sy: -4, fl: 3 }, [
+    "Yes, to your family and your nation",
+    "It's the natural path, and the state should encourage it",
+    "It's a personal choice, and the state should stay out of it",
+    "No. Fewer people is no bad thing"]],
+  ['social', "Who is responsible for whether your life goes well?", { sy: 7, ex: 3 }, [
+    "Mainly me",
+    "Mostly me, with help from family and friends",
+    "Me and my community together",
+    "Society. A fair society produces good lives"]],
+  ['social', "Should parents be able to edit their embryos' genes, to prevent disease or to make their children taller or smarter?", { tc: 8, sx: 3 }, [
+    "Both. Giving your children better genes is good parenting",
+    "To prevent disease yes, and enhancement once it is proven safe",
+    "Only to prevent serious disease",
+    "Neither. We shouldn't redesign human beings"]],
+  ['social', "An AI diagnoses cancer more accurately than doctors. Should it make the diagnosis on its own?", { tc: 7, dm: -2 }, [
+    "Yes. Accuracy saves lives",
+    "Yes, with a doctor checking its work",
+    "It should advise, but a doctor must decide",
+    "No. Decisions like this must stay human"]],
+  ['social', "Should people be free to put implants in their brains to improve memory and intelligence?", { tc: 8 }, [
+    "Yes. It is the next step for humanity",
+    "Yes, once it is proven safe",
+    "Only to treat illness or disability",
+    "No. It would change what it means to be human"]],
+  ['social', "Should research on AI that could surpass human intelligence be paused?", { tc: -7 }, [
+    "Yes, worldwide. Some doors shouldn't be opened",
+    "Slowed down and tightly regulated",
+    "Regulated, but not slowed",
+    "No. Progress shouldn't be stopped, and rivals won't stop anyway"]],
+  ['social', "Is it wrong to raise and kill animals for food when we could live without meat?", { sx: 5, fc: 4 }, [
+    "Yes. Their suffering counts for more than our taste",
+    "Factory farming is, but humane farming is acceptable",
+    "No, though cruelty should be banned",
+    "No. Animals are here for our use"]],
+  ['social', "Should social media users have to verify their real identity?", { py: 5, sy: 4 }, [
+    "No. Anonymity protects dissidents and vulnerable people",
+    "No, but platforms should verify users privately to deal with abuse",
+    "Yes, for accounts with large audiences",
+    "Yes, for everyone. Real names curb abuse"]],
+  ['social', "A transgender woman wants to compete in elite women's sport. Should she be allowed?", { sx: -6 }, [
+    "No. Women's sport should be based on sex at birth",
+    "No, but there should be an open category anyone can enter",
+    "Yes, if her testosterone has been suppressed for years",
+    "Yes. She is a woman and should compete as one"]],
+  ['social', "Your $1,000 could pay for a holiday, or save a child's life abroad through a reliable charity. What do you owe that child?", { fc: 9, ex: -2 }, [
+    "The money. Distance doesn't change what a life is worth",
+    "Some of it. I should give regularly",
+    "Something, but my own family and country come first",
+    "Nothing. Charity is a choice, not a duty"]],
+  ['social', "A rich man and a poor man commit the same crime. Should they get exactly the same sentence?", { ff: 9 }, [
+    "Yes, exactly. Equality before the law is everything",
+    "Yes, but fines should be scaled to income",
+    "Mostly, though circumstances should count",
+    "No. Poverty and background should weigh heavily"]],
+  ['social', "Some children inherit fortunes while others inherit nothing. Is that unjust?", { ff: 8, ex: -3 }, [
+    "Yes, deeply",
+    "Somewhat. It should be balanced out",
+    "Not really. Parents are entitled to help their children",
+    "No. Life was never meant to be equal"]],
+  ['social', "Your brother has committed a serious crime. Do you report him?", { fl: 9, sy: -3 }, [
+    "No. Family comes before the law",
+    "No, but I'd push him to turn himself in",
+    "Yes, if others are at risk",
+    "Yes. The law applies to everyone, family included"]],
+  ['social', "A soldier leaks evidence that his own army committed war crimes. Is he a traitor?", { fl: 8, px: -3 }, [
+    "Yes. You don't betray your own side in wartime",
+    "He should have raised it inside the army first",
+    "No, but he must face trial and explain himself",
+    "No. He is a hero for exposing the truth"]],
+  ['social', "Should children be taught to respect teachers and elders, even when they disagree with them?", { fa: 9, py: -3 }, [
+    "Yes, without question",
+    "Yes, and disagree politely",
+    "Respect has to be earned",
+    "No. They should learn to challenge authority"]],
+  ['social', "Your manager orders you to do something you think is wrong but isn't illegal. What do you do?", { fa: 8, py: -3 }, [
+    "Do it. The responsibility lies with the person giving the order",
+    "Do it, and object through proper channels",
+    "Refuse unless they can justify it",
+    "Refuse. My conscience comes first"]],
+  ['social', "Two adults freely agree to do something most people find disgusting, but it harms no one. Is it wrong?", { fs: 9, sx: -4 }, [
+    "Yes. Some acts degrade people even when no one is harmed",
+    "Sometimes",
+    "Rarely. Harm is what matters",
+    "No. If no one is harmed, it isn't wrong"]],
+  ['social', "Should the body be treated as something sacred, kept free of degrading things?", { fs: 8, sx: -2 }, [
+    "Yes. The body is a trust, not a possession",
+    "Mostly. Some things really do debase a person",
+    "That's up to each person",
+    "No. It's ours to do with as we like"]],
+  ['social', "Someone kicks a stray dog for fun. How seriously should that be taken?", { fc: 8 }, [
+    "Very. Cruelty to the defenceless is among the worst things a person can do",
+    "Seriously. It should be a crime",
+    "It's wrong, but not a matter for the law",
+    "Not very. Animals aren't people"]],
+  ['social', "Online pornography is available to anyone with a phone. What should the law do?", { sx: -6, py: -4, fs: 4 }, [
+    "Ban it. It corrupts people and society",
+    "Restrict it heavily, with strict age checks",
+    "Allow it for adults, with age checks",
+    "Leave it alone. Adults decide for themselves"]],
+  ['social', "A couple with young children have grown unhappy, though not abusive. Should they divorce?", { sx: -6 }, [
+    "No. Marriage is for life, especially with children",
+    "Only as a last resort, after years of trying",
+    "If they've really tried and it isn't working",
+    "Yes, if they want to. Staying unhappy helps no one"]],
 ].map(([sec, q, w, opts]) => ({ sec, q, w, opts }));
 
 /* ======================================================================
@@ -663,23 +663,23 @@ PHIL_QUESTIONS.push(
   { q: "Mary knows every physical fact about colour but has never seen red. When she first sees it, does she learn something new?", tag: 'sc', opts: ["No. It is just more brain activity", "Yes, but it can be explained physically", "Yes. Experience is more than physical facts", "Yes. This shows the mind is not physical"] },
   { q: "Could there be a person who acts exactly like you but has no inner experience at all?", tag: 'sc', opts: ["No. Behaviour and the brain explain everything", "Probably not, but it is hard to prove", "Possibly, which would mean consciousness is something extra", "Yes. Consciousness is not just matter"] },
   { q: "Every plank of a ship is replaced, one at a time, until none of the original is left. Is it the same ship?", tag: 'sc', opts: ["Yes. It keeps its form and its history", "Yes, but only because we choose to say so", "No. It is a different ship now", "There is no single right answer"] },
-  { q: "Some argue we are probably living in a computer simulation. How do you react?", tag: 'sc', opts: ["Nonsense. There is no evidence", "Interesting, but I do not believe it", "Possible. I cannot rule it out", "Quite likely, and it changes how I see everything"] },
+  { q: "Some argue we are probably living in a computer simulation. How do you react?", tag: 'sc', opts: ["It's an untestable story, so it isn't worth believing", "Interesting, but I do not believe it", "Possible. I cannot rule it out", "Quite likely, and it changes how I see everything"] },
   { q: "Studies show brain activity starts before we feel we have decided to move. What does this show?", tag: 'sc', opts: ["Nothing important. We still decide", "That decisions have unconscious roots, but we still choose", "That our choices are mostly settled before we are aware", "That free will is an illusion"] },
   { q: "Two drivers are equally reckless and drunk. One hits a child by chance; the other gets home safely. Should the first be blamed more?", tag: 'sc', opts: ["Yes. Results matter morally", "A little more, but they are equally reckless", "No. They deserve the same blame", "Neither chose to be that way, so blame is mostly pointless"] },
   { q: "Should a tolerant society put up with people who want to destroy tolerance?", tag: 'sc', opts: ["Yes. Principles must apply to everyone", "Mostly, until they do real harm", "No. A society may protect itself", "There is no neutral answer; it depends on who holds power"] },
   { q: "Is it wrong to cause animals pain for food or science, if humans gain a lot?", tag: 'sc', opts: ["Always wrong. Animals have rights", "Wrong unless the benefit is huge", "Fine if the suffering is kept as small as possible", "Animals do not count morally the way people do"] },
   { q: "People once accepted slavery. Were they wrong, or just different from us?", tag: 'sc', opts: ["Wrong. Some moral truths are timeless", "Wrong, and we have learned more of the truth since", "Wrong by today's standards, not by theirs", "Neither: morals are only what a society accepts"] },
   { q: "Is mathematics discovered or invented?", tag: 'sc', opts: ["Discovered. It exists whether or not we do", "Discovered, through human reasoning", "Invented as a useful tool", "Invented, and shaped by culture and language"] },
-  { q: "Two explanations fit the facts equally well, but one is simpler. Which do you trust?", tag: 'sc', opts: ["The simpler one, always", "The simpler one, usually", "Whichever matches my intuition", "Neither, until there is more evidence"] },
-  { q: "A stranger says they saw something astonishing. How much do you believe them?", tag: 'sc', opts: ["Not until there is evidence", "A little, unless it is easy to check", "If they sound honest, I believe them", "I trust people's accounts and my gut over proof"] },
+  { q: "Two explanations fit the facts equally well, but one is simpler. Which do you trust?", tag: 'sc', opts: ["The simpler one, always", "The simpler one, usually", "Whichever fits better with everything else I know, even if it is more complicated", "Neither, until there is more evidence"] },
+  { q: "A stranger says they saw something astonishing. How much do you believe them?", tag: 'sc', opts: ["Not until there is evidence", "A little, unless it is easy to check", "If they seem honest and sober, I give them the benefit of the doubt", "Believe them. Most people are honest, and demanding proof for everything is its own mistake"] },
   { q: "Someone you trust says they have seen a ghost. What do you think?", tag: 'sc', opts: ["They were mistaken or imagined it", "Probably a natural explanation, but I cannot be certain", "It may be real; science does not know everything", "It is real. There is more to the world than matter"] },
   { q: "Why is there something rather than nothing?", tag: 'sc', opts: ["A creator or higher mind made it", "There is a deeper purpose I can sense", "It is just a brute fact, with no reason", "The question may not even make sense"] },
   { q: "Does life have a purpose?", tag: 'sc', opts: ["Yes, given by a creator or the universe", "Yes, one we discover by reflecting", "No, but we can create our own", "No, and looking for one is a mistake"] },
   { q: "Is death bad for the person who dies?", tag: 'sc', opts: ["Not if there is something beyond it", "Yes, mostly because of everything they lose", "Not really. Once dead, no one is harmed", "No. Fearing death makes no sense"] },
   { q: "You design a society without knowing which place in it you will get. What rule do you choose?", tag: 'sc', opts: ["Strong equal rights, no matter what", "Rights first, then protect the worst off", "Whatever makes society happiest overall", "I would not trust any rule I could not test in practice"] },
-  { q: "A tradition has lasted a thousand years, but you cannot see its reason. Do you keep it?", tag: 'sc', opts: ["Yes. Its age is its reason", "Yes. There is probably a reason I cannot see", "Only if it proves its worth", "No. Anything unexplained should go"] },
+  { q: "A tradition has lasted a thousand years, but you cannot see its reason. Do you keep it?", tag: 'sc', opts: ["Yes. Surviving a thousand years is itself evidence that it works", "Yes. There is probably a reason I cannot see", "Only if it proves its worth", "No. If nobody can justify it, it should go"] },
   { q: "A person from a terrible background commits a crime. How much did their background decide what they did?", tag: 'sc', opts: ["Very little. They chose", "Some, but they still chose", "A lot. They had few real options", "Almost everything"] },
-  { q: "A clever argument concludes something that feels deeply wrong. What do you do?", tag: 'sc', opts: ["Trust the argument. Feelings can be wrong", "Look for the flaw, but accept it if I cannot find one", "Trust my feeling. The argument must be flawed", "Reject that whole way of arguing"] },
+  { q: "A clever argument concludes something that feels deeply wrong. What do you do?", tag: 'sc', opts: ["Trust the argument. Feelings can be wrong", "Look for the flaw, but accept it if I cannot find one", "Trust my feeling. The argument must be flawed", "Distrust clever arguments in general. Being able to argue for something doesn't make it true"] },
 );
 PHIL_EFFECTS.push(
   [{"E": -2}, {"E": -1}, {"E": 2}, {"E": 2, "V": 1}],
