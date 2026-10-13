@@ -2491,7 +2491,7 @@ h2 .role-tag { font-size: 0.5em; }
 .rc9-who .rc-flag { width: 14cqw; height: 14cqw; margin: 0; border-radius: 50%; object-fit: cover; border: 0.6cqw solid #fff; box-shadow: 0 0.6cqw 2cqw rgba(0,0,0,0.25); }
 .rc9-who .rc-flag--code { display: flex; align-items: center; justify-content: center; font-size: 3.4cqw; background: #2a0f5c; color: #fff; }
 .rc9-who__era { margin-top: 1cqw; font-size: 2.1cqw; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #8a2a9e; }
-.rc9-who__name { margin-top: 0.6cqw; font-size: 2.6cqw; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.rc9-who__name { margin-top: 0.6cqw; font-size: 2.6cqw; font-weight: 700; line-height: 1.15; overflow-wrap: break-word; hyphens: auto; }
 .rc9-who__pct { font-size: 2.6cqw; font-weight: 800; color: #c2255c; }
 .rc9-badge { width: 13cqw; height: 13cqw; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 4.4cqw;
   color: #fff; background: linear-gradient(135deg, #4b1a8a, #d4467f); border: 0.6cqw solid #fff; box-shadow: 0 0.6cqw 2cqw rgba(0,0,0,0.25); }
@@ -2502,3 +2502,8 @@ h2 .role-tag { font-size: 0.5em; }
 .rc9-trio .rc9-badge { width: 11cqw; height: 11cqw; font-size: 3.6cqw; }
 .rc9__foot { text-align: center; color: rgba(255,255,255,0.85); font-size: 2.6cqw; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; }
 .rc-wrap .rc9 { max-width: 420px; margin: 0 auto; }
+.rc9-wait { text-align: center; font-size: 2.5cqw; line-height: 1.35; color: #6b5f80; padding: 1cqw 0; }
+.rc9-wait.is-loading { animation: rc9Pulse 1.6s ease-in-out infinite; }
+@keyframes rc9Pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+.rc9-retry { display: block; margin: 1.4cqw auto 0; padding: 1cqw 2.6cqw; border: 0; border-radius: 999px; background: #4b1a8a; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .rc9-wait.is-loading { animation: none; } }
