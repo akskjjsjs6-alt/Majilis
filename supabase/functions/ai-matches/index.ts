@@ -35,7 +35,7 @@ function b64(buf: Uint8Array): string {
   for (let i = 0; i < buf.length; i += chunk) s += String.fromCharCode(...buf.subarray(i, i + chunk));
   return btoa(s);
 }
-const WIKI_IMG = /^https:\/\/upload\.wikimedia\.org\//;
+const WIKI_IMG = /^https:\/\/(upload|thumb)\.wikimedia\.org\//;   // Wikipedia now serves thumbnails from thumb.wikimedia.org
 async function getJson(url: string): Promise<any> {
   let last: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {   // one retry: a single slow answer shouldn't cost someone their photo

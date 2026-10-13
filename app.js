@@ -2623,7 +2623,7 @@ function thinkStage(id, cfg){
 const portraitCache = {};
 try { Object.keys(localStorage).filter(k => k.startsWith('majlis-portrait-') && /"url":null/.test(localStorage.getItem(k) || '')).forEach(k => localStorage.removeItem(k)); } catch(e){}   // forget old "no photo" notes
 function portraitSaved(name){ try { return JSON.parse(localStorage.getItem('majlis-portrait-' + name) || 'null'); } catch(e){ return null; } }
-const WIKI_IMG = /^https:\/\/upload\.wikimedia\.org\//;
+const WIKI_IMG = /^https:\/\/(upload|thumb)\.wikimedia\.org\//;   // Wikipedia now serves thumbnails from thumb.wikimedia.org
 function wikiThumb(j){ return j && j.thumbnail && WIKI_IMG.test(j.thumbnail.source || '') ? j.thumbnail.source : null; }
 // Three tries, because the AI's name is not always the exact article title: the article summary, then the
 // article by title (following redirects), then a search for the name.
@@ -2720,7 +2720,7 @@ function saveAnswersForAI(answers){
   try { localStorage.setItem(answersKey(), JSON.stringify(answers.filter(a => a.section === 'compass').map(a => [a.q, a.choice]))); } catch(e){}
 }
 const okPos = (p) => p && ['economic', 'political', 'social'].every(k => p[k] && typeof p[k].x === 'number' && typeof p[k].y === 'number');
-const MATCH_PHOTO = /^https:\/\/(upload\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/)/;
+const MATCH_PHOTO = /^https:\/\/((upload|thumb)\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/)/;
 async function fetchCardMatches(){
   const u = state.user;
   if(!u || u.isGuest || !u.id || !u.compass || state.cardMatches.loading) return;
@@ -2851,8 +2851,8 @@ function ideologyEmblem(name){
 }
 // Wikipedia thumbnails come at 320px; the background asks for a bigger copy and falls back to the small one.
 function bigPortrait(url){
-  if(/^https:\/\/upload\.wikimedia\.org\/.*\/thumb\/.*\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, '/900px-$1');
-  if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=900');
+  if(/^https:\/\/(upload|thumb)\.wikimedia\.org\/.*\/thumb\/.*\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, '/960px-$1');   // Wikipedia only serves standard sizes (900 is refused)
+  if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=960');
   return null;
 }
 // Waits (up to 8 seconds) for the background portrait of the card, so the card appears complete.
@@ -2864,7 +2864,7 @@ function preloadCardPortrait(){
   const work = who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? Promise.resolve() : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done)));
   return Promise.race([work, new Promise(done => setTimeout(done, 8000))]);
 }
-const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
+const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|thumb\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
 // Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
 // behind everything, every axis in one tall panel on the left, three stacked panels on the right (leader, nation,
 // ideology) and the other ideologies in a wide panel along the bottom.
