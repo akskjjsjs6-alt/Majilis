@@ -2468,7 +2468,7 @@ h2 .role-tag { font-size: 0.5em; }
 .compass-legend i.is-historical { background: transparent; box-shadow: inset 0 0 0 2px #f0c04a; opacity: 1; }
 
 /* ===== Result card, 9:16, laid out on the sketch (864 x 1536; 1cqw = 8.64 sketch pixels) ===== */
-.rc9 { container-type: inline-size; position: relative; overflow: hidden; width: 100%; aspect-ratio: 9 / 16; border-radius: 1.6cqw; text-align: left; box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+.rc9 { container-type: inline-size; position: relative; width: 100%; aspect-ratio: 9 / 16; border-radius: 1.6cqw; text-align: left;   /* no shadow: the card's outside stays clear */
   /* Vaporwave is the default look; each theme below swaps these. */
   --rc-bg: linear-gradient(180deg, #14072e 0%, #2a0d58 35%, #5b1a86 62%, #2a0d58 100%);
   --rc-glow: radial-gradient(70% 22% at 50% 24%, rgba(214,40,170,0.35), transparent 70%), radial-gradient(40% 10% at 8% 44%, rgba(255,60,200,0.45), transparent 70%);
@@ -2532,7 +2532,6 @@ h2 .role-tag { font-size: 0.5em; }
 .rc9-solo .rc9-who__name { margin-top: 0.9cqw; }
 .rc9-who__pct { margin-top: 0.35cqw; font-size: 2.2cqw; font-weight: 800; color: var(--rc-pct); }
 .rc9__foot { left: 0; right: 0; bottom: 3.5cqw; text-align: center; font-size: 1.95cqw; letter-spacing: 0.2em; }
-.rc-wrap .rc9 { max-width: 420px; margin: 0 auto; }
 .rc9-wait { margin: auto 0; text-align: center; font-size: 1.9cqw; line-height: 1.35; color: var(--rc-dim); padding: 1cqw 0; }
 .rc9-wait.is-loading { animation: rc9Pulse 1.6s ease-in-out infinite; }
 @keyframes rc9Pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
@@ -2595,3 +2594,166 @@ h2 .role-tag { font-size: 0.5em; }
   --rc-photo: grayscale(1) sepia(0.25) contrast(1.02); --rc-panel: rgba(20,14,34,0.4); --rc-line: rgba(255,200,150,0.4); --rc-r: 1.2cqw;
   --rc-pct: #ffa65c; --rc-era: #ffd2a8; --rc-emb: linear-gradient(135deg, #ff9a76, #8f6bd1); --rc-a1: #ffa65c; --rc-a2: #b39cff; --rc-a3: #8fd6b4;
   --rc-hfont: 'Lora', Georgia, serif; --rc-btn: #c46a3a; }
+
+/* ===== Result card artwork (batch 3): scene, cut-out leader popping out, real emblems, faith, theme flavour ===== */
+.rc9__in { overflow: hidden; border-radius: inherit; }
+.rc9__scene { inset: 0; pointer-events: none; }
+.rc9__scene svg { display: block; width: 100%; height: 100%; }
+/* the leader cut out of his photo: in front of the scene, fading out below the chest */
+.rc9__person { inset: 0; pointer-events: none; filter: var(--rc-photo); opacity: var(--rc-photo-op);
+  -webkit-mask-image: linear-gradient(#000 0, #000 24%, rgba(0,0,0,0.45) 43%, rgba(0,0,0,0.18) 72%); mask-image: linear-gradient(#000 0, #000 24%, rgba(0,0,0,0.45) 43%, rgba(0,0,0,0.18) 72%); }
+.rc9__cut { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
+/* ...and the parts of him that come out over the top and the sides of the card (nothing else outside it) */
+.rc9__pop { position: absolute; inset: 0; pointer-events: none; filter: var(--rc-photo); }
+.rc9__pop > div { position: absolute; overflow: hidden; }
+.rc9__pop-top { left: -8cqw; width: 116cqw; top: -30cqw; height: 30cqw; }
+.rc9__pop-side { top: 0; height: 100%; width: 8cqw; -webkit-mask-image: linear-gradient(#000 0, #000 26%, transparent 40%); mask-image: linear-gradient(#000 0, #000 26%, transparent 40%); }
+.rc9__pop-l { left: -8cqw; } .rc9__pop-r { left: 100cqw; }
+/* a leader whose head rises out of his circle */
+.rc9-popc { position: relative; width: 13.7cqw; height: 13.7cqw; flex: none; }
+.rc9-who .rc9-popc__ring { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; overflow: hidden; padding: 0; background: #222; }
+.rc9-popc i { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
+.rc9-popc::after { content: ''; position: absolute; inset: 0; z-index: 1; border-radius: 50%; border: 0.45cqw solid var(--rc-ring); pointer-events: none; }
+.rc9-popc__head { position: absolute; z-index: 2; left: -50%; top: -100%; width: 200%; height: 150%; overflow: hidden; pointer-events: none; filter: drop-shadow(0 0.7cqw 1cqw rgba(30,0,60,0.45)); }
+/* real flags and symbols for ideologies and faiths */
+.rc9-emb--pic { overflow: hidden; padding: 0; background: rgba(14,8,30,0.45); }
+.rc9-emb--pic img { display: block; width: 100%; height: 100%; object-fit: cover; filter: drop-shadow(0 0.3cqw 0.6cqw rgba(0,0,0,0.45)); }
+/* your faith, beside the other ideologies */
+.rc9__others--faith { left: 4.6cqw; width: 72.9cqw; }
+.rc9__faith { left: 79.9cqw; top: 138cqw; width: 20.1cqw; height: 31.7cqw; padding: 1.8cqw 0.8cqw; display: flex; flex-direction: column; align-items: center; }
+.rc9__faith .rc9__h { font-size: 2.5cqw; }
+.rc9__faith .rc9-emb { width: 11.6cqw; height: 11.6cqw; }
+.rc9__faith .rc9-who__era { margin-top: 0.4cqw; }
+.rc9__flavor { inset: 0; pointer-events: none; z-index: 3; }
+.rc9__flavor svg { display: block; width: 100%; height: 100%; overflow: visible; }
+/* room around the card for what pops out of it */
+.rc-wrap .rc9 { width: 86%; max-width: 400px; margin: 13% auto 0; }
+.compass-aside__card { padding: 13% 7% 0; }
+/* the floor grid stays only where it belongs */
+[data-theme="light"] .rc9, [data-theme="mint"] .rc9, [data-theme="glass"] .rc9, [data-theme="kawaii"] .rc9, [data-theme="shonen"] .rc9, [data-theme="doge"] .rc9, [data-theme="midnight"] .rc9, [data-theme="lofi"] .rc9 { --rc-grid-op: 0; }
+
+/* --- Dark: a hacker terminal --- */
+[data-theme="dark"] .rc9 .rc9__h, [data-theme="dark"] .rc9 .rc9__axes-h, [data-theme="dark"] .rc9 .rc9__res { font-family: 'VT323', ui-monospace, monospace; letter-spacing: 0.04em; }
+[data-theme="dark"] .rc9 .rc9__h { font-size: 3.47cqw; } [data-theme="dark"] .rc9 .rc9__faith .rc9__h { font-size: 2.8cqw; }
+[data-theme="dark"] .rc9 .rc9__h::before { content: '> '; color: #00ff66; } [data-theme="dark"] .rc9 .rc9__h::after { content: '_'; color: #00ff66; }
+[data-theme="dark"] .rc9 .rc9__panel { box-shadow: inset 0 0 2.8cqw rgba(0,255,102,0.18), 0 0 1.6cqw rgba(0,255,102,0.15); background-image: repeating-linear-gradient(0deg, rgba(0,255,102,0.06) 0 1px, transparent 1px 3px); }
+[data-theme="dark"] .rc9 .rc9-who__pct::before { content: '['; } [data-theme="dark"] .rc9 .rc9-who__pct::after { content: ']'; }
+[data-theme="dark"] .rc9 .rc9-ax__mk { border-radius: 1px; width: 1.27cqw; height: 1.97cqw; background: #00ff66; border: 0; box-shadow: 0 0 1.2cqw #00ff66; }
+[data-theme="dark"] .rc9 .rc9-ax__bar::before { background: repeating-linear-gradient(90deg, rgba(0,255,102,0.75) 0 0.7cqw, transparent 0.7cqw 1.16cqw); opacity: 1; }
+[data-theme="dark"] .rc9 .rc9-who .match-photo, [data-theme="dark"] .rc9 .rc9-who .rc-flag, [data-theme="dark"] .rc9 .rc9-emb, [data-theme="dark"] .rc9 .rc9-popc::after { box-shadow: 0 0 0 0.35cqw #020604, 0 0 0 0.7cqw #00ff66, 0 0 2.5cqw rgba(0,255,102,0.55); }
+[data-theme="dark"] .rc9 .rc9__foot::before { content: '// '; } [data-theme="dark"] .rc9 .rc9__foot::after { content: ' _'; color: #00ff66; }
+
+/* --- Light: an official gazette --- */
+[data-theme="light"] .rc9 .rc9__h, [data-theme="light"] .rc9 .rc9__axes-h, [data-theme="light"] .rc9 .rc9__res { font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.06em; }
+[data-theme="light"] .rc9 .rc9__h { border-bottom: 0.46cqw double #0b6b3a; padding-bottom: 0.46cqw; }
+[data-theme="light"] .rc9 .rc9__panel { background: rgba(255,255,252,0.62); box-shadow: 0 0.35cqw 0 rgba(11,107,58,0.08); }
+[data-theme="light"] .rc9 .rc9__p3 .rc9-solo { position: relative; }
+[data-theme="light"] .rc9 .rc9__p3 .rc9-solo::before { content: ''; position: absolute; left: 50%; top: -1.3cqw; width: 14.6cqw; height: 12.8cqw; transform: translateX(-50%); background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20160%20140%22%3E%3Cellipse%20cx%3D%22109.0%22%20cy%3D%2219.770526580502562%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%2830.000000000000007%20109.0%2019.770526580502562%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22121.72170841964177%22%20cy%3D%2229.709814513378163%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%2846.0%20121.72170841964177%2029.709814513378163%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22131.21096038581777%22%20cy%3D%2242.77064935841833%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%2862.0%20131.21096038581777%2042.77064935841833%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22136.73256084256073%22%20cy%3D%2257.941121932569956%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%2878.0%20136.73256084256073%2057.941121932569956%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22137.8587149150698%22%20cy%3D%2274.04587547715927%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%2894.0%20137.8587149150698%2074.04587547715927%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22134.50217200558268%22%20cy%3D%2289.83716831288879%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28110.0%20134.50217200558268%2089.83716831288879%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22126.92298567374695%22%20cy%3D%22104.09154463296343%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28126.0%20126.92298567374695%20104.09154463296343%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22115.70836556888818%22%20cy%3D%22115.70462370918987%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28142.0%20115.70836556888818%20115.70462370918987%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%22101.7271824181229%22%20cy%3D%22123.77666356487367%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28158.0%20101.7271824181229%20123.77666356487367%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2286.0626508695239%22%20cy%3D%22127.68226993135985%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28174.0%2086.0626508695239%20127.68226993135985%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2250.99999999999999%22%20cy%3D%2219.770526580502562%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-30.000000000000007%2050.99999999999999%2019.770526580502562%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2238.27829158035823%22%20cy%3D%2229.709814513378163%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-46.0%2038.27829158035823%2029.709814513378163%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2228.789039614182236%22%20cy%3D%2242.77064935841833%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-62.0%2028.789039614182236%2042.77064935841833%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2223.26743915743927%22%20cy%3D%2257.941121932569956%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-78.0%2023.26743915743927%2057.941121932569956%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2222.141285084930196%22%20cy%3D%2274.04587547715927%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-94.0%2022.141285084930196%2074.04587547715927%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2225.497827994417314%22%20cy%3D%2289.83716831288879%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-110.0%2025.497827994417314%2089.83716831288879%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2233.07701432625305%22%20cy%3D%22104.09154463296343%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-126.0%2033.07701432625305%20104.09154463296343%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2244.29163443111182%22%20cy%3D%22115.70462370918987%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-142.0%2044.29163443111182%20115.70462370918987%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2258.272817581877106%22%20cy%3D%22123.77666356487367%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-158.0%2058.272817581877106%20123.77666356487367%29%22%20fill%3D%22%23b8902a%22/%3E%3Cellipse%20cx%3D%2273.9373491304761%22%20cy%3D%22127.68226993135985%22%20rx%3D%2211%22%20ry%3D%225%22%20transform%3D%22rotate%28-174.0%2073.9373491304761%20127.68226993135985%29%22%20fill%3D%22%23b8902a%22/%3E%3C/svg%3E") center / contain no-repeat; }
+[data-theme="light"] .rc9 .rc9__p3 .rc9-emb { position: relative; z-index: 1; }
+[data-theme="light"] .rc9 .rc9-ax__mk { border-radius: 2px; transform: translate(-50%, -50%) rotate(45deg); width: 1.5cqw; height: 1.5cqw; }
+[data-theme="light"] .rc9 .rc9-who .match-photo, [data-theme="light"] .rc9 .rc9-who .rc-flag, [data-theme="light"] .rc9 .rc9-emb, [data-theme="light"] .rc9 .rc9-popc::after { box-shadow: 0 0 0 0.35cqw #fff, 0 0 0 0.7cqw #b8902a, 0 0.7cqw 1.6cqw rgba(0,0,0,0.12); }
+[data-theme="light"] .rc9 .rc9__foot { font-family: Georgia, serif; letter-spacing: 0.3em; } [data-theme="light"] .rc9 .rc9__foot::before, [data-theme="light"] .rc9 .rc9__foot::after { content: ' ❦ '; color: #b8902a; }
+
+/* --- Mint: fresh and soft --- */
+[data-theme="mint"] .rc9 .rc9__h { background: rgba(17,184,98,0.16); border-radius: 999px; padding: 0.46cqw 2.08cqw; font-family: 'Nunito', sans-serif; }
+[data-theme="mint"] .rc9 .rc9__faith .rc9__h { padding: 0.46cqw 0.93cqw; font-size: 2.08cqw; }
+[data-theme="mint"] .rc9 .rc9__panel { background: rgba(255,255,255,0.4); border-radius: 2.55cqw; box-shadow: 0 0.93cqw 2.8cqw rgba(14,158,83,0.12); }
+[data-theme="mint"] .rc9 .rc9-ax__mk { border-radius: 0 60% 0 60%; transform: translate(-50%, -50%) rotate(45deg); width: 1.85cqw; height: 1.85cqw; }
+[data-theme="mint"] .rc9 .rc9-who .match-photo, [data-theme="mint"] .rc9 .rc9-who .rc-flag, [data-theme="mint"] .rc9 .rc9-emb, [data-theme="mint"] .rc9 .rc9-popc::after { box-shadow: 0 0 0 0.58cqw rgba(63,214,160,0.45), 0 0.93cqw 2.1cqw rgba(14,158,83,0.2); }
+[data-theme="mint"] .rc9 .rc9__foot::before { content: '✿ '; } [data-theme="mint"] .rc9 .rc9__foot::after { content: ' ✿'; }
+
+/* --- Glass: holographic --- */
+[data-theme="glass"] .rc9 .rc9__panel { border-color: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 2.1cqw 4.6cqw rgba(5,7,13,0.35); -webkit-backdrop-filter: blur(10px) saturate(1.4); backdrop-filter: blur(10px) saturate(1.4); }
+[data-theme="glass"] .rc9 .rc9__panel::before { content: ''; position: absolute; inset: -2px; border-radius: inherit; padding: 2px; pointer-events: none;
+  background: conic-gradient(from 210deg, #35f28a, #5a6eff, #ff7ad9, #ffd27a, #35f28a);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+[data-theme="glass"] .rc9 .rc9-who .match-photo, [data-theme="glass"] .rc9 .rc9-who .rc-flag, [data-theme="glass"] .rc9 .rc9-emb, [data-theme="glass"] .rc9 .rc9-popc::after { border-color: rgba(255,255,255,0.85); box-shadow: 0 0 0 0.46cqw rgba(143,162,255,0.25), 0 0 2.5cqw rgba(53,242,138,0.35); }
+[data-theme="glass"] .rc9 .rc9__in::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 4; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.10) 38%, transparent 44%, transparent 62%, rgba(255,255,255,0.07) 66%, transparent 70%); }
+[data-theme="glass"] .rc9 .rc9-ax__mk { box-shadow: 0 0 1.6cqw 0.35cqw rgba(255,255,255,0.55); border-color: rgba(255,255,255,0.9); }
+[data-theme="glass"] .rc9 .rc9-ax__bar::before { filter: drop-shadow(0 0 0.46cqw rgba(255,255,255,0.4)); }
+[data-theme="glass"] .rc9 .rc9__foot { letter-spacing: 0.35em; }
+
+/* --- Esports: a match HUD --- */
+[data-theme="esports"] .rc9 .rc9__h { background: #00ff66; color: #05070a; transform: skewX(-12deg); padding: 0.35cqw 1.85cqw; text-shadow: none; font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-size: 3.24cqw; }
+[data-theme="esports"] .rc9 .rc9__faith .rc9__h { font-size: 2.55cqw; padding: 0.35cqw 0.93cqw; }
+[data-theme="esports"] .rc9 .rc9__panel { clip-path: polygon(2.08cqw 0, 100% 0, 100% calc(100% - 2.08cqw), calc(100% - 2.08cqw) 100%, 0 100%, 0 2.08cqw); background-image: repeating-linear-gradient(135deg, rgba(0,255,102,0.05) 0 1.16cqw, transparent 1.16cqw 2.31cqw); }
+[data-theme="esports"] .rc9 .rc9-ax__bar::before { height: 0.7cqw; margin-top: -0.35cqw; border-radius: 0; background: repeating-linear-gradient(90deg, var(--c) 0 1.62cqw, transparent 1.62cqw 1.97cqw); opacity: 0.75; }
+[data-theme="esports"] .rc9 .rc9-ax__mk { border-radius: 0; width: 1.16cqw; height: 2.31cqw; transform: translate(-50%, -50%) skewX(-14deg); border: 0.23cqw solid #fff; }
+[data-theme="esports"] .rc9 .rc9-who .match-photo, [data-theme="esports"] .rc9 .rc9-who .rc-flag, [data-theme="esports"] .rc9 .rc9-emb, [data-theme="esports"] .rc9 .rc9-popc::after { outline: 0.35cqw dashed #00ff66; outline-offset: 0.58cqw; }
+[data-theme="esports"] .rc9 .rc9-who__pct { font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-size: 2.78cqw; }
+[data-theme="esports"] .rc9 .rc9__foot { font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-size: 2.31cqw; } [data-theme="esports"] .rc9 .rc9__foot::before { content: 'GG · '; }
+
+/* --- Retro: Windows 95 --- */
+[data-theme="retro"] .rc9 { --rc-panel: rgba(192,192,192,0.86); }
+[data-theme="retro"] .rc9 .rc9__h { position: relative; }
+[data-theme="retro"] .rc9 .rc9__h::after { content: '✕'; position: absolute; right: 0.7cqw; top: 50%; transform: translateY(-50%); width: 2.31cqw; height: 2.08cqw; line-height: 1.97cqw; text-align: center; font: 700 1.5cqw Arial, sans-serif; background: #c0c0c0; color: #000; box-shadow: inset -0.23cqw -0.23cqw 0 #404040, inset 0.23cqw 0.23cqw 0 #fff; }
+[data-theme="retro"] .rc9 .rc9__rp .rc9__h::before, [data-theme="retro"] .rc9 .rc9__others .rc9__h::before { content: '▁ ▢'; position: absolute; right: 3.7cqw; top: 50%; transform: translateY(-50%); font-size: 1.27cqw; letter-spacing: 0.7cqw; color: #000; background: #c0c0c0; padding: 0.12cqw 0.46cqw; box-shadow: inset -0.23cqw -0.23cqw 0 #404040, inset 0.23cqw 0.23cqw 0 #fff; }
+[data-theme="retro"] .rc9 .rc9-ax__mk { border-radius: 0; width: 1.39cqw; height: 2.31cqw; background: #c0c0c0; border: 1px solid #000; box-shadow: inset -0.23cqw -0.23cqw 0 #404040, inset 0.23cqw 0.23cqw 0 #fff; }
+[data-theme="retro"] .rc9 .rc9-ax__bar::before { background: #808080; height: 0.46cqw; margin-top: -0.23cqw; opacity: 1; box-shadow: inset 1px 1px 0 #404040, inset -1px -1px 0 #fff; }
+[data-theme="retro"] .rc9 .rc9-ax__bar::after { display: none; }
+[data-theme="retro"] .rc9 .rc9-who .match-photo, [data-theme="retro"] .rc9 .rc9-who .rc-flag, [data-theme="retro"] .rc9 .rc9-emb, [data-theme="retro"] .rc9 .rc9-popc::after { border-color: #c0c0c0; box-shadow: inset 0 0 0 0.23cqw #404040, 0.35cqw 0.35cqw 0 #404040; }
+[data-theme="retro"] .rc9 .rc9__foot { bottom: 5.1cqw; color: #fff; }
+
+/* --- Kawaii: stickers and hearts --- */
+[data-theme="kawaii"] .rc9 .rc9__h { background: #ff5ab0; color: #fff; border-radius: 999px; padding: 0.46cqw 2.08cqw; text-shadow: none; box-shadow: 0 0.35cqw 0 #d6156f; }
+[data-theme="kawaii"] .rc9 .rc9__faith .rc9__h { padding: 0.46cqw 1.16cqw; font-size: 2.2cqw; }
+[data-theme="kawaii"] .rc9 .rc9__axes-h { color: #c2185b; }
+[data-theme="kawaii"] .rc9 .rc9__panel { background-image: radial-gradient(rgba(255,140,198,0.28) 0.23cqw, transparent 0.3cqw); background-size: 2.08cqw 2.08cqw; }
+[data-theme="kawaii"] .rc9 .rc9-ax__mk { background: transparent; border: 0; box-shadow: none; width: 2.55cqw; height: 2.55cqw; }
+[data-theme="kawaii"] .rc9 .rc9-ax__mk::before { content: '♥'; display: block; text-align: center; font-size: 2.55cqw; line-height: 2.55cqw; color: #ff5ab0; text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff; }
+[data-theme="kawaii"] .rc9 .rc9-who .match-photo, [data-theme="kawaii"] .rc9 .rc9-who .rc-flag, [data-theme="kawaii"] .rc9 .rc9-emb, [data-theme="kawaii"] .rc9 .rc9-popc::after { box-shadow: 0 0 0 0.46cqw #fff, 0 0 0 0.93cqw #ffb3da, 0 0.7cqw 1.6cqw rgba(214,21,111,0.25); }
+[data-theme="kawaii"] .rc9 .rc9__foot { color: #d6156f; } [data-theme="kawaii"] .rc9 .rc9__foot::before { content: '♡ '; } [data-theme="kawaii"] .rc9 .rc9__foot::after { content: ' ♡'; }
+
+/* --- Shonen: a manga page --- */
+[data-theme="shonen"] .rc9 .rc9__panel { border: 0.58cqw solid #000; outline: 0.23cqw solid #fff; outline-offset: -1.04cqw; box-shadow: 0.7cqw 0.7cqw 0 #ff2d3d;
+  background-image: radial-gradient(rgba(255,255,255,0.09) 0.16cqw, transparent 0.23cqw); background-size: 0.93cqw 0.93cqw; }
+[data-theme="shonen"] .rc9 .rc9__axes { transform: rotate(-0.6deg); } [data-theme="shonen"] .rc9 .rc9__p1, [data-theme="shonen"] .rc9 .rc9__p3 { transform: rotate(0.6deg); }
+[data-theme="shonen"] .rc9 .rc9__p2, [data-theme="shonen"] .rc9 .rc9__others { transform: rotate(-0.5deg); } [data-theme="shonen"] .rc9 .rc9__faith { transform: rotate(0.8deg); }
+[data-theme="shonen"] .rc9 .rc9__h { font-family: 'Bebas Neue', sans-serif; font-size: 3.7cqw; letter-spacing: 0.06em; }
+[data-theme="shonen"] .rc9 .rc9__res { right: 8.8cqw; top: 5.1cqw; z-index: 6; font-family: 'Bebas Neue', sans-serif; font-size: 6.25cqw; font-weight: 400; letter-spacing: 0.05em; line-height: 1; color: #000; text-shadow: none; }
+[data-theme="shonen"] .rc9 .rc9__res::before { content: ''; position: absolute; inset: -3.7cqw -6cqw -3.47cqw -6cqw; z-index: -1; background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%22-4%20-4%20208%20108%22%20preserveAspectRatio%3D%22none%22%3E%3Cpolygon%20points%3D%22200.0%2C50.0%20177.3%2C59.8%20186.6%2C75.0%20156.6%2C76.9%20150.0%2C93.3%20120.7%2C86.7%20100.0%2C100.0%2079.3%2C86.7%2050.0%2C93.3%2043.4%2C76.9%2013.4%2C75.0%2022.7%2C59.8%200.0%2C50.0%2022.7%2C40.2%2013.4%2C25.0%2043.4%2C23.1%2050.0%2C6.7%2079.3%2C13.3%20100.0%2C0.0%20120.7%2C13.3%20150.0%2C6.7%20156.6%2C23.1%20186.6%2C25.0%20177.3%2C40.2%22%20fill%3D%22%23fff%22%20stroke%3D%22%23000%22%20stroke-width%3D%224%22%20vector-effect%3D%22non-scaling-stroke%22/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+[data-theme="shonen"] .rc9 .rc9-ax__mk { border: 0; border-radius: 0; clip-path: polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); width: 2.55cqw; height: 2.55cqw; box-shadow: none; }
+[data-theme="shonen"] .rc9 .rc9-ax__bar::before { height: 0.46cqw; margin-top: -0.23cqw; }
+[data-theme="shonen"] .rc9 .rc9-who .match-photo, [data-theme="shonen"] .rc9 .rc9-who .rc-flag, [data-theme="shonen"] .rc9 .rc9-emb, [data-theme="shonen"] .rc9 .rc9-popc::after { border: 0.58cqw solid #000; box-shadow: 0.58cqw 0.58cqw 0 #ff2d3d; }
+[data-theme="shonen"] .rc9 .rc9__foot { text-align: left; padding-left: 5.3cqw; }
+
+/* --- Doge: such card --- */
+[data-theme="doge"] .rc9 .rc9__h { font-family: 'Comic Neue', 'Comic Sans MS', sans-serif; font-weight: 700; }
+[data-theme="doge"] .rc9 .rc9-who__pct::before { content: 'Ð '; color: #b07d12; }
+[data-theme="doge"] .rc9 .rc9__panel { background-image: radial-gradient(rgba(200,135,10,0.16) 0.19cqw, transparent 0.25cqw); background-size: 1.04cqw 1.04cqw; }
+[data-theme="doge"] .rc9 .rc9-ax__mk { background: #f4c542; border: 0.23cqw solid #b07d12; width: 2.31cqw; height: 2.31cqw; box-shadow: 0 0.23cqw 0 #b07d12; }
+[data-theme="doge"] .rc9 .rc9-ax__mk::after { content: 'Ð'; display: block; text-align: center; font: 700 1.5cqw/1.85cqw 'Comic Neue', 'Comic Sans MS', sans-serif; color: #a26b00; }
+[data-theme="doge"] .rc9 .rc9-who .match-photo, [data-theme="doge"] .rc9 .rc9-who .rc-flag, [data-theme="doge"] .rc9 .rc9-emb, [data-theme="doge"] .rc9 .rc9-popc::after { box-shadow: 0 0 0 0.46cqw #f4c542, 0 0 0 0.81cqw #b07d12; }
+
+/* --- Midnight: the night sky --- */
+[data-theme="midnight"] .rc9 .rc9__rp .rc9__h::before, [data-theme="midnight"] .rc9 .rc9__others .rc9__h::before { content: '✦ '; color: #9ad3ff; }
+[data-theme="midnight"] .rc9 .rc9__rp .rc9__h::after, [data-theme="midnight"] .rc9 .rc9__others .rc9__h::after { content: ' ✦'; color: #9ad3ff; }
+[data-theme="midnight"] .rc9 .rc9__panel { box-shadow: 0 0 2.8cqw rgba(124,196,255,0.18);
+  background-image: radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1.5px), radial-gradient(rgba(154,211,255,0.25) 1px, transparent 1.5px); background-size: 5.4cqw 6.1cqw, 3.6cqw 3.4cqw; background-position: 0 0, 1.5cqw 2cqw; }
+[data-theme="midnight"] .rc9 .rc9-ax__mk { border: 0; border-radius: 0; clip-path: polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); width: 2.31cqw; height: 2.31cqw; filter: drop-shadow(0 0 0.7cqw #9ad3ff); }
+[data-theme="midnight"] .rc9 .rc9-who .match-photo, [data-theme="midnight"] .rc9 .rc9-who .rc-flag, [data-theme="midnight"] .rc9 .rc9-emb, [data-theme="midnight"] .rc9 .rc9-popc::after { box-shadow: 0 0 0 0.35cqw rgba(154,211,255,0.35), 0 0 3cqw rgba(124,196,255,0.55); }
+[data-theme="midnight"] .rc9 .rc9__foot::before { content: '☾ '; } [data-theme="midnight"] .rc9 .rc9__foot::after { content: ' ✦'; }
+
+/* --- Lo-fi: beats to study to --- */
+[data-theme="lofi"] .rc9 .rc9__h { font-family: 'Lora', serif; font-style: italic; }
+[data-theme="lofi"] .rc9 .rc9__axes-h::after { content: 'SIDE A'; margin-left: 1.6cqw; font-size: 1.85cqw; vertical-align: middle; padding: 0.35cqw 0.93cqw; border: 0.23cqw solid #ffa65c; color: #ffa65c; font-style: normal; letter-spacing: 0.2em; }
+[data-theme="lofi"] .rc9 .rc9__panel { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22160%22%20height%3D%22160%22%3E%3Cfilter%20id%3D%22n%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%22.9%22%20numOctaves%3D%222%22/%3E%3CfeColorMatrix%20values%3D%220%200%200%200%201%20%200%200%200%200%20.85%20%200%200%200%200%20.7%20%200%200%200%20.09%200%22/%3E%3C/filter%3E%3Crect%20width%3D%22160%22%20height%3D%22160%22%20filter%3D%22url%28%23n%29%22/%3E%3C/svg%3E"); }
+[data-theme="lofi"] .rc9 .rc9-ax__mk { background: #1b1531; border: 0.35cqw solid #ffa65c; width: 2.08cqw; height: 2.08cqw; }
+[data-theme="lofi"] .rc9 .rc9-who .match-photo, [data-theme="lofi"] .rc9 .rc9-who .rc-flag, [data-theme="lofi"] .rc9 .rc9-emb, [data-theme="lofi"] .rc9 .rc9-popc::after { box-shadow: 0 0 0 0.46cqw #120e22, 0 0 0 0.7cqw rgba(255,166,92,0.8), 0 0 0 1.16cqw rgba(18,14,34,0.6); }
+[data-theme="lofi"] .rc9 .rc9__in::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 4; background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22160%22%20height%3D%22160%22%3E%3Cfilter%20id%3D%22n%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%22.9%22%20numOctaves%3D%222%22/%3E%3CfeColorMatrix%20values%3D%220%200%200%200%201%20%200%200%200%200%20.85%20%200%200%200%200%20.7%20%200%200%200%20.09%200%22/%3E%3C/filter%3E%3Crect%20width%3D%22160%22%20height%3D%22160%22%20filter%3D%22url%28%23n%29%22/%3E%3C/svg%3E"); opacity: 0.9; mix-blend-mode: overlay; }
+[data-theme="lofi"] .rc9 .rc9__foot::before { content: '♪ '; } [data-theme="lofi"] .rc9 .rc9__foot::after { content: ' ♪'; }
+.rc9-pair:has(.rc9-popc) { margin-top: 3.6cqw; }
+.rc9-pair .rc9-popc, .rc9-pair .match-photo { width: 12.4cqw; height: 12.4cqw; }
+.rc9__rp { padding-top: 1.5cqw; }
+.rc9__rp .rc9-solo { margin-top: 0.9cqw; }
+[data-theme="retro"] .rc9__h { align-self: stretch; padding-right: 7cqw; }
+[data-theme="retro"] .rc9__faith .rc9__h { font-size: 2.2cqw; padding-right: 3cqw; }
+.rc9__p2 .rc-flag, .rc9__p3 .rc9-emb { width: 10.4cqw; height: 10.4cqw; }
+[data-theme="esports"] .rc9 .rc9__rp .rc9__h { font-size: 2.9cqw; padding: 0.2cqw 1.6cqw; }
+[data-theme="shonen"] .rc9 .rc9__rp .rc9__h { font-size: 3.4cqw; }
+.rc9__p3 .rc9-who__name { font-size: 1.9cqw; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.rc9-pair .rc9-who__name { font-size: 1.95cqw; line-height: 1.1; }
+.rc9__p3 .rc9-emb { width: 9.8cqw; height: 9.8cqw; }
+.rc9__p3 .rc9-solo .rc9-who__name { margin-top: 0.6cqw; line-height: 1.1; }
+.rc9__p3 .rc9-who__pct, .rc9-pair .rc9-who__pct { margin-top: 0.15cqw; }
+.rc9-pair .rc9-who__era { margin-top: 0.6cqw; }

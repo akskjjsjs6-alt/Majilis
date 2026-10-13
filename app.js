@@ -2846,8 +2846,28 @@ const IDEOLOGY_ICONS = [
   [/centr|third way|pragmat|moderat/i, '<path d="M11 3h2v3h6l3 7a4 4 0 0 1-8 0l2.7-6H13v13h4v2H7v-2h4V7H6.3L9 13a4 4 0 0 1-8 0l3-7h7z"/>'],
 ];
 function ideologyEmblem(name){
+  const pic = window.cardIdeologyEmblem && cardIdeologyEmblem(name);
+  if(pic) return emblemPicture(pic, name);
+  return IDEOLOGY_ICONS.some(([re]) => re.test(name)) ? ideologyEmblemDrawn(name) : el('span',{class:'rc9-emb'}, initialsOf(name));
+}
+// A real flag or symbol (card/emblems), falling back to the drawn emblem if the picture is missing.
+function emblemPicture(url, name, fallback){
+  const box = el('span',{class:'rc9-emb rc9-emb--pic'});
+  const img = new Image(); img.alt = ''; img.src = url;
+  img.onerror = () => box.replaceWith(fallback ? fallback() : IDEOLOGY_ICONS.some(([re]) => re.test(name)) ? ideologyEmblemDrawn(name) : el('span',{class:'rc9-emb'}, initialsOf(name)));
+  box.appendChild(img);
+  return box;
+}
+function ideologyEmblemDrawn(name){
   const hit = IDEOLOGY_ICONS.find(([re]) => re.test(name));
-  return hit ? el('span',{class:'rc9-emb', html:'<svg viewBox="0 0 24 24" fill="#fff">' + hit[1] + '</svg>'}) : el('span',{class:'rc9-emb'}, initialsOf(name));
+  return el('span',{class:'rc9-emb', html:'<svg viewBox="0 0 24 24" fill="#fff">' + hit[1] + '</svg>'});
+}
+// Your faith from the test (none for "Other" or "Prefer not to say"): its name, the tradition within it, its symbol.
+const FAITH_SHORT = { 'Spiritual but not religious': 'Spiritual', 'Paganism / Wicca': 'Paganism' };
+function cardFaith(u){
+  if(!u.religion || ['Other', 'Prefer not to say'].includes(u.religion)) return null;
+  const sub = (u.denomination || '').split(/ \(|,| or /)[0].trim();
+  return { name: FAITH_SHORT[u.religion] || u.religion, sub: sub.length > 22 ? '' : sub, pic: window.cardFaithEmblem && cardFaithEmblem(u.religion) };
 }
 // Wikipedia thumbnails come at 320px; the background asks for a bigger copy and falls back to the small one.
 function bigPortrait(url){
@@ -2855,14 +2875,49 @@ function bigPortrait(url){
   if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=960');
   return null;
 }
-// Waits (up to 8 seconds) for the background portrait of the card, so the card appears complete.
+const cutSource = (l) => l && (l.photoUrl ? (bigPortrait(l.photoUrl) || l.photoUrl) : l.photo) || null;
+const cardTheme = () => THEMES.includes(state.theme) ? state.theme : 'dark';
+// Waits (up to 12 seconds) for everything the card draws: the background portrait, the cut-outs of the leaders that
+// pop out of it, and the theme's background scene, so the card appears complete.
 function preloadCardPortrait(){
   const m = savedCardMatches();
-  const who = m && [leaderFor(m, 'modern'), leaderFor(m, 'historical')].filter(l => l && l.photo).sort((a, b) => b.pct - a.pct)[0];
-  if(!who) return Promise.resolve();
-  const load = (url) => new Promise(done => { if(!url || url.startsWith('data:')) return done(); const img = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = img.onerror = () => done(); img.src = url; });
-  const work = who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? Promise.resolve() : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done)));
-  return Promise.race([work, new Promise(done => setTimeout(done, 8000))]);
+  const jobs = [window.loadCardScene ? loadCardScene(cardTheme()) : null];
+  const pair = m ? [leaderFor(m, 'modern'), leaderFor(m, 'historical')].filter(l => l && l.photo) : [];
+  const who = pair.slice().sort((a, b) => b.pct - a.pct)[0];
+  if(who){
+    const load = (url) => new Promise(done => { if(!url || url.startsWith('data:')) return done(); const img = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = img.onerror = () => done(); img.src = url; });
+    jobs.push(who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? null : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done))));
+    if(window.cardCutout){ jobs.push(cardCutout(cutSource(who))); pair.forEach(l => jobs.push(cardCutout(l.photo))); }
+  }
+  return Promise.race([Promise.all(jobs), new Promise(done => setTimeout(done, 12000))]);
+}
+// Asks for a cut-out (or a scene) once, and draws the card again when it is ready.
+const cardArtAsked = new Set();
+function whenCardArt(key, promise){
+  if(cardArtAsked.has(key)) return;
+  cardArtAsked.add(key);
+  promise.then(v => { if(v) render(); });
+}
+function cutoutFor(url){
+  if(!url || !window.cardCutout) return null;
+  const done = cardCutoutNow(url);
+  if(done === undefined) whenCardArt('cut:' + url, cardCutout(url));
+  return done || null;
+}
+const cq = (v) => (v * 100).toFixed(2) + 'cqw';
+// A leader in his circle, his head rising out of the top of the ring (when he could be cut out of his photo).
+function poppingPortrait(f){
+  const cut = f.photo && !f.photo.startsWith('data:image/svg') ? cutoutFor(f.photo) : null;
+  if(!cut || cut.topCut) return portraitNode(f.name, f.photo);
+  if(!SAFE_BG.test(f.photo)) return portraitNode(f.name, f.photo);
+  // In circle widths. The head box reaches from half a circle left of it to half right, and from one circle above it
+  // down to its middle, so only the top of the head can come out over the ring.
+  const at = cardPlace(cut, 0.66, -0.36);
+  const geo = (u, x0, y0, w, h) => 'background-image:url("' + u + '");left:' + ((at.left - x0) / w * 100) + '%;top:' + ((at.top - y0) / h * 100) + '%;width:' + (at.width / w * 100) + '%;height:' + (at.height / h * 100) + '%;';
+  return el('div',{class:'rc9-popc', title: f.name},[
+    el('div',{class:'match-photo rc9-popc__ring'}, el('i',{style: geo(f.photo, 0, 0, 1, 1)})),
+    el('div',{class:'rc9-popc__head'}, el('i',{style: geo(cut.url, -0.5, -1, 2, 1.5)})),
+  ]);
 }
 const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|thumb\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
 // Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
@@ -2876,14 +2931,34 @@ function buildResultCard(){
   const leaders = m ? { modern: leaderFor(m, 'modern'), historical: leaderFor(m, 'historical') } : {};
   const nation = m && m.countries[0];
   const ideos = m ? m.ideologies : [];
+  const theme = cardTheme(), faith = cardFaith(u);
   const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
   outer.appendChild(card);
 
-  // The closer of the two leaders is the big black-and-white portrait behind the card.
+  // The theme's own background scene, behind everything.
+  const scene = el('div',{class:'rc9__scene', 'aria-hidden':'true'});
+  const sceneSvg = window.cardSceneSVG && cardSceneSVG(theme);
+  if(sceneSvg) scene.innerHTML = sceneSvg;
+  else if(window.loadCardScene) whenCardArt('scene:' + theme, loadCardScene(theme));
+  card.appendChild(scene);
+
+  // The closer of the two leaders is the big black-and-white portrait behind the card. When he can be cut out of his
+  // photo, he stands in front of the scene and his head and shoulders come out over the edges of the card.
   const bg = el('div',{class:'rc9__bg'});
   const bgWho = [leaders.modern, leaders.historical].filter(l => l && l.photo).sort((a, b) => b.pct - a.pct)[0]
     || [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
-  if(bgWho){
+  const bigCut = bgWho && bgWho.photo ? cutoutFor(cutSource(bgWho)) : null;
+  if(bigCut){
+    const at = cardPlace(bigCut, 0.46, -0.14);
+    const figure = (dx, dy) => el('i',{class:'rc9__cut', style:'background-image:url("' + bigCut.url + '");left:' + cq(at.left + dx) + ';top:' + cq(at.top + dy) + ';width:' + cq(at.width) + ';height:' + cq(at.height) + ';'});
+    card.appendChild(el('div',{class:'rc9__person', 'aria-hidden':'true'}, figure(0, 0)));
+    const pop = el('div',{class:'rc9__pop', 'aria-hidden':'true'},[
+      el('div',{class:'rc9__pop-side rc9__pop-l'}, figure(0.08, 0)),
+      el('div',{class:'rc9__pop-side rc9__pop-r'}, figure(-1, 0)),
+    ]);
+    if(!bigCut.topCut) pop.appendChild(el('div',{class:'rc9__pop-top'}, figure(0.08, 0.3)));
+    outer.appendChild(pop);
+  } else if(bgWho){
     const setBg = (url) => { if(url && SAFE_BG.test(url)) bg.style.backgroundImage = 'url("' + url + '")'; };
     const tryBig = (url) => {
       const big = url && bigPortrait(url);
@@ -2896,7 +2971,7 @@ function buildResultCard(){
     else if(bgWho.photoUrl) tryBig(bgWho.photoUrl);
     else loadPortrait(bgWho.name, tryBig);
   }
-  card.appendChild(bg);
+  if(!bigCut) card.appendChild(bg);
   card.appendChild(el('div',{class:'rc9__glow'}));
   card.appendChild(el('div',{class:'rc9__grid'}));
 
@@ -2919,7 +2994,7 @@ function buildResultCard(){
   card.appendChild(axes);
 
   const person = (f, era) => f ? el('div',{class:'rc9-who', title: f.why || ''},[
-    portraitNode(f.name, f.photo),
+    poppingPortrait(f),
     el('div',{class:'rc9-who__era'}, era),
     el('div',{class:'rc9-who__name'}, f.name),
     el('div',{class:'rc9-who__pct'}, f.pct + '%'),
@@ -2944,10 +3019,24 @@ function buildResultCard(){
     nation ? el('div',{class:'rc9-who rc9-solo'},[flagNode(nation), el('div',{class:'rc9-who__name'}, nation.name), el('div',{class:'rc9-who__pct'}, nation.pct + '%')]) : waiting()]));
   card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p3'},[el('div',{class:'rc9__h'}, 'CLOSEST IDEOLOGY'),
     ideos[0] ? el('div',{class:'rc9-solo'}, ideology(ideos[0])) : waiting()]));
-  card.appendChild(el('div',{class:'rc9__panel rc9__others'},[
+  card.appendChild(el('div',{class:'rc9__panel rc9__others' + (faith ? ' rc9__others--faith' : '')},[
     el('div',{class:'rc9__h'}, 'OTHER IDEOLOGIES'),
     ideos.length > 1 ? el('div',{class:'rc9-trio'}, ideos.slice(1, 4).map(ideology)) : waiting(),
   ]));
+  if(faith){
+    const sign = () => el('span',{class:'rc9-emb'}, initialsOf(faith.name) || '?');
+    card.appendChild(el('div',{class:'rc9__panel rc9__faith'},[
+      el('div',{class:'rc9__h'}, 'YOUR FAITH'),
+      el('div',{class:'rc9-who rc9-solo'},[
+        faith.pic ? emblemPicture(faith.pic, faith.name, sign) : sign(),
+        el('div',{class:'rc9-who__name'}, faith.name),
+        faith.sub ? el('div',{class:'rc9-who__era'}, faith.sub.toUpperCase()) : null,
+      ]),
+    ]));
+  }
+  // The theme's flavour: its own badges, captions and stickers, drawn over the panels.
+  const flavor = window.cardFlavorSVG && cardFlavorSVG(theme, { ideology: ideos[0] && ideos[0].name, pct: ideos[0] && ideos[0].pct, hasFaith: !!faith });
+  if(flavor) card.appendChild(el('div',{class:'rc9__flavor', 'aria-hidden':'true', html: flavor}));
   card.appendChild(el('div',{class:'rc9__foot'}, 'FIND WHERE YOU STAND · MAJLIS'));
   return outer;
 }
