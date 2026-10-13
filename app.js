@@ -2233,7 +2233,7 @@ function renderHome(){
   } else {
     hero.appendChild(el('div',{class:'kicker'}, 'Welcome back, '+u.name));
     hero.appendChild(el('h1',{class:'hero__title'}, ['Win the ', el('em',{},'argument.')]));
-    hero.appendChild(el('p',{class:'hero__sub'}, 'You\'re matched with whoever disagrees with you most. You get 30 seconds to agree a topic, you both decide when to stop, and the AI judge names the winner.'));
+    hero.appendChild(el('p',{class:'hero__sub'}, 'You\'re matched with whoever disagrees with you most. You get a minute to agree a topic and pick sides, you both decide when to stop, and the AI judge names the winner.'));
     if(queued){
       hero.appendChild(queueStatusNode(queued));
     } else {
@@ -5072,10 +5072,10 @@ function debateMessageInput(debate, placeholder){
   return inputRow;
 }
 
-/* ---------- The first 30 seconds: pick a topic ----------
+/* ---------- The first minute: pick a topic and a side ----------
    Both players see where their assessment answers disagree most, with topics built from that.
    Picking the same topic starts the debate at once; otherwise the server decides when time is up. */
-const TOPIC_MS = 30000;
+const TOPIC_MS = 60000;
 const DISAGREE_AXES = [
   { key: 'economic', axis: 'x', name: 'Economics', ends: ['Left', 'Right'], motions: [
     'Should the rich pay much higher taxes?', 'Should healthcare be fully public?', 'Is capitalism the best system we have?', 'Should the minimum wage be raised?'] },
@@ -5192,7 +5192,7 @@ function applyTopicState(debate, data){
   render();
 }
 
-// When the 30 seconds run out, ask the server to settle the topic (safe for both players to call).
+// When the minute runs out, ask the server to settle the topic (safe for both players to call).
 async function finalizeTopic(debate){
   if(debate._finalizing || debate.topicLocked) return;
   debate._finalizing = true;
