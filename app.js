@@ -2560,56 +2560,9 @@ function statCard(label, value){
   ]);
 }
 
-/* ================= WHO YOU MATCH IN REAL LIFE =================
-   After the assessment, the AI names well-known public figures whose public views are closest
-   to each result (political, economic, social, philosophy, religion). Saved on this device. */
-function matchStoreKey(){ return 'majlis-matches-' + (state.user && state.user.id || 'guest'); }
-// v3: matches saved before the photo fixes are thrown away, so they are found again with photos.
-function loadSavedMatches(){
-  try { const m = JSON.parse(localStorage.getItem(matchStoreKey()) || 'null'); return m && m.v === 3 && Array.isArray(m.list) ? m : null; } catch(e){ return null; }
-}
-function matchCategories(u){
-  if(!u || !u.compass || !u.ideologies) return [];
-  const mapCat = (key, title) => {
-    const d = COMPASS_DEFS[key], p = u.compass[key];
-    return { key, title, axes: { xl: d.xLabels[0], xr: d.xLabels[1], yb: d.yLabels[0], yt: d.yLabels[1] }, me: { x: Math.round(p.x), y: Math.round(p.y) },
-      summary: (u.ideologies[key].label || '') + ' (x ' + Math.round(p.x) + '/100, y ' + Math.round(p.y) + '/100). ' + (u.ideologies[key].reasoning || '') };
-  };
-  const cats = [mapCat('political', 'Political'), mapCat('economic', 'Economic'), mapCat('social', 'Social')];
-  if(u.archetype && !/not yet/i.test(u.archetype)) cats.push({ key: 'philosophy', title: 'Philosophy', summary: u.archetype + '. ' + (u.archetypeReasoning || '') });
-  if(u.religion && u.religion !== 'Prefer not to say') cats.push({ key: 'religion', title: 'Religion', summary: u.religion + (u.denomination ? ', ' + u.denomination : '') + '. ' + (u.denominationReasoning || '') });
-  return cats;
-}
-async function fetchMatches(){
-  const u = state.user;
-  if(!u || u.isGuest || !u.id || state.matchesLoading) return;
-  const categories = matchCategories(u);
-  if(!categories.length) return;
-  state.matchesLoading = true; state.matchesFailed = false; render();
-  try {
-    const { data, error } = await sb.functions.invoke('ai-matches', { body: { categories }, region: FN_REGION });
-    if(data && data.error) throw new Error(data.error);
-    if(error || !data || !Array.isArray(data.matches)) throw new Error(error ? 'The server call failed (' + (error.message || 'no details') + ')' : 'no matches');
-    const titles = {}; categories.forEach(c => titles[c.key] = c.title);
-    const seen = {};
-    const list = data.matches.filter(m => titles[m.key] && m.name && !seen[m.key] && (seen[m.key] = 1))
-      .map(m => ({ key: m.key, title: titles[m.key], name: m.name, label: m.label || '', why: m.why || '', x: m.x, y: m.y,
-        photo: typeof m.photo === 'string' && m.photo.startsWith('data:image/') ? m.photo : (typeof m.photoUrl === 'string' && PHOTO_URL.test(m.photoUrl) ? m.photoUrl : null),
-        embedded: typeof m.photo === 'string' && m.photo.startsWith('data:image/'), pnote: m.pnote || '' }));
-    if(!list.length) throw new Error('empty');
-    const countries = Array.isArray(data.countries) ? data.countries.filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).slice(0, 3)
-      .map(c => ({ name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })) : [];
-    try { localStorage.setItem(matchStoreKey(), JSON.stringify({ v: 3, at: Date.now(), list, countries })); } catch(e){}
-    if(state.cardPending){ state.cardPending = false; state.showCard = true; }   // the result card pops up once, right after the test
-  } catch(e){
-    console.warn('matches unavailable', e);
-    state.matchesFailed = String(e && e.message || 'unknown').slice(0, 200);
-  }
-  state.matchesLoading = false;
-  render();
-}
-/* A reusable "the AI is working" screen (same look as the debate judge). Steps tick over on a timer
-   and the last one holds until stopThink() is called, so a slow answer never looks frozen. */
+/* A reusable "the AI is working" screen: a plain white robot checking cards with a magnifying glass,
+   one line saying what it is doing, and a thin progress line. Steps tick over on a timer and the last one
+   holds until stopThink() is called, so a slow answer never looks frozen. */
 const thinkStages = {};
 function stopThink(id){
   const t = thinkStages[id];
@@ -2617,62 +2570,36 @@ function stopThink(id){
 }
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
-  const node = el('div',{class:'judge-stage think-stage'});
-  const card = (cls, x, y, tint) => '<g class="tk-card ' + cls + '"><rect x="' + x + '" y="' + y + '" width="46" height="58" rx="9" class="tk-card__bg ' + tint + '"/>' +
-    '<circle cx="' + (x + 23) + '" cy="' + (y + 19) + '" r="9" class="tk-card__head ' + tint + '"/><path d="M' + (x + 8) + ' ' + (y + 46) + ' q15 -17 30 0" class="tk-card__body ' + tint + '"/>' +
-    '<rect x="' + (x + 11) + '" y="' + (y + 50) + '" width="24" height="3" rx="1.5" class="tk-card__line"/>' +
-    '<g class="tk-tick"><circle cx="' + (x + 40) + '" cy="' + (y + 4) + '" r="9" fill="#00e676"/><path d="M' + (x + 35.5) + ' ' + (y + 4) + ' l3 3.2 l6 -6.4" fill="none" stroke="#04110a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g></g>';
-  const star = (x, y, d) => '<path class="tk-star" style="animation-delay:' + d + 's" d="M' + x + ' ' + (y - 6) + ' L' + (x + 1.8) + ' ' + (y - 1.8) + ' L' + (x + 6) + ' ' + y + ' L' + (x + 1.8) + ' ' + (y + 1.8) + ' L' + x + ' ' + (y + 6) + ' L' + (x - 1.8) + ' ' + (y + 1.8) + ' L' + (x - 6) + ' ' + y + ' L' + (x - 1.8) + ' ' + (y - 1.8) + ' Z"/>';
-  const radar = el('div',{class:'think-scene', 'aria-hidden':'true', html:
-    '<svg viewBox="0 0 250 230">' +
-    '<ellipse class="tk-shadow" cx="125" cy="214" rx="64" ry="8"/>' +
-    card('tk-c1', 6, 34, 'is-g') + card('tk-c2', 196, 22, 'is-b') + card('tk-c3', 200, 112, 'is-g') +
-    star(40, 130, 0) + star(214, 92, 0.7) + star(30, 18, 1.4) + star(176, 14, 0.3) +
-    '<g class="tk-buddy"><ellipse cx="46" cy="170" rx="17" ry="15" class="tk-buddy__body"/><circle cx="40" cy="167" r="2.6" fill="#04110a"/><circle cx="52" cy="167" r="2.6" fill="#04110a"/>' +
-    '<path d="M41 174 q5 5 10 0" fill="none" stroke="#04110a" stroke-width="2" stroke-linecap="round"/><path d="M34 158 q-3 -8 3 -10" class="tk-buddy__ear"/><path d="M58 158 q3 -8 -3 -10" class="tk-buddy__ear"/></g>' +
+  const node = el('div',{class:'think-stage'});
+  // three small cards placed where the glass lands as the arm swings from the shoulder
+  const card = (cls, cx, cy) => { const x = cx - 15, y = cy - 18;
+    return '<g class="tk-card ' + cls + '"><rect x="' + x + '" y="' + y + '" width="30" height="36" rx="4" class="tk-card__bg"/>' +
+      '<line x1="' + (x + 6) + '" y1="' + (y + 9) + '" x2="' + (x + 24) + '" y2="' + (y + 9) + '" class="tk-card__line"/>' +
+      '<line x1="' + (x + 6) + '" y1="' + (y + 16) + '" x2="' + (x + 20) + '" y2="' + (y + 16) + '" class="tk-card__line"/>' +
+      '<path class="tk-tick" d="M' + (x + 8) + ' ' + (y + 25) + ' l4 4 l9 -10"/></g>'; };
+  node.appendChild(el('div',{class:'think-scene', 'aria-hidden':'true', html:
+    '<svg viewBox="0 0 250 200">' +
+    '<line x1="20" y1="190" x2="230" y2="190" class="tk-ground"/>' +
+    card('tk-c1', 158, 53) + card('tk-c2', 170, 100) + card('tk-c3', 151, 145) +
     '<g class="tk-robot">' +
-      '<line x1="125" y1="52" x2="125" y2="70" class="tk-limb"/><circle cx="125" cy="48" r="6" class="tk-ant"/>' +
-      '<rect x="89" y="70" width="72" height="54" rx="17" class="tk-head"/>' +
-      '<rect x="99" y="80" width="52" height="32" rx="11" class="tk-face"/>' +
-      '<g class="tk-eyes"><ellipse cx="112" cy="95" rx="6" ry="7.5"/><ellipse cx="138" cy="95" rx="6" ry="7.5"/></g>' +
-      '<path d="M116 106 q9 7 18 0" class="tk-mouth"/>' +
-      '<rect x="97" y="128" width="56" height="52" rx="15" class="tk-body"/>' +
-      '<path d="M112 160 L112 144 L125 154 L138 144 L138 160" class="tk-chestM"/>' +
-      '<line x1="98" y1="142" x2="80" y2="164" class="tk-limb"/>' +
-      '<g class="tk-arm"><line x1="152" y1="142" x2="176" y2="152" class="tk-limb"/><circle cx="190" cy="146" r="15" class="tk-lens"/><line x1="201" y1="157" x2="214" y2="172" class="tk-handle"/></g>' +
-      '<rect x="105" y="182" width="14" height="22" rx="7" class="tk-body"/><rect x="131" y="182" width="14" height="22" rx="7" class="tk-body"/>' +
-    '</g>' +
-    '<g class="tk-bubble"><rect x="150" y="2" width="46" height="24" rx="12"/><circle cx="162" cy="14" r="2.6"/><circle cx="173" cy="14" r="2.6"/><circle cx="184" cy="14" r="2.6"/></g>' +
-    '</svg>'});
-  const left = el('div',{class:'think-main'});
-  left.appendChild(el('div',{class:'judge-head'},[
-    el('div',{class:'judge-orb', html:
-      '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="judge-orb__track"/><circle cx="60" cy="60" r="54" class="judge-orb__arc"/>' +
-      '<path d="M 38,78 L 38,42 L 60,66 L 82,42 L 82,78" class="judge-orb__m"/></svg>'}),
-    el('div',{},[
-      el('div',{class:'judge-kicker'}, cfg.kicker),
-      el('div',{class:'judge-title'}, cfg.title),
-      el('div',{class:'judge-phase'}, cfg.steps[0]),
-    ]),
-  ]));
-  const list = el('div',{class:'judge-steps think-steps'});
-  cfg.steps.forEach(label => list.appendChild(el('div',{class:'judge-step'},[el('span',{class:'judge-step__icon'}), el('span',{}, label)])));
-  left.appendChild(list);
-  node.appendChild(el('div',{class:'think-grid'},[left, radar]));
-  node.appendChild(el('div',{class:'judge-bar think-bar'},[el('div',{class:'judge-bar__fill'})]));
-  node.appendChild(el('div',{class:'think-pct'}, '0%'));
+      '<line x1="70" y1="20" x2="70" y2="34" class="tk-line"/><circle cx="70" cy="16" r="4" class="tk-line"/>' +
+      '<rect x="44" y="34" width="52" height="40" rx="10" class="tk-line"/>' +
+      '<g class="tk-eyes"><circle cx="60" cy="54" r="3.5"/><circle cx="80" cy="54" r="3.5"/></g>' +
+      '<rect x="48" y="80" width="44" height="54" rx="8" class="tk-line"/>' +
+      '<line x1="48" y1="94" x2="34" y2="118" class="tk-line"/>' +
+      '<g class="tk-arm"><line x1="92" y1="94" x2="159" y2="99" class="tk-line"/><circle cx="170" cy="100" r="11" class="tk-line tk-lens"/></g>' +
+      '<line x1="60" y1="134" x2="60" y2="188" class="tk-line"/><line x1="80" y1="134" x2="80" y2="188" class="tk-line"/>' +
+    '</g></svg>'}));
+  node.appendChild(el('div',{class:'think-title'}, cfg.title));
+  node.appendChild(el('div',{class:'think-phase'}, cfg.steps[0]));
+  node.appendChild(el('div',{class:'think-bar'},[el('div',{class:'think-bar__fill'})]));
   const t0 = Date.now(), per = cfg.secondsPerStep || 4;
   const tick = () => {
     const secs = (Date.now() - t0) / 1000;
     const active = Math.min(cfg.steps.length - 1, Math.floor(secs / per));
-    node.querySelectorAll('.judge-step').forEach((row, i) => {
-      row.classList.toggle('is-done', i < active);
-      row.classList.toggle('is-active', i === active);
-    });
-    node.querySelector('.judge-phase').textContent = cfg.steps[active] + '…';
+    node.querySelector('.think-phase').textContent = cfg.steps[active] + '…';
     const p = Math.round(96 * (1 - Math.exp(-secs / (per * cfg.steps.length * 0.7))));
-    node.querySelector('.judge-bar__fill').style.width = p + '%';
-    node.querySelector('.think-pct').textContent = p + '%';
+    node.querySelector('.think-bar__fill').style.width = p + '%';
   };
   tick();
   thinkStages[id] = { node, timer: setInterval(tick, 250) };
@@ -2684,7 +2611,6 @@ const portraitCache = {};
 try { Object.keys(localStorage).filter(k => k.startsWith('majlis-portrait-') && /"url":null/.test(localStorage.getItem(k) || '')).forEach(k => localStorage.removeItem(k)); } catch(e){}   // forget old "no photo" notes
 function portraitSaved(name){ try { return JSON.parse(localStorage.getItem('majlis-portrait-' + name) || 'null'); } catch(e){ return null; } }
 const WIKI_IMG = /^https:\/\/upload\.wikimedia\.org\//;
-const PHOTO_URL = /^https:\/\/(upload\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/)/;   // where match photos may come from
 function wikiThumb(j){ return j && j.thumbnail && WIKI_IMG.test(j.thumbnail.source || '') ? j.thumbnail.source : null; }
 // Three tries, because the AI's name is not always the exact article title: the article summary, then the
 // article by title (following redirects), then a search for the name.
@@ -2728,20 +2654,26 @@ function portraitNode(name, photo, note){
   return box;
 }
 
-/* ================= RESULT CARD (shown once after the test) ================= */
-const AXIS_COLORS = { economic: ['#ff9f43', '#ff6b6b'], political: ['#00e676', '#00b0ff'], social: ['#b57bff', '#ff6bd6'] };
-function axisRows(u){
+/* ================= RESULT CARD (9:16, on the Compass page and full size after the test) ================= */
+// Every axis of the test, each with both ends, where you sit (0 = the left-hand end) and a colour per group.
+const AXIS_GROUP_COLORS = { compass: '#c2255c', detail: '#1971c2', phil: '#2b8a3e' };
+function allAxes(u){
   const rows = [];
-  [['economic','E','Economic'],['political','P','Political'],['social','S','Social']].forEach(([key, letter, title]) => {
+  ['economic', 'political', 'social'].forEach(key => {
     const d = COMPASS_DEFS[key], p = u.compass && u.compass[key];
-    if(!d || !p) return;
-    [['x', d.xLabels], ['y', d.yLabels]].forEach(([ax, labels], i) => {
-      const v = Math.max(0, Math.min(100, Math.round(p[ax])));
-      const high = v >= 50;
-      rows.push({ letter, title, color: AXIS_COLORS[key][i], name: labels[high ? 1 : 0], pct: high ? v : 100 - v });
-    });
+    if(!p) return;
+    rows.push({ lo: d.xLabels[0], hi: d.xLabels[1], v: p.x, color: AXIS_GROUP_COLORS.compass });
+    rows.push({ lo: d.yLabels[0], hi: d.yLabels[1], v: p.y, color: AXIS_GROUP_COLORS.compass });
   });
-  return rows;
+  const ex = u.extraScores || {};
+  Object.keys(DETAIL_AXES).forEach(k => {
+    if(typeof ex[k] === 'number') rows.push({ lo: DETAIL_AXES[k][0], hi: DETAIL_AXES[k][1], v: ex[k], color: AXIS_GROUP_COLORS.detail });   // results saved before an axis existed simply don't have it
+  });
+  const pax = u.philosophyAxes || {};
+  Object.keys(PHIL_AXES).forEach(k => {
+    if(typeof pax[k] === 'number') rows.push({ lo: PHIL_AXES[k][0], hi: PHIL_AXES[k][1], v: pax[k], color: AXIS_GROUP_COLORS.phil });
+  });
+  return rows.map(r => Object.assign(r, { v: Math.max(0, Math.min(100, Math.round(r.v))) }));
 }
 function flagNode(c){
   const img = new Image();
@@ -2749,32 +2681,6 @@ function flagNode(c){
   img.src = c.flag || ('https://flagcdn.com/w80/' + c.code + '.png');
   img.onerror = () => { const f = el('span',{class:'rc-flag rc-flag--code'}, c.code.toUpperCase()); img.replaceWith(f); };
   return img;
-}
-// Six-point radar: the further a point is from the middle, the more strongly you lean that way.
-function radarSvg(rows){
-  const cx = 180, cy = 140, R = 74, n = rows.length;
-  const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
-  const pt = (i, f) => [cx + Math.cos(ang(i)) * R * f, cy + Math.sin(ang(i)) * R * f];
-  let svg = '<svg viewBox="0 0 360 285" role="img" aria-label="Your six axes"><defs><radialGradient id="rcFill"><stop offset="0" stop-color="#00e676" stop-opacity=".55"/><stop offset="1" stop-color="#00b0ff" stop-opacity=".25"/></radialGradient></defs>';
-  [0.34, 0.67, 1].forEach(f => { svg += '<polygon class="rc-grid-ring" points="' + rows.map((_, i) => pt(i, f).map(v => v.toFixed(1)).join(',')).join(' ') + '"/>'; });
-  rows.forEach((_, i) => { const [x, y] = pt(i, 1); svg += '<line class="rc-spoke" x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>'; });
-  const pts = rows.map((r, i) => pt(i, Math.max(0.08, (r.pct - 50) / 50)));
-  svg += '<polygon class="rc-shape" points="' + pts.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ') + '"/>';
-  pts.forEach((p, i) => { svg += '<circle class="rc-vertex" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4.5" fill="' + rows[i].color + '"/>'; });
-  rows.forEach((r, i) => {
-    const [x, y] = pt(i, 1.28), c = Math.cos(ang(i));
-    const anchor = Math.abs(c) < 0.2 ? 'middle' : (c > 0 ? 'start' : 'end');
-    svg += '<text class="rc-lab" x="' + x.toFixed(1) + '" y="' + (y - 2).toFixed(1) + '" text-anchor="' + anchor + '">' + r.name + '</text>' +
-           '<text class="rc-labv" x="' + x.toFixed(1) + '" y="' + (y + 12).toFixed(1) + '" text-anchor="' + anchor + '" fill="' + r.color + '">' + r.pct + '%</text>';
-  });
-  return svg + '</svg>';
-}
-function ringNode(pct, inner){
-  const r = 52, c = 2 * Math.PI * r;
-  const wrap = el('div',{class:'rc-ring'});
-  wrap.appendChild(el('div',{class:'rc-ring__svg', html:'<svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="' + r + '" class="rc-ring__track"/><circle cx="60" cy="60" r="' + r + '" class="rc-ring__arc" stroke-dasharray="' + (c * pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 60 60)"/></svg>'}));
-  wrap.appendChild(inner);
-  return wrap;
 }
 // One name for the whole compass: the nearest of these ideologies across all six axes
 // (economic left-right, state-market, nation-world, authority-liberty, tradition-progress, group-individual).
@@ -2800,122 +2706,103 @@ const IDEOLOGY_PROFILES = [
   ['Green Progressive',      [25, 30, 75, 60, 80, 40]],
   ['Centrist',               [50, 50, 50, 50, 50, 50]],
 ];
-// The closest ideologies with how close each one is (100% would be an exact match).
-function ideologyMatches(c){
+/* Closeness across all six compass axes. 100% would be an exact match; the furthest corner of the space is about 0%. */
+const compassVec = (c) => [c.economic.x, c.economic.y, c.political.x, c.political.y, c.social.x, c.social.y];
+function nearestOverall(list, c){
   if(!c || !c.economic || !c.political || !c.social) return [];
-  const v = [c.economic.x, c.economic.y, c.political.x, c.political.y, c.social.x, c.social.y];
-  return IDEOLOGY_PROFILES.map(([name, p]) => {
-    const dist = Math.sqrt(p.reduce((n, x, i) => n + Math.pow(x - v[i], 2), 0));
-    return { name, dist, pct: Math.max(0, Math.round(100 - dist / 1.8)) };
+  const v = compassVec(c);
+  return list.map(it => {
+    const dist = Math.sqrt(it.v.reduce((n, x, i) => n + Math.pow(x - v[i], 2), 0));
+    return Object.assign({}, it, { dist, pct: Math.max(0, Math.round(100 - dist / 1.8)) });
   }).sort((a, b) => a.dist - b.dist);
+}
+function ideologyMatches(c){
+  return nearestOverall(IDEOLOGY_PROFILES.map(([name, v]) => ({ name, v })), c);
 }
 function overallIdeology(c){
   const m = ideologyMatches(c);
   return m.length ? m[0].name : null;
 }
-
-// Every axis of the test as one list (the six compass axes, then the five detail axes), each with the end you lean to and how strongly.
-function cardAxisList(u){
-  const rows = axisRows(u).map(r => ({ name: r.name, pct: r.pct, color: r.color }));
-  const ex = u.extraScores;
-  if(ex){
-    const colors = ['#4dabf7', '#f06595', '#94d82d', '#ffa94d', '#9775fa', '#38d9a9', '#ff8787'];
-    Object.keys(DETAIL_AXES).forEach((k, i) => {
-      if(typeof ex[k] !== 'number') return;   // results saved before an axis existed simply don't have it
-      const v = ex[k], high = v >= 50;
-      rows.push({ name: DETAIL_AXES[k][high ? 1 : 0], pct: high ? v : 100 - v, color: colors[i % colors.length] });
-    });
-  }
-  return rows;
+// The modern and the historical leader (FIGURES in questions.js) closest to you across all six axes.
+function closestLeaders(c){
+  const all = nearestOverall(FIGURES, c);
+  return { modern: all.find(f => f.era === 'modern'), historical: all.find(f => f.era === 'historical') };
 }
-// A wide radar for all the axes on the result card.
-function radarSvgWide(rows){
-  const cx = 260, cy = 196, R = 112, n = rows.length;
-  const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
-  const pt = (i, f) => [cx + Math.cos(ang(i)) * R * f, cy + Math.sin(ang(i)) * R * f];
-  let svg = '<svg viewBox="0 0 520 400" role="img" aria-label="Your axes"><defs><radialGradient id="dzFill"><stop offset="0" stop-color="#e3c26b" stop-opacity=".45"/><stop offset="1" stop-color="#00e676" stop-opacity=".22"/></radialGradient></defs>';
-  [0.25, 0.5, 0.75, 1].forEach(f => { svg += '<polygon class="dz-ring" points="' + rows.map((_, i) => pt(i, f).map(v => v.toFixed(1)).join(',')).join(' ') + '"/>'; });
-  rows.forEach((_, i) => { const [x, y] = pt(i, 1); svg += '<line class="dz-spoke" x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>'; });
-  const pts = rows.map((r, i) => pt(i, Math.max(0.08, (r.pct - 50) / 50)));
-  svg += '<polygon class="dz-shape" points="' + pts.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ') + '"/>';
-  pts.forEach((p, i) => { svg += '<circle class="dz-vertex" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="4.5" fill="' + rows[i].color + '"/>'; });
-  rows.forEach((r, i) => {
-    const [x, y] = pt(i, 1.2), c = Math.cos(ang(i));
-    const anchor = Math.abs(c) < 0.25 ? 'middle' : (c > 0 ? 'start' : 'end');
-    svg += '<text class="dz-lab" x="' + x.toFixed(1) + '" y="' + (y - 1).toFixed(1) + '" text-anchor="' + anchor + '">' + r.name + '</text>' +
-           '<text class="dz-labv" x="' + x.toFixed(1) + '" y="' + (y + 12).toFixed(1) + '" text-anchor="' + anchor + '" fill="' + r.color + '">' + r.pct + '%</text>';
-  });
-  return svg + '</svg>';
+// The closest leader on one map only (its two axes), for the dots on the Compass page.
+const SECTION_DIMS = { economic: [0, 1], political: [2, 3], social: [4, 5] };
+function closestOnMap(section, pair, era){
+  const [i, j] = SECTION_DIMS[section];
+  return FIGURES.filter(f => f.era === era).map(f => {
+    const dist = Math.hypot(f.v[i] - pair.x, f.v[j] - pair.y);
+    return Object.assign({}, f, { x: f.v[i], y: f.v[j], dist, pct: Math.max(0, Math.round(100 - dist / 1.414)) });
+  }).sort((a, b) => a.dist - b.dist)[0];
 }
 
+const M_SVG = (w) => '<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const initialsOf = (name) => name.split(/[\s-]+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+// Laid out like the sketch: logo and "Your results" on top, every axis on the left, closest leaders
+// (modern and historical), nation and ideology on the right, other ideologies along the bottom.
 function buildResultCard(){
-  const u = state.user, saved = loadSavedMatches();
+  const u = state.user;
   if(!u || !u.compass) return null;
   loadExtras();
-  // The card opens as soon as the test is scored. The "who you sound like" parts join it when the AI has found them.
-  const people = saved ? saved.list.map(p => Object.assign({}, p, { close: closeness(p) })) : [];
-  const ranked = people.slice().sort((a, b) => (b.close == null ? -1 : b.close) - (a.close == null ? -1 : a.close));
-  const top = ranked[0] || null;
-  const others = ranked.slice(1, 4);
-  const ideo = (k) => (u.ideologies && u.ideologies[k] && u.ideologies[k].label) || deriveQuadrantIdeology(k, u.compass[k]);
-  const fileNo = String(1000 + (hashString(String(u.username || u.id || 'guest')) % 9000));
-  const card = el('div',{class:'rc rc-dz'});
+  const leaders = closestLeaders(u.compass);
+  const nation = nearestOverall(NATIONS, u.compass)[0];
+  const ideos = ideologyMatches(u.compass);
+  const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
+  outer.appendChild(card);
 
-  card.appendChild(el('div',{class:'dz-top'},[
-    el('div',{class:'rc-logo'},[el('span',{class:'rc-logo__m', html:'<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>'}), 'Majlis']),
-    el('span',{class:'dz-file'}, 'Dossier No. ' + fileNo),
-  ]));
-  card.appendChild(el('div',{class:'dz-hero'},[
-    el('div',{class:'dz-kicker'}, 'Classified as'),
-    el('h2',{class:'dz-title'}, overallIdeology(u.compass) || ideo('political')),
-    el('div',{class:'dz-rule'},[el('i',{})]),
-    (() => { const m = ideologyMatches(u.compass).slice(0, 3); return m.length ? el('div',{class:'dz-also'}, m.map((x, i) => el('span',{}, (i ? ' · ' : '') + x.name + ' ' + x.pct + '%'))) : null; })(),
-    el('div',{class:'dz-tags'},[el('span',{}, ideo('political')), el('span',{}, ideo('economic')), el('span',{}, ideo('social'))].concat(
-      (u.archetype && !/not yet/i.test(u.archetype)) ? [el('span',{}, u.archetype)] : [],
-      (u.religion && u.religion !== 'Prefer not to say') ? [el('span',{}, u.religion + (u.denomination ? ', ' + u.denomination : ''))] : [])),
+  // The closest leader of the two is the faded background, like the sketch.
+  const bg = el('div',{class:'rc9__bg'});
+  const bgWho = [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => a.dist - b.dist)[0];
+  if(bgWho) loadPortrait(bgWho.name, url => { if(url && /^https:\/\/upload\.wikimedia\.org\/[^"'()\s\\]+$/.test(url)) bg.style.backgroundImage = 'url("' + url + '")'; });
+  card.appendChild(bg);
+  card.appendChild(el('div',{class:'rc9__grid'}));
+
+  card.appendChild(el('div',{class:'rc9__top'},[
+    el('div',{class:'rc9__logo'},[el('span',{html: M_SVG(16)}), 'MAJLIS']),
+    el('div',{class:'rc9__you'},[el('b',{}, 'YOUR RESULTS'), u.username ? el('span',{}, '@' + u.username) : null]),
   ]));
 
-  const list = cardAxisList(u);
-  card.appendChild(el('div',{class:'dz-radar', html: radarSvgWide(list)}));
-  card.appendChild(el('div',{class:'dz-legend'}, list.map(r => el('div',{class:'dz-leg'},[
-    el('i',{style:'background:' + r.color + ';box-shadow:0 0 8px ' + r.color + '88;'}),
-    el('span',{}, r.name),
-    el('b',{style:'color:' + r.color + ';'}, r.pct + '%'),
-  ]))));
-
-  if(top){
-    const photo = portraitNode(top.name, top.photo, top.pnote);
-    card.appendChild(el('div',{class:'dz-match'},[
-      top.close != null ? ringNode(top.close, photo) : photo,
-      el('div',{class:'dz-match__text'},[
-        el('div',{class:'dz-kicker'}, 'Closest in spirit'),
-        el('div',{class:'dz-match__name'}, top.name),
-        top.label ? el('div',{class:'dz-match__label'}, top.label) : null,
+  const axes = el('div',{class:'rc9__panel rc9__axes'},[el('div',{class:'rc9__h'}, 'Your axes')]);
+  allAxes(u).forEach(r => {
+    const high = r.v >= 50;
+    axes.appendChild(el('div',{class:'rc9-ax'},[
+      el('div',{class:'rc9-ax__row'},[
+        el('span',{class: high ? '' : 'is-lean', style: high ? '' : 'color:' + r.color}, r.lo),
+        el('b',{}, (high ? r.v : 100 - r.v) + '%'),
+        el('span',{class: high ? 'is-lean' : '', style: high ? 'color:' + r.color : ''}, r.hi),
       ]),
-      top.close != null ? el('div',{class:'dz-match__pct'},[el('b',{}, String(top.close)), el('span',{}, '%')]) : null,
+      el('div',{class:'rc9-ax__bar'},[el('i',{style:'left:' + r.v + '%;background:' + r.color + ';box-shadow:0 0 6px ' + r.color + ';'})]),
     ]));
-  } else if(state.matchesLoading){
-    card.appendChild(el('div',{class:'dz-kicker dz-center'}, 'Finding who you sound like…'));
-  }
-  if(others.length){
-    card.appendChild(el('div',{class:'dz-kicker dz-center'}, 'Also sound like'));
-    card.appendChild(el('div',{class:'rc-trio'}, others.map(p => el('div',{class:'rc-chip', title: p.why},[
-      portraitNode(p.name, p.photo, p.pnote),
-      el('div',{class:'rc-chip__name'}, p.name),
-      el('div',{class:'rc-chip__sub'}, p.close != null ? p.close + '% · ' + p.title : p.title),
-    ]))));
-  }
-  if(saved && saved.countries && saved.countries.length){
-    card.appendChild(el('div',{class:'dz-kicker dz-center'}, 'Closest nations'));
-    card.appendChild(el('div',{class:'rc-trio'}, saved.countries.map(c => el('div',{class:'rc-chip'},[
-      flagNode(c), el('div',{class:'rc-chip__name'}, c.name), el('div',{class:'rc-chip__sub'}, c.pct + '%'),
-    ]))));
-  }
-  card.appendChild(el('div',{class:'dz-foot'},[
-    el('span',{class:'dz-seal', html:'<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/></svg>'}),
-    el('span',{}, 'Find where you stand at Majlis'),
+  });
+
+  const person = (f, era) => f ? el('div',{class:'rc9-who'},[
+    portraitNode(f.name),
+    el('div',{class:'rc9-who__era'}, era),
+    el('div',{class:'rc9-who__name'}, f.name),
+    el('div',{class:'rc9-who__pct'}, f.pct + '%'),
+  ]) : null;
+  const badge = (m, big) => el('div',{class:'rc9-who'},[
+    el('div',{class:'rc9-badge' + (big ? ' is-big' : '')}, initialsOf(m.name)),
+    el('div',{class:'rc9-who__name'}, m.name),
+    el('div',{class:'rc9-who__pct'}, m.pct + '%'),
+  ]);
+  const side = el('div',{class:'rc9__side'},[
+    el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest leader'),
+      el('div',{class:'rc9-pair'},[person(leaders.modern, 'Modern'), person(leaders.historical, 'Historical')])]),
+    nation ? el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest nation'),
+      el('div',{class:'rc9-who'},[flagNode(nation), el('div',{class:'rc9-who__name'}, nation.name), el('div',{class:'rc9-who__pct'}, nation.pct + '%')])]) : null,
+    ideos[0] ? el('div',{class:'rc9__panel'},[el('div',{class:'rc9__h'}, 'Closest ideology'), badge(ideos[0], true)]) : null,
+  ]);
+  card.appendChild(el('div',{class:'rc9__main'},[axes, side]));
+
+  if(ideos.length > 1) card.appendChild(el('div',{class:'rc9__panel rc9__others'},[
+    el('div',{class:'rc9__h'}, 'Other ideologies'),
+    el('div',{class:'rc9-trio'}, ideos.slice(1, 4).map(m => badge(m))),
   ]));
-  return card;
+  card.appendChild(el('div',{class:'rc9__foot'}, 'Find where you stand · Majlis'));
+  return outer;
 }
 function renderResultOverlay(){
   const card = buildResultCard();
@@ -2935,83 +2822,8 @@ function renderResultOverlay(){
   return back;
 }
 
-// A small map: you (green) and the match, joined by a line. Axis names sit outside the box so nothing overlaps.
-function matchMap(cat){
-  const me = state.user.compass && state.user.compass[cat.key];
-  const d = COMPASS_DEFS[cat.key];
-  if(!me || !d || cat.x == null || cat.y == null) return null;
-  const pt = (p) => ({ x: Math.max(10, Math.min(90, p.x)), y: Math.max(10, Math.min(90, 100 - p.y)) });
-  const a = pt(me), b = pt(cat);
-  // The name tag goes on the side with room, and above or below depending on which dot is higher.
-  const tag = (name, p, other) => el('div',{class:'mm-dot', style:'left:' + p.x + '%;top:' + p.y + '%;'},[
-    el('i',{}),
-    el('b',{class:(p.x > 55 ? 'to-left' : 'to-right') + (p.y > other.y ? ' below' : ' above')}, name),
-  ]);
-  const box = el('div',{class:'match-map'});
-  box.appendChild(el('div',{class:'mm-line', html:'<svg viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'"/></svg>'}));
-  const you = tag('You', a, b); you.classList.add('mm-you');
-  const them = tag(cat.name.length <= 15 ? cat.name : cat.name.split(' ').slice(-1)[0], b, a); them.classList.add('mm-them');
-  box.appendChild(you); box.appendChild(them);
-  return el('div',{class:'match-map-wrap'},[
-    el('div',{class:'mm-top'}, d.yLabels[1]),
-    el('div',{class:'mm-mid'},[el('span',{class:'mm-side'}, d.xLabels[0]), box, el('span',{class:'mm-side'}, d.xLabels[1])]),
-    el('div',{class:'mm-bottom'}, d.yLabels[0]),
-  ]);
-}
-function closeness(cat){
-  const me = state.user.compass && state.user.compass[cat.key];
-  if(!me || cat.x == null) return null;
-  return Math.max(0, Math.round(100 - Math.hypot(me.x - cat.x, me.y - cat.y) / 1.414));
-}
-
-function matchesCard(){
-  if(state.matchesLoading){
-    const cats = matchCategories(state.user);
-    return thinkStage('matches', {
-      kicker: 'AI MATCHMAKER', title: 'Finding your real-life matches', secondsPerStep: 5,
-      steps: ['Reading your results'].concat(cats.map(c => 'Searching for your ' + c.title.toLowerCase() + ' match'), ['Placing everyone on the map']),
-    });
-  }
-  stopThink('matches');
-  const card = el('div',{class:'card match-card'},[el('h3',{},'Who you match in real life')]);
-  if(!state.user || state.user.isGuest){
-    card.appendChild(el('p',{class:'section-sub'},'Create an account to see which well-known people your results are closest to.'));
-    return card;
-  }
-  const saved = loadSavedMatches();
-  if(!saved){
-    card.appendChild(el('p',{class:'section-sub'}, state.matchesFailed ? 'The AI couldn\'t be reached just now (' + state.matchesFailed + '). Try again in a moment.' : 'See which well-known person is closest to each of your results.'));
-    card.appendChild(el('button',{class:'btn', onclick: fetchMatches}, state.matchesFailed ? 'Try again' : 'Find my matches'));
-    return card;
-  }
-  saved.list.forEach(cat => {
-    const map = matchMap(cat), close = closeness(cat);
-    const info = el('div',{class:'match-info'},[
-      el('div',{class:'match-cat'}, cat.title),
-      el('div',{class:'match-who'},[
-        portraitNode(cat.name, cat.photo, cat.pnote),
-        el('div',{},[el('div',{class:'match-name'}, cat.name), cat.label ? el('div',{class:'match-label'}, cat.label) : null]),
-      ]),
-      cat.why ? el('p',{class:'match-why'}, cat.why) : null,
-      close != null ? el('div',{class:'match-close'},[el('b',{}, close + '%'), close >= 80 ? ' close on this map' : ' on this map (the closest we could find)']) : null,
-    ]);
-    card.appendChild(el('div',{class:'match-item' + (map ? '' : ' no-map')}, [info, map]));
-  });
-  card.appendChild(el('p',{class:'field-caption',style:'margin:14px 0 8px;'},'AI estimate based on public views, just for fun.'));
-  card.appendChild(el('div',{style:'display:flex;gap:10px;flex-wrap:wrap;'},[
-    el('button',{class:'btn secondary', onclick:()=>{ state.showCard = true; render(); }}, 'View result card'),
-    el('button',{class:'linkbtn', onclick:()=>{ try { localStorage.removeItem(matchStoreKey()); } catch(e){} fetchMatches(); }}, 'Refresh'),
-    el('button',{class:'linkbtn', onclick:()=>{ state.photoDetails = !state.photoDetails; render(); }}, 'Photo problem?'),
-  ]));
-  if(state.photoDetails){
-    card.appendChild(el('div',{class:'field-caption', style:'margin-top:10px;line-height:1.6;'}, saved.list.map(c =>
-      el('div',{}, c.name + ': ' + (c.embedded ? 'photo sent by the server' : c.photo ? 'link only (the server could not embed it)' : 'no photo' + (c.pnote ? ' (' + c.pnote + ')' : ''))))));
-  }
-  return card;
-}
-
 // The test is long, so your answers are kept on this device and you can pick it up where you left off.
-const quizStoreKey = () => 'majlis-quiz-' + (state.user && state.user.id ? state.user.id : 'guest');
+const quizStoreKey = () => 'majlis-quiz2-' + (state.user && state.user.id ? state.user.id : 'guest');
 function saveQuiz(){
   try {
     const q = state.quiz;
@@ -3038,7 +2850,7 @@ function resumeQuizButton(){
 }
 
 /* Full test or short test. The short one picks the questions that tell the axes apart best, so every axis is still covered. */
-const SHORT_PHIL = 20, SHORT_COMPASS = 60, SHORT_RELIGION = 14;
+const SHORT_PHIL = 20, SHORT_COMPASS = 40, SHORT_RELIGION = 14;
 function pickShortPhil(){
   const keys = Object.keys(PHIL_AXES), chosen = [];
   const weight = (i, k) => Math.max(0, ...PHIL_EFFECTS[i].map(e => Math.abs(e[k] || 0)));
@@ -3156,13 +2968,13 @@ function renderAssessment(){
       resumeQuizButton(),
       startQuizButtons(true),
     ]));
-    if(state.user.compass) wrap.appendChild(matchesCard());
+    if(state.user.compass) wrap.appendChild(el('button',{class:'btn secondary', style:'margin-top:16px;', onclick:()=>navigateWithLoading('compass')}, 'See my compass and result card'));
     return wrap;
   }
 
   if(!state.quiz.active){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'One test, start to finish: philosophy questions (scenarios plus the classic survey positions), then a mixed set of statements about politics, economics, society and morals (drawing on 8values, 12axes, the Political Compass and the Moral Foundations Questionnaire), an optional worldview question, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
+      'One test, start to finish, and every question works the same way: read the question, then pick the one of four positions closest to your own. Philosophy first, then politics, economics, society and morals (axes drawn from 8values, 12axes, SapplyValues, the Political Compass and the Moral Foundations Questionnaire, with answers written as real stances like iSideWith), an optional worldview section, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
     { const r = resumeQuizButton(); if(r) wrap.appendChild(r); }
     wrap.appendChild(startQuizButtons(false));
     return wrap;
@@ -3207,8 +3019,10 @@ function renderAssessment(){
 
     const card = el('div',{class:'card'});
     card.appendChild(el('div',{class:'quiz-q'}, item.q));
-    const optsWrap = el('div',{class:'quiz-opts' + (isCompass ? ' quiz-likert' : '')});
-    item.opts.forEach((opt)=>{
+    const optsWrap = el('div',{class:'quiz-opts'});
+    // The four positions run from one pole to the other in the bank, so they are shown in a fixed shuffle per question.
+    const shown = isCompass ? item.opts.slice().sort((a, b) => hashString(item.q + a) - hashString(item.q + b)) : item.opts;
+    shown.forEach((opt)=>{
       optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>{
         state.quiz.answers.push({section: state.quiz.section, axis: null, q: item.q, choice: opt});
         if(displayIndex >= displayTotal){
@@ -3375,34 +3189,13 @@ function axisScoreToPct(sum, weightTotal){
   return Math.max(0, Math.min(100, Math.round(50 + (sum/max)*50)));
 }
 
-function computeAxisPair(answers, section){
-  const secAnswers = answers.filter(a=>a.section===section);
-  const bank = section==='economic' ? ECONOMIC_QUESTIONS : section==='political' ? POLITICAL_QUESTIONS : SOCIAL_QUESTIONS;
-  let xSum = 0, xW = 0, ySum = 0, yW = 0;
-  secAnswers.forEach(a=>{
-    const q = bank.find(b=>b.q===a.q);
-    if(!q) return;
-    const optIndex = q.opts.indexOf(a.choice);
-    if(optIndex === -1) return;
-    // Agree/disagree statements: Strongly disagree = -3 ... Strongly agree = +3, flipped when the statement points to the low end.
-    // Core statements count double (w: 2), like the heavier items in 8values.
-    const w = q.w || 1;
-    const value = (optIndex - 2) * 1.5 * (q.dir || 1) * w;
-    if(q.axis==='x'){ xSum += value; xW += w; } else { ySum += value; yW += w; }
-  });
-  return {
-    x: axisScoreToPct(xSum, xW || 8),
-    y: axisScoreToPct(ySum, yW || 8),
-  };
-}
-
 // Extra scores beyond the three compasses: 12axes-style detail axes and Moral Foundations scores (all 0 to 100).
 function computeExtraScores(answers){
   const sum = {}, max = {};
   COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
   answers.filter(a => a.section === 'compass').forEach(a => {
     const item = COMPASS_ITEMS.find(i => i.q === a.q);
-    const v = ANSWER_VALUE[a.choice];
+    const v = item ? POSITION_VALUE[item.opts.indexOf(a.choice)] : undefined;
     if(!item || v === undefined) return;
     Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; max[ax] += Math.abs(item.w[ax]); });   // the most it could be counts only the statements you were asked
   });
@@ -3425,14 +3218,13 @@ function loadExtras(){
   } catch(e){}
 }
 
-const ANSWER_VALUE = { 'Strongly disagree': -1, 'Disagree': -0.5, 'Neutral': 0, 'Agree': 0.5, 'Strongly agree': 1 };
 // 8values-style: add up every answer times its weight on each axis, compare with the most it could be, as a percentage.
 function computeThreeCompasses(answers){
   const sum = {}, max = {};
   COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
   answers.filter(a => a.section === 'compass').forEach(a => {
     const item = COMPASS_ITEMS.find(i => i.q === a.q);
-    const v = ANSWER_VALUE[a.choice];
+    const v = item ? POSITION_VALUE[item.opts.indexOf(a.choice)] : undefined;
     if(!item || v === undefined) return;
     Object.keys(item.w).forEach(ax => { sum[ax] += v * item.w[ax]; max[ax] += Math.abs(item.w[ax]); });
   });
@@ -3635,10 +3427,8 @@ async function finishAssessment(position, viewText){
   clearDrafts('assessment-position', 'assessment-case');
   clearSavedQuiz();
   state.quiz.active = false;
-  state.tab = 'assessment';
-  try { localStorage.removeItem(matchStoreKey()); } catch(e){}   // a retake changes your results, so the old matches are stale
+  state.tab = signedIn ? 'compass' : 'assessment';   // the compass page shows the three maps with your result card beside them
   render();
-  if(signedIn){ state.showCard = true; fetchMatches(); }   // the AI names who you match in real life; the result card opens once when it's ready
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
@@ -6026,7 +5816,7 @@ function compassCrowd(){
 function clampDot(p){ return { x: Math.max(3, Math.min(97, p.x)), y: Math.max(3, Math.min(97, p.y)) }; }
 
 // One big map. `dots` are other people; `focus` is the person the map is about.
-function compassMap(section, focus, dots, farthest){
+function compassMap(section, focus, dots, farthest, figures){
   const def = COMPASS_DEFS[section];
   const map = el('div',{class:'opposites__map'},[
     el('div',{class:'compass-quad q-tl'}), el('div',{class:'compass-quad q-tr'}),
@@ -6058,6 +5848,11 @@ function compassMap(section, focus, dots, farthest){
       onmouseenter:()=>showTip(x, p), onmouseleave:hideTip, onfocus:()=>showTip(x, p), onblur:hideTip});
     if(x.username === state.currentUser) dot.appendChild(el('span',{class:'opp-dot__label'}, 'You'));
     map.appendChild(dot);
+  });
+  // Well-known leaders: a small portrait (their names are in the text beside the map, and on hover).
+  (figures || []).forEach(f => {
+    const p = clampDot(f);
+    map.appendChild(el('div',{class:'opp-fig is-' + f.era, style:'left:' + p.x + '%;top:' + (100 - p.y) + '%;', title: f.name + ' (' + f.era + ')'}, portraitNode(f.name)));
   });
   if(focus && focus.compass){
     const fp = clampDot(focus.compass[section]);
@@ -6103,11 +5898,11 @@ function compassDistanceOn(section, a, b){
 }
 
 function renderCompass(){
-  const wrap = el('div',{});
+  const wrap = el('div',{class:'compass-page'});
   wrap.appendChild(el('h2',{class:'section-title'},'Compass'));
-  wrap.appendChild(el('p',{class:'section-sub'},'Three separate ideological maps — economic, political, and social — each derived from its own set of mapping questions.'));
 
   if(!state.user.placementTaken || !state.user.compass){
+    wrap.appendChild(el('p',{class:'section-sub'},'Three maps — political, economic and social — built from your test answers.'));
     wrap.appendChild(el('div',{class:'card'},[
       el('h3',{},'Not yet mapped'),
       el('p',{},'Take the placement assessment to compute your ideological coordinates.'),
@@ -6116,89 +5911,57 @@ function renderCompass(){
     return wrap;
   }
 
-  const c = state.user.compass;
-  const card = el('div',{class:'card'});
-  card.appendChild(el('h3',{},'Philosophical archetype: ' + state.user.archetype));
-  if(state.user.archetypeReasoning){
-    card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:8px;'}, state.user.archetypeReasoning));
-  }
-  loadExtras();
-  const pax = state.user.philosophyAxes;
-  if(pax){
-    const bars = el('div',{class:'phil-axes'});
-    Object.keys(PHIL_AXES).forEach(k => {
-      const v = pax[k], high = v >= 50, pct = high ? v : 100 - v;
-      bars.appendChild(el('div',{class:'phil-axis'},[
-        el('div',{class:'phil-axis__row'},[el('span',{}, PHIL_AXES[k][0]), el('b',{}, PHIL_AXES[k][high ? 1 : 0] + ' ' + pct + '%'), el('span',{}, PHIL_AXES[k][1])]),
-        el('div',{class:'phil-axis__track'},[el('span',{class:'phil-axis__dot', style:'left:' + v + '%;'})]),
-      ]));
-    });
-    card.appendChild(bars);
-  }
-  const ex = state.user.extraScores;
-  if(ex){
-    const detail = el('div',{class:'phil-axes'});
-    detail.appendChild(el('div',{class:'eyebrow', style:'margin-top:18px;'}, 'More detail (12axes-style)'));
-    Object.keys(DETAIL_AXES).forEach(k => {
-      if(typeof ex[k] !== 'number') return;
-      const v = ex[k], high = v >= 50, pct = high ? v : 100 - v;
-      detail.appendChild(el('div',{class:'phil-axis'},[
-        el('div',{class:'phil-axis__row'},[el('span',{}, DETAIL_AXES[k][0]), el('b',{}, DETAIL_AXES[k][high ? 1 : 0] + ' ' + pct + '%'), el('span',{}, DETAIL_AXES[k][1])]),
-        el('div',{class:'phil-axis__track'},[el('span',{class:'phil-axis__dot', style:'left:' + v + '%;'})]),
-      ]));
-    });
-    card.appendChild(detail);
-    const found = el('div',{class:'phil-axes'});
-    found.appendChild(el('div',{class:'eyebrow', style:'margin-top:18px;'}, 'Moral foundations'));
-    Object.keys(FOUNDATIONS).forEach(k => {
-      found.appendChild(el('div',{class:'phil-axis'},[
-        el('div',{class:'phil-axis__row'},[el('span',{}, FOUNDATIONS[k]), el('b',{}, ex[k] + '%')]),
-        el('div',{class:'phil-axis__track'},[el('span',{class:'phil-axis__fill', style:'width:' + ex[k] + '%;'})]),
-      ]));
-    });
-    card.appendChild(found);
-  }
-  card.appendChild(el('p',{style:'font-size:12px;color:var(--parchment-dim);margin:12px 0 20px;'},
-    'Scored from your answers with fixed rules, so the same answers always give the same result. Modelled on 8values, 12axes, the Moral Foundations Questionnaire and the PhilPapers survey.'));
-  if(state.user.religion && state.user.religion !== 'Prefer not to say'){
-    card.appendChild(el('div',{style:'height:6px'}));
-    card.appendChild(el('h3',{},'Religious/spiritual identity: ' + state.user.religion + (state.user.denomination ? ' — '+state.user.denomination : '')));
-    if(state.user.denominationReasoning){
-      card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:20px;'}, state.user.denominationReasoning));
-    } else {
-      card.appendChild(el('div',{style:'height:20px'}));
-    }
-  }
-  ['political', 'economic', 'social'].forEach(sec => wrap.appendChild(renderCompassSection(sec)));
-  wrap.appendChild(card);
-  wrap.appendChild(matchesCard());
+  // The three maps on the left; your result card stays beside them.
+  const maps = el('div',{class:'compass-maps'});
+  ['political', 'economic', 'social'].forEach(sec => maps.appendChild(renderCompassSection(sec)));
+  const card = buildResultCard();
+  const openCard = () => { state.showCard = true; render(); };
+  const aside = el('aside',{class:'compass-aside'},[
+    el('div',{class:'compass-aside__card', role:'button', tabindex:'0', title:'Open full size', 'aria-label':'Open your result card full size',
+      onclick: openCard, onkeydown:(e)=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openCard(); } }}, card),
+    el('p',{class:'field-caption', style:'text-align:center;margin:10px 0 0;'}, 'Tap the card to open it full size and screenshot it.'),
+  ]);
+  wrap.appendChild(el('div',{class:'cmp-layout'},[maps, aside]));
   return wrap;
 }
 
-// One compass on the Compass page: everyone's dots, yours in green, and who sits furthest away.
+// One compass on the Compass page: everyone on Majlis, you, and the modern and historical leader closest to you on this map.
 function renderCompassSection(section){
   const me = state.user;
   const def = COMPASS_DEFS[section];
   const crowd = compassCrowd();
-  const ranked = crowd.map(x => ({ x, d: compassDistanceOn(section, me.compass, x.compass) })).sort((p, q) => q.d - p.d);
+  const figures = [closestOnMap(section, me.compass[section], 'modern'), closestOnMap(section, me.compass[section], 'historical')].filter(Boolean);
+  const far = crowd.map(x => ({ x, d: compassDistanceOn(section, me.compass, x.compass) })).sort((p, q) => q.d - p.d)[0];
   const panel = el('section',{class:'opposites compass-panel'});
   const text = el('div',{class:'opposites__text'});
   text.appendChild(el('div',{class:'kicker'}, def.title));
   const label = ideologyLabel(me, section);
-  text.appendChild(el('h3',{class:'opposites__title'}, 'You\'re ' + (/^[aeiou]/i.test(label) ? 'an ' : 'a ') + label + '. Here\'s who disagrees with you most.'));
-  text.appendChild(el('p',{class:'opposites__sub'}, crowd.length
-    ? 'Every dot is someone on Majlis (' + crowd.length + ' on this map). Hover over a dot to see who it is, or click it to open their profile. The furthest from you make the best debates.'
+  text.appendChild(el('h3',{class:'opposites__title'}, 'You\'re ' + (/^[aeiou]/i.test(label) ? 'an ' : 'a ') + label + '.'));
+  if(figures.length){
+    text.appendChild(el('p',{class:'opposites__sub'}, [
+      'On this map you\'re closest to ',
+      el('b',{}, figures[0].name), ' (' + figures[0].pct + '%)',
+      figures[1] ? ' today, and ' : '.',
+      figures[1] ? el('b',{}, figures[1].name) : null, figures[1] ? ' (' + figures[1].pct + '%) in history.' : null,
+    ]));
+  }
+  text.appendChild(el('div',{class:'compass-legend'},[
+    el('span',{},[el('i',{class:'is-you'}), 'You']), el('span',{},[el('i',{class:'is-modern'}), 'Modern leader']),
+    el('span',{},[el('i',{class:'is-historical'}), 'Historical leader']), el('span',{},[el('i',{}), 'Others on Majlis']),
+  ]));
+  text.appendChild(el('p',{class:'opposites__sub compass-count'}, crowd.length
+    ? crowd.length + ' others on this map. Hover over a dot to see who it is, or click it to open their profile.'
     : 'Nobody else has mapped their views yet.'));
-  ranked.slice(0, 3).forEach(({ x }) => text.appendChild(el('div',{class:'opposite-row'},[
-    avatarNode(x, 34),
+  if(far) text.appendChild(el('div',{class:'opposite-row'},[
+    avatarNode(far.x, 34),
     el('div',{class:'opposite-row__main'},[
-      el('button',{class:'user-link', onclick:()=>viewProfile(x.username)}, x.name),
-      el('div',{class:'opposite-row__meta'}, ideologyLabel(x, section) + (x.archetype ? ' · ' + x.archetype : '')),
+      el('div',{class:'opposite-row__meta'}, 'Disagrees with you most'),
+      el('button',{class:'user-link', onclick:()=>viewProfile(far.x.username)}, far.x.name),
     ]),
-    el('button',{class:'btn secondary', onclick:()=>(x.isAi || !window.MajlisChallenges) ? openDM(x.username) : MajlisChallenges.openModal(x.username)}, 'Challenge'),
-  ])));
+    el('button',{class:'btn secondary', onclick:()=>(far.x.isAi || !window.MajlisChallenges) ? openDM(far.x.username) : MajlisChallenges.openModal(far.x.username)}, 'Challenge'),
+  ]));
   panel.appendChild(text);
-  panel.appendChild(compassMap(section, me, crowd, ranked.length ? ranked[0].x : null));
+  panel.appendChild(compassMap(section, me, crowd, far ? far.x : null, figures));
   return panel;
 }
 
