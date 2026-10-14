@@ -2708,7 +2708,7 @@ function savedCardMatches(){
   if(!c) return null;
   const sig = compassSig(c);
   if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return cardMatchesMemory;
-  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 3 && m.sig === sig ? m : null; } catch(e){ return null; }
+  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 4 && m.sig === sig ? m : null; } catch(e){ return null; }
 }
 // The leader shown for an era: the closest one who has a photo, so the card always shows a face.
 function leaderFor(m, era){
@@ -2746,13 +2746,15 @@ async function fetchCardMatches(){
       if(data && data.error) throw new Error(data.error);
       if(error || !data || !data.card) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
       const card = data.card;
-      const out = { v: 3, sig: compassSig(u.compass), key: cardMatchKey(), at: Date.now(),
+      const out = { v: 4, sig: compassSig(u.compass), key: cardMatchKey(), at: Date.now(),
         leaders: (card.leaders || []).filter(l => l && l.name && okPos(l.pos) && (l.era === 'modern' || l.era === 'historical')).map(l => ({
           name: l.name, era: l.era, label: l.label || '', why: l.why || '', pos: l.pos, pct: l.pct,
           photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
           photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
         countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
           name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
+        oldCountries: (card.oldCountries || []).filter(c => c && c.name).slice(0, 3).map(c => ({
+          name: String(c.name).slice(0, 60), pct: c.pct, flag: typeof c.flag === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/.test(c.flag) ? c.flag : null })),
         ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
       if(!out.leaders.some(l => l.era === 'modern') || !out.leaders.some(l => l.era === 'historical')) throw new Error('no leaders came back');
       await confirmCardPhotos(out);
@@ -2883,11 +2885,11 @@ function preloadCardPortrait(){
   const m = savedCardMatches();
   const jobs = [window.loadCardScene ? loadCardScene(cardTheme()) : null];
   const pair = m ? [leaderFor(m, 'modern'), leaderFor(m, 'historical')].filter(l => l && l.photo) : [];
-  const who = pair.slice().sort((a, b) => b.pct - a.pct)[0];
-  if(who){
+  const who = (m && leaderFor(m, cardEra())) || pair[0];
+  if(who && who.photo){
     const load = (url) => new Promise(done => { if(!url || url.startsWith('data:')) return done(); const img = new Image(); img.referrerPolicy = 'no-referrer'; img.onload = img.onerror = () => done(); img.src = url; });
     jobs.push(who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? null : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done))));
-    if(window.cardCutout){ jobs.push(cardCutout(cutSource(who))); pair.forEach(l => jobs.push(cardCutout(l.photo))); }
+    if(window.cardCutout) pair.forEach(l => { jobs.push(cardCutout(cutSource(l))); jobs.push(cardCutout(l.photo)); });
   }
   return Promise.race([Promise.all(jobs), new Promise(done => setTimeout(done, 12000))]);
 }
@@ -2923,13 +2925,31 @@ const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\
 // Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
 // behind everything, every axis in one tall panel on the left, three stacked panels on the right (leader, nation,
 // ideology) and the other ideologies in a wide panel along the bottom.
+// Which era the card shows: modern leaders and nations (1900 to today) or historical ones (before 1900).
+const ERA_NOTE = { modern: '1900 – today', historical: 'before 1900' };
+function cardEra(){
+  if(!state.cardEra){ try { state.cardEra = localStorage.getItem('majlis-card-era'); } catch(e){} }
+  return state.cardEra === 'historical' ? 'historical' : 'modern';
+}
+function setCardEra(e){ state.cardEra = e; try { localStorage.setItem('majlis-card-era', e); } catch(err){} render(); }
+function eraSwitch(){
+  const b = (e, label) => el('button',{class:'rc9-era__btn' + (cardEra() === e ? ' is-on' : ''), type:'button', 'aria-pressed': String(cardEra() === e),
+    onclick:(ev)=>{ ev.stopPropagation(); setCardEra(e); }},[el('b',{}, label), el('small',{}, ERA_NOTE[e])]);
+  return el('div',{class:'rc9-era', role:'group', 'aria-label':'Which era to show'},[b('modern', 'MODERN'), b('historical', 'HISTORICAL')]);
+}
+// A nation's flag: today's countries by their code, historical states by the flag the server found (or their initials).
+function nationFlag(c){
+  if(c.code) return flagNode(c);
+  if(c.flag) return el('img',{class:'rc-flag', src: c.flag, alt: c.name});
+  return el('span',{class:'rc-flag rc-flag--code'}, initialsOf(c.name));
+}
 function buildResultCard(){
   const u = state.user;
   if(!u || !u.compass) return null;
   loadExtras();
   const m = cardMatches();
-  const leaders = m ? { modern: leaderFor(m, 'modern'), historical: leaderFor(m, 'historical') } : {};
-  const nation = m && m.countries[0];
+  const era = cardEra(), shown = m ? leaderFor(m, era) : null;
+  const nations = m ? (era === 'historical' ? (m.oldCountries || []) : m.countries).slice(0, 3) : [];
   const ideos = m ? m.ideologies : [];
   const theme = cardTheme(), faith = cardFaith(u);
   const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
@@ -2945,11 +2965,10 @@ function buildResultCard(){
   // The closer of the two leaders is the big black-and-white portrait behind the card. When he can be cut out of his
   // photo, he stands in front of the scene and his head and shoulders come out over the edges of the card.
   const bg = el('div',{class:'rc9__bg'});
-  const bgWho = [leaders.modern, leaders.historical].filter(l => l && l.photo).sort((a, b) => b.pct - a.pct)[0]
-    || [leaders.modern, leaders.historical].filter(Boolean).sort((a, b) => b.pct - a.pct)[0];
+  const bgWho = shown;
   const bigCut = bgWho && bgWho.photo ? cutoutFor(cutSource(bgWho)) : null;
   if(bigCut){
-    const at = cardPlace(bigCut, 0.46, -0.14);
+    const at = cardPlace(bigCut, 0.62, -0.16);
     const figure = (dx, dy) => el('i',{class:'rc9__cut', style:'background-image:url("' + bigCut.url + '");left:' + cq(at.left + dx) + ';top:' + cq(at.top + dy) + ';width:' + cq(at.width) + ';height:' + cq(at.height) + ';'});
     card.appendChild(el('div',{class:'rc9__person', 'aria-hidden':'true'}, figure(0, 0)));
     const pop = el('div',{class:'rc9__pop', 'aria-hidden':'true'},[
@@ -3013,10 +3032,15 @@ function buildResultCard(){
     ]);
     return el('div',{class:'rc9-wait is-loading'}, 'The AI is reading your answers…');
   };
-  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p1'},[el('div',{class:'rc9__h'}, 'CLOSEST LEADER'),
-    m ? el('div',{class:'rc9-pair'},[person(leaders.modern, 'MODERN'), person(leaders.historical, 'HISTORICAL')]) : waiting()]));
-  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p2'},[el('div',{class:'rc9__h'}, 'CLOSEST NATION'),
-    nation ? el('div',{class:'rc9-who rc9-solo'},[flagNode(nation), el('div',{class:'rc9-who__name'}, nation.name), el('div',{class:'rc9-who__pct'}, nation.pct + '%')]) : waiting()]));
+  // One leader at a time; the tabs switch the whole card between the modern and the historical match.
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p1'},[eraSwitch(),
+    m ? el('div',{class:'rc9-one'},[person(shown, era === 'modern' ? 'MODERN · 1900–TODAY' : 'HISTORICAL · BEFORE 1900')]) : waiting()]));
+  // Three nations in a pyramid: the closest on top, the next two below it.
+  const nationItem = (c, top) => el('div',{class:'rc9-who rc9-nat' + (top ? ' rc9-nat--top' : '')},[
+    nationFlag(c), el('div',{class:'rc9-who__name'}, c.name), el('div',{class:'rc9-who__pct'}, c.pct + '%')]);
+  card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p2'},[el('div',{class:'rc9__h'}, 'CLOSEST NATIONS'),
+    nations.length ? el('div',{class:'rc9-pyr'},[nationItem(nations[0], true), el('div',{class:'rc9-pyr__row'}, nations.slice(1).map(c => nationItem(c, false)))])
+      : m && era === 'historical' ? el('div',{class:'rc9-wait'}, 'No historical nations this time.') : waiting()]));
   card.appendChild(el('div',{class:'rc9__panel rc9__rp rc9__p3'},[el('div',{class:'rc9__h'}, 'CLOSEST IDEOLOGY'),
     ideos[0] ? el('div',{class:'rc9-solo'}, ideology(ideos[0])) : waiting()]));
   card.appendChild(el('div',{class:'rc9__panel rc9__others' + (faith ? ' rc9__others--faith' : '')},[
