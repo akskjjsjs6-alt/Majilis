@@ -3040,6 +3040,57 @@ function buildResultCard(){
   card.appendChild(el('div',{class:'rc9__foot'}, 'FIND WHERE YOU STAND · MAJLIS'));
   return outer;
 }
+// Saves the card as a picture (with the leader popping out of it and a clear background), or opens the phone's
+// share sheet when it can take files. The browser draws the card itself, so the picture matches the screen.
+let htmlToImageP = null, cardFontCSSP = null;
+// The site's web fonts (Latin letters only), built into the picture so it uses the same lettering as the screen.
+function cardFontCSS(){
+  if(!cardFontCSSP) cardFontCSSP = (async () => {
+    const link = document.querySelector('link[href^="https://fonts.googleapis.com/css2"]');
+    if(!link) return '';
+    const css = await (await fetch(link.href)).text();
+    const faces = (css.match(/@font-face\s*{[^}]*}/g) || []).filter(f => /unicode-range:[^;]*U\+0000-00FF/i.test(f));
+    const out = await Promise.all(faces.map(async f => {
+      const m = f.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/);
+      if(!m) return '';
+      const blob = await (await fetch(m[1])).blob();
+      const data = await new Promise(done => { const fr = new FileReader(); fr.onload = () => done(fr.result); fr.readAsDataURL(blob); });
+      return f.replace(m[1], data);
+    }));
+    return out.join('\n');
+  })().catch(e => { console.warn('fonts for the image', e); cardFontCSSP = null; return ''; });
+  return cardFontCSSP;
+}
+async function saveCardImage(card){
+  if(!card) return;
+  if(!htmlToImageP) htmlToImageP = new Promise((done, fail) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
+    sc.onload = () => window.htmlToImage ? done(window.htmlToImage) : fail(new Error('no library'));
+    sc.onerror = () => { htmlToImageP = null; fail(new Error('the image tool did not load')); };
+    document.head.appendChild(sc);
+  });
+  try {
+    const lib = await htmlToImageP;
+    const fontEmbedCSS = await cardFontCSS();
+    const r = card.getBoundingClientRect(), side = Math.round(r.width * 0.08), top = Math.round(r.width * 0.16);
+    const opts = { pixelRatio: Math.max(2, Math.min(3, 1080 / r.width)), width: Math.round(r.width) + side * 2, height: Math.round(r.height) + top,
+      fontEmbedCSS, style: { margin: '0', transform: 'translate(' + side + 'px,' + top + 'px)', width: r.width + 'px', maxWidth: 'none' } };
+    if(/iP(hone|ad|od)|Safari/.test(navigator.userAgent) && !/Chrome|Android/.test(navigator.userAgent)) await lib.toBlob(card, opts).catch(() => null);   // Safari draws pictures only on the second pass
+    const blob = await lib.toBlob(card, opts);
+    if(!blob) throw new Error('nothing was drawn');
+    const file = new File([blob], 'majlis-results.png', { type: 'image/png' });
+    if(navigator.canShare && navigator.canShare({ files: [file] }) && /Android|iP(hone|ad|od)/.test(navigator.userAgent)){
+      try { await navigator.share({ files: [file], title: 'My Majlis results' }); return; } catch(e){ if(e && e.name === 'AbortError') return; }
+    }
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'majlis-results.png'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch(e){
+    console.warn('card image failed', e);
+    alert('Couldn\'t make the image. Take a screenshot instead.');
+  }
+}
 function renderResultOverlay(){
   const card = buildResultCard();
   if(!card){ state.showCard = false; return null; }
@@ -3050,10 +3101,11 @@ function renderResultOverlay(){
     el('button',{class:'rc-x', 'aria-label':'Close', onclick: close}, '×'),
     card,
     el('div',{class:'rc-actions'},[
-      el('button',{class:'btn', onclick: close}, 'Done'),
+      el('button',{class:'btn', onclick: () => saveCardImage(card)}, 'Save image'),
+      el('button',{class:'btn secondary', onclick: close}, 'Done'),
       el('button',{class:'btn secondary', onclick:()=>{ state.showCard = false; state.tab = 'compass'; render(); }}, 'Open my compass'),
     ]),
-    el('p',{class:'field-caption', style:'text-align:center;margin:8px 0 0;'}, 'Take a screenshot to share it. You can open this card again from your Compass page.'),
+    el('p',{class:'field-caption', style:'text-align:center;margin:8px 0 0;'}, 'Save the image to share it. You can open this card again from your Compass page.'),
   ]));
   return back;
 }
@@ -6163,7 +6215,7 @@ function renderCompass(){
   const aside = el('aside',{class:'compass-aside'},[
     el('div',{class:'compass-aside__card', role:'button', tabindex:'0', title:'Open full size', 'aria-label':'Open your result card full size',
       onclick: openCard, onkeydown:(e)=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openCard(); } }}, card),
-    el('p',{class:'field-caption', style:'text-align:center;margin:10px 0 0;'}, 'Tap the card to open it full size and screenshot it.'),
+    el('p',{class:'field-caption', style:'text-align:center;margin:10px 0 0;'}, 'Tap the card to open it full size and save it as an image.'),
   ]);
   wrap.appendChild(el('div',{class:'cmp-layout'},[maps, aside]));
   return wrap;
