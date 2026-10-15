@@ -3,6 +3,7 @@
 // "Continue with TikTok". Supabase has no TikTok login of its own, and TikTok's login doesn't follow the usual
 // standard closely enough for Supabase's custom providers, so this function does the TikTok part itself:
 //
+//   status → whether TikTok sign-in is set up, so the site knows to show the button.
 //   start  → builds the TikTok sign-in link (with a signed `state`), the site sends the person there.
 //   finish → TikTok sends them back to the site with a one-time `code`; the site passes it here. We swap it for
 //            their TikTok id and name, find or create their Majlis account, and return a normal Supabase session.
@@ -125,8 +126,10 @@ async function sessionFor(email: string) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    if (!CLIENT_KEY || !CLIENT_SECRET) return json({ error: 'TikTok sign-in isn\'t switched on yet.' }, 503);
     const body = await req.json().catch(() => ({}));
+    // The site asks this before showing the TikTok button.
+    if (body.action === 'status') return json({ enabled: !!(CLIENT_KEY && CLIENT_SECRET) });
+    if (!CLIENT_KEY || !CLIENT_SECRET) return json({ error: 'TikTok sign-in isn\'t switched on yet.' }, 503);
 
     if (body.action === 'start') {
       const state = await makeState();
