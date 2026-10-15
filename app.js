@@ -1332,7 +1332,8 @@ function renderNow(){
   app.appendChild(buildBottomBar());
   if(state.mobileNavOpen) app.appendChild(el('div',{class:'scrim', onclick:()=>{ state.mobileNavOpen = false; render(); }}));
 
-  if(!state.cookieConsent){
+  // Hidden while the sign-up / log-in window is open, so it never covers that window's buttons.
+  if(!state.cookieConsent && !state.showAuth){
     app.appendChild(buildCookieBanner());
   }
 
@@ -1341,8 +1342,11 @@ function renderNow(){
   }
   if(state.showCard){
     const ov = renderResultOverlay();
-    if(ov) app.appendChild(ov);
-  }
+    if(ov){
+      app.appendChild(ov);
+      if(cardOverlayScroll) ov.scrollTop = cardOverlayScroll;
+    }
+  } else cardOverlayOpen = false;
 
   if(focusKey){
     const again = app.querySelector('[data-key="'+CSS.escape(focusKey)+'"]');
@@ -1357,7 +1361,7 @@ function renderNow(){
 /* ================= COOKIE BANNER ================= */
 function buildCookieBanner(){
   return el('div', {class: 'cookie-banner'}, [
-    el('p', {}, 'We use basic local storage to preserve your preferences and session data locally. No privacy-invasive tracking is performed.'),
+    el('p', {}, 'Majlis keeps your settings on this device. No tracking.'),
     el('button', {class: 'btn', onclick: acceptCookies}, 'Accept')
   ]);
 }
@@ -2627,6 +2631,14 @@ function stopThink(id){
   const t = thinkStages[id];
   if(t){ clearInterval(t.timer); delete thinkStages[id]; }
 }
+// Marks one item of a thinkStage with real progress ('active' or 'done'); unknown stages and keys are ignored.
+function thinkItem(id, key, st){
+  const t = thinkStages[id], it = t && t.items && t.items.find(x => x.key === key);
+  if(!it || it.state === 'done') return;
+  if(st === 'active' && it.state === 'active') return;
+  it.state = st; if(st === 'active') it.since = Date.now();
+  t.tick();
+}
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
   const node = el('div',{class:'judge-stage think-stage'});
@@ -2663,6 +2675,33 @@ function thinkStage(id, cfg){
   node.appendChild(el('div',{class:'judge-bar think-bar'},[el('div',{class:'judge-bar__fill'})]));
   node.appendChild(el('div',{class:'think-pct'}, '0%'));
   const t0 = Date.now(), per = cfg.secondsPerStep || 4;
+  // With cfg.items, the bar follows the real work: each item is waiting, active or done (set by thinkItem), and
+  // an active one fills its share of the bar quickly at first and ever more slowly, so it never stops moving.
+  if(cfg.items){
+    const items = cfg.items.map(it => Object.assign({ state: 'wait', since: 0 }, it));
+    const total = items.reduce((a, it) => a + it.weight, 0);
+    const list = el('div',{class:'think-steps'}, items.map(it => {
+      it.row = el('div',{class:'think-step is-wait'},[el('i',{'aria-hidden':'true'}), el('span',{}, it.label), it.note ? el('small',{}, it.note) : null]);
+      return it.row;
+    }));
+    node.appendChild(list);
+    const tick = () => {
+      let done = 0;
+      items.forEach(it => {
+        if(it.state === 'done') done += it.weight;
+        else if(it.state === 'active') done += it.weight * 0.92 * (1 - Math.exp(-(Date.now() - it.since) / 1000 / it.secs));
+        it.row.className = 'think-step is-' + it.state;
+      });
+      const now = items.find(it => it.state === 'active');
+      node.querySelector('.judge-phase').textContent = now ? now.label + '…' : (items.every(it => it.state === 'done') ? 'Done' : items[0].label + '…');
+      const p = Math.min(99, Math.round(100 * done / total));
+      node.querySelector('.judge-bar__fill').style.width = p + '%';
+      node.querySelector('.think-pct').textContent = p + '%';
+    };
+    tick();
+    thinkStages[id] = { node, items, tick, timer: setInterval(tick, 200) };
+    return node;
+  }
   const tick = () => {
     const secs = (Date.now() - t0) / 1000;
     const active = Math.min(cfg.steps.length - 1, Math.floor(secs / per));
@@ -2988,7 +3027,15 @@ function cardEra(){
   if(!state.cardEra){ try { state.cardEra = localStorage.getItem('majlis-card-era'); } catch(e){} }
   return state.cardEra === 'historical' ? 'historical' : 'modern';
 }
-function setCardEra(e){ state.cardEra = e; try { localStorage.setItem('majlis-card-era', e); } catch(err){} render(); }
+function setCardEra(e){
+  if(cardEra() === e) return;
+  state.cardEra = e; try { localStorage.setItem('majlis-card-era', e); } catch(err){}
+  eraSwapAt = Date.now();
+  render();
+}
+// For a moment after switching era, the parts that change (the leader and the nations) fade in; the rest stays still.
+let eraSwapAt = 0;
+const eraSwapping = () => Date.now() - eraSwapAt < 400;
 function eraSwitch(){
   const b = (e, label) => el('button',{class:'rc9-era__btn' + (cardEra() === e ? ' is-on' : ''), type:'button', 'aria-pressed': String(cardEra() === e),
     onclick:(ev)=>{ ev.stopPropagation(); setCardEra(e); }},[el('b',{}, label), el('small',{}, ERA_NOTE[e])]);
@@ -3009,7 +3056,10 @@ function buildResultCard(){
   const nations = m ? (era === 'historical' ? (m.oldCountries || []) : m.countries).slice(0, 3) : [];
   const ideos = m ? m.ideologies : [];
   const theme = cardTheme(), faith = cardFaith(u);
-  const outer = el('div',{class:'rc9'}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
+  const outer = el('div',{class:'rc9' + (eraSwapping() ? ' rc9--swap' : '')}), card = el('div',{class:'rc9__in'});   // the outer box sets the size, the inner one scales with it
+  // The other era's cut-outs are made now, in the background, so switching era shows the new leader complete.
+  const otherEra = m ? leaderFor(m, era === 'modern' ? 'historical' : 'modern') : null;
+  if(otherEra && otherEra.photo){ cutoutFor(cutSource(otherEra)); if(!otherEra.photo.startsWith('data:image/svg')) cutoutFor(otherEra.photo); }
   outer.appendChild(card);
 
   // The theme's own background scene, behind everything.
@@ -3172,11 +3222,18 @@ async function saveCardImage(card){
     alert('Couldn\'t make the image. Take a screenshot instead.');
   }
 }
+// The card pop-up is rebuilt on every redraw (a cut-out finishing, switching era…): it fades in only when it first
+// opens, and keeps its scroll position, so a redraw is invisible.
+let cardOverlayOpen = false, cardOverlayScroll = 0;
 function renderResultOverlay(){
   const card = buildResultCard();
   if(!card){ state.showCard = false; return null; }
   const close = () => { state.showCard = false; render(); };
-  const back = el('div',{class:'rc-back', role:'dialog', 'aria-modal':'true', 'aria-label':'Your result'});
+  const again = cardOverlayOpen;
+  cardOverlayOpen = true;
+  if(!again) cardOverlayScroll = 0;
+  const back = el('div',{class:'rc-back' + (again ? ' rc-back--still' : ''), role:'dialog', 'aria-modal':'true', 'aria-label':'Your result'});
+  back.addEventListener('scroll', () => { cardOverlayScroll = back.scrollTop; }, { passive: true });
   back.addEventListener('click', (e) => { if(e.target === back) close(); });
   back.appendChild(el('div',{class:'rc-wrap'},[
     el('button',{class:'rc-x', 'aria-label':'Close', onclick: close}, '×'),
@@ -3343,7 +3400,7 @@ function renderAssessment(){
 
   if(!state.quiz.active){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'One test, start to finish, and every question works the same way: read the question, then pick the one of four positions closest to your own. Philosophy first, then politics, economics, society and morals (axes drawn from 8values, 12axes, SapplyValues, the Political Compass and the Moral Foundations Questionnaire, with answers written as real stances like iSideWith), an optional worldview section, then a short written statement of your own view. The written part decides your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
+      'Read each question and pick the answer closest to your own view. It starts with philosophy, then politics, economics, society and morals. Next comes an optional section on faith. To finish, you write a short case for a view you hold. That last part sets your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
     { const r = resumeQuizButton(); if(r) wrap.appendChild(r); }
     wrap.appendChild(startQuizButtons(false));
     return wrap;
@@ -3352,7 +3409,7 @@ function renderAssessment(){
   saveQuiz();
   const QUIZ_SECTIONS = ['philosophy','compass'];
   const SECTION_LABEL = { philosophy: 'Philosophy', compass: 'Politics and society' };
-  // The politics statements come as one shuffled list (like 8values), new order every attempt.
+  // The politics statements come as one shuffled list, in a new order every attempt.
   const compassOrder = quizCompassIdx;
 
   // One continuous test: a single counter and bar from the first question to the last.
@@ -3482,10 +3539,14 @@ function renderAssessment(){
 
   if(state.quiz.section === 'written' && state.quiz.analysing){
     wrap.appendChild(thinkStage('assessment', {
-      kicker: 'AI ANALYSIS', title: 'Mapping where you stand', secondsPerStep: 4,
-      steps: ['Reading your answers', 'Placing you on the economic map', 'Placing you on the political map', 'Placing you on the social map',
-              'Studying your philosophy', 'Looking at your religious outlook', 'Grading your written case', 'Finding your closest leaders',
-              'Matching you to nations and ideologies', 'Building your result card'],
+      kicker: 'AI ANALYSIS', title: 'Mapping where you stand', steps: ['Reading your answers'],
+      items: [
+        { key: 'answers', label: 'Reading your answers', weight: 18, secs: 7 },
+        { key: 'case', label: 'Grading your written case', weight: 14, secs: 7 },
+        { key: 'save', label: 'Saving your compass', weight: 6, secs: 2 },
+        { key: 'leaders', label: 'Finding your closest leaders', note: 'the longest step, about 30 s', weight: 50, secs: 16 },
+        { key: 'card', label: 'Building your result card', weight: 12, secs: 3 },
+      ],
     }));
     return wrap;
   }
@@ -3498,17 +3559,34 @@ function renderAssessment(){
     const card = el('div',{class:'card'});
     const positionIn = draft('assessment-position', el('input',{type:'text', placeholder:'e.g. Markets should be lightly regulated', maxlength:'200'}));
     const viewBox = draft('assessment-case', el('textarea',{placeholder:'Why you hold this position...', style:'min-height:160px;'}));
-    card.appendChild(el('div',{class:'field'},[el('label',{},'A position you hold'), positionIn]));
-    card.appendChild(el('div',{class:'field'},[el('label',{},'Your case for it'), viewBox]));
+    // Problems show under the field that needs fixing (no pop-ups), and a counter shows how close the case is to the minimum.
+    const CASE_MIN = 80;
+    const positionErr = el('div',{class:'field-err', role:'alert'});
+    const caseErr = el('div',{class:'field-err', role:'alert'});
+    const caseCount = el('span',{class:'case-count'});
+    const showCount = () => {
+      const n = viewBox.value.trim().length;
+      caseCount.innerHTML = '';
+      caseCount.appendChild(el('b',{class: n >= CASE_MIN ? 'is-ok' : ''}, String(n)));
+      caseCount.appendChild(document.createTextNode(' / ' + CASE_MIN + ' min'));
+    };
+    const clearErr = (input, box) => { input.classList.remove('is-err'); box.textContent = ''; };
+    positionIn.addEventListener('input', () => clearErr(positionIn, positionErr));
+    viewBox.addEventListener('input', () => { showCount(); if(viewBox.value.trim().length >= CASE_MIN) clearErr(viewBox, caseErr); });
+    showCount();
+    card.appendChild(el('div',{class:'field'},[el('label',{},'A position you hold'), positionIn, positionErr]));
+    card.appendChild(el('div',{class:'field'},[el('label',{},'Your case for it'), viewBox,
+      el('div',{class:'case-meta'},[el('span',{}, 'A few sentences: your reasons, an example, an objection.'), caseCount]), caseErr]));
     const submitBtn = el('button',{class:'btn', onclick: async ()=>{
       const position = positionIn.value.trim();
       const viewText = viewBox.value.trim();
-      if(position.length < 3){
-        alert('State the position you hold first.');
-        return;
-      }
-      if(viewText.length < 80){
-        alert('Write a bit more — at least a few sentences.');
+      const flag = (input, box, msg) => { input.classList.add('is-err'); box.textContent = msg; };
+      if(position.length < 3) flag(positionIn, positionErr, 'Write the position you\'ll argue for, for example "The voting age should be 16".');
+      if(viewText.length < CASE_MIN) flag(viewBox, caseErr, viewText.length ? 'Write a bit more: at least ' + CASE_MIN + ' characters (you have ' + viewText.length + ').' : 'Make your case in a few sentences.');
+      const first = position.length < 3 ? positionIn : viewText.length < CASE_MIN ? viewBox : null;
+      if(first){
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        first.focus({ preventScroll: true });
         return;
       }
       state.quiz.analysing = true;
@@ -3524,7 +3602,7 @@ function renderAssessment(){
 
 
 /* Convention (the same everywhere): x runs left to right = xLabels[0] to xLabels[1]; y runs bottom to top = yLabels[0] to yLabels[1].
-   Scoring is like 8values: every answer moves the score a little, the total is compared with the most it could be, and
+   Scoring: every answer moves the score a little, the total is compared with the most it could be, and
    you get a percentage for both ends of each axis. The name comes from a 3x3 grid (low / middle / high on each axis). */
 const COMPASS_DEFS = {
   economic: {
@@ -3559,7 +3637,7 @@ function axisScoreToPct(sum, weightTotal){
   return Math.max(0, Math.min(100, Math.round(50 + (sum/max)*50)));
 }
 
-// Extra scores beyond the three compasses: 12axes-style detail axes and Moral Foundations scores (all 0 to 100).
+// Extra scores beyond the three compasses: the detail axes and the moral-values scores (all 0 to 100).
 function computeExtraScores(answers){
   const sum = {}, max = {};
   COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
@@ -3588,7 +3666,7 @@ function loadExtras(){
   } catch(e){}
 }
 
-// 8values-style: add up every answer times its weight on each axis, compare with the most it could be, as a percentage.
+// Add up every answer times its weight on each axis, compare with the most it could be, as a percentage.
 function computeThreeCompasses(answers){
   const sum = {}, max = {};
   COMPASS_AXES.forEach(a => { sum[a] = 0; max[a] = 0; });
@@ -3649,6 +3727,32 @@ function archetypeReasoningFor(answers){
   return strong.length ? 'What stood out: ' + strong.map(x => x.name.toLowerCase() + ' (' + x.pct + '%)').join(', ') + '.' : 'Your answers sat close to the middle on most questions.';
 }
 
+// When the AI was too busy to name your exact tradition during the test, it's asked again the next time you
+// visit (signed in), and the card picks it up once it's saved.
+const pendingFaithKey = () => 'majlis-faith-pending-' + (state.user && state.user.id ? state.user.id : 'guest');
+function savePendingFaith(p){ try { localStorage.setItem(pendingFaithKey(), JSON.stringify(p)); } catch(e){} }
+let faithRetrying = false;
+async function retryPendingFaith(){
+  const u = state.user;
+  if(faithRetrying || !u || u.isGuest || !u.id || !u.religion || u.denomination) return;
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem(pendingFaithKey()) || 'null'); } catch(e){}
+  if(!p || p.religion !== u.religion){ try { localStorage.removeItem(pendingFaithKey()); } catch(e){} return; }
+  faithRetrying = true;
+  try {
+    const { data, error } = await sb.functions.invoke('ai-assist', { body: { action: 'faith', religion: p.religion, religionAnswers: p.religionAnswers }, region: FN_REGION });
+    if(error || !data) return;   // still busy: try again next visit
+    if(data.denomination){
+      const { error: saveErr } = await sb.rpc('save_denomination', { p_denomination: data.denomination });
+      if(saveErr) return;
+      u.denomination = data.denomination;
+      u.denominationReasoning = data.denominationReasoning || '';
+      render();
+    }
+    try { localStorage.removeItem(pendingFaithKey()); } catch(e){}
+  } catch(e){ console.warn('faith retry failed', e); }
+  finally { faithRetrying = false; }
+}
 async function aiAnalyzeAssessment(answers){
   const bySection = (name) => answers.filter(a => name === 'philosophy' ? a.section === 'philosophy'
     : (a.section === 'compass' && (COMPASS_ITEMS.find(i => i.q === a.q) || {}).sec === name)).map(a=>({ q: a.q, choice: a.choice }));
@@ -3667,6 +3771,7 @@ async function aiAnalyzeAssessment(answers){
   try {
     const { data, error } = await sb.functions.invoke('ai-assist', { body: payload, region: FN_REGION });
     if(error || !data || data.error) throw new Error((data && data.error) || 'AI analysis unavailable');
+    try { localStorage.removeItem(pendingFaithKey()); } catch(e){}
     // The compass numbers and names come from the answers themselves (the same every time, like other online tests).
     // The AI is only used for the philosophy type and the religious tradition.
     const compass = computeThreeCompasses(answers);
@@ -3688,6 +3793,8 @@ async function aiAnalyzeAssessment(answers){
     };
   } catch(e){
     console.warn('AI assessment analysis unavailable, using local scoring:', e);
+    // The tradition can only come from the AI: keep what's needed to ask for it again later.
+    if(payload.religion && payload.religionAnswers.length) savePendingFaith({ religion: payload.religion, religionAnswers: payload.religionAnswers });
     const compass = computeThreeCompasses(answers);
     return {
       aiAnalyzed: false,
@@ -3739,10 +3846,12 @@ function localPlacementRank(text){
 async function finishAssessment(position, viewText){
   const signedIn = !state.user.isGuest && state.user.id;
   // The AI compass analysis and the AI grading of your written case run at the same time.
+  thinkItem('assessment', 'answers', 'active'); thinkItem('assessment', 'case', 'active');
   const [analysis, placement] = await Promise.all([
-    aiAnalyzeAssessment(state.quiz.answers),
-    signedIn ? callSecure('submit_placement', { position, case: viewText }) : Promise.resolve(null),
+    aiAnalyzeAssessment(state.quiz.answers).then(r => { thinkItem('assessment', 'answers', 'done'); return r; }),
+    (signedIn ? callSecure('submit_placement', { position, case: viewText }) : Promise.resolve(null)).then(r => { thinkItem('assessment', 'case', 'done'); return r; }),
   ]);
+  thinkItem('assessment', 'save', 'active');
   const philosophyScore = computePhilosophyScore(state.quiz.answers);
 
   if(signedIn){
@@ -3798,11 +3907,16 @@ async function finishAssessment(position, viewText){
   saveAnswersForAI(state.quiz.answers);
   // The loading screen stays up until the card is complete: the AI finds your closest leaders, nations and
   // ideologies, and the leader's portrait for the background has loaded.
+  thinkItem('assessment', 'save', 'done');
   if(signedIn){
     state.cardMatches = { loading: false, error: null };
+    thinkItem('assessment', 'leaders', 'active');
     await fetchCardMatches();
+    thinkItem('assessment', 'leaders', 'done');
+    thinkItem('assessment', 'card', 'active');
     await preloadCardPortrait();
   }
+  thinkItem('assessment', 'leaders', 'done'); thinkItem('assessment', 'card', 'done');
   clearSavedQuiz();
   state.quiz.active = false;
   state.tab = signedIn ? 'compass' : 'assessment';   // the compass page shows the three maps with your result card beside them
@@ -6295,9 +6409,16 @@ function renderCompass(){
     return wrap;
   }
 
+  const overall = compassOverall();
+  if(overall) wrap.appendChild(overall);
   // The three maps on the left; your result card stays beside them.
   const maps = el('div',{class:'compass-maps'});
   ['political', 'economic', 'social'].forEach(sec => maps.appendChild(renderCompassSection(sec)));
+  // On narrow screens the card is the small copy at the top instead, so it isn't built twice (phones are short on memory).
+  if(window.matchMedia && window.matchMedia('(max-width: 1100px)').matches){
+    wrap.appendChild(el('div',{class:'cmp-layout'},[maps]));
+    return wrap;
+  }
   const card = buildResultCard();
   const openCard = () => { state.showCard = true; render(); };
   const aside = el('aside',{class:'compass-aside'},[
@@ -6310,6 +6431,36 @@ function renderCompass(){
 }
 
 // One compass on the Compass page: everyone on Majlis, you, and the modern and historical leader closest to you on this map.
+// Crossing the narrow/wide line (rotating a tablet, resizing a window) swaps where the card sits on the Compass page.
+if(window.matchMedia) window.matchMedia('(max-width: 1100px)').addEventListener('change', () => { if(state.tab === 'compass') render(); });
+const canHover = () => !window.matchMedia || window.matchMedia('(hover: hover)').matches;
+// Above the maps: the leaders on your card, so the per-map names below don't look like a different answer.
+// On narrower screens (where the card would sit below all three maps) it also shows a small copy of the card to tap.
+function compassOverall(){
+  const m = savedCardMatches();
+  const mod = m ? leaderFor(m, 'modern') : null, his = m ? leaderFor(m, 'historical') : null;
+  const narrow = !window.matchMedia || window.matchMedia('(max-width: 1100px)').matches;
+  if(!mod && !his && !narrow && !state.cardMatches.loading) return null;
+  const openCard = () => { state.showCard = true; render(); };
+  const line = (mod || his) ? el('div',{class:'cmp-overall__line'},[
+    mod ? el('b',{}, mod.name) : null, mod ? ' (' + mod.pct + '%) today' : null,
+    mod && his ? ' · ' : null,
+    his ? el('b',{}, his.name) : null, his ? ' (' + his.pct + '%) in history' : null,
+  ]) : el('div',{class:'cmp-overall__line'}, state.cardMatches.loading ? 'The AI is finding your closest leaders…' : 'Your closest leaders appear here once your card is ready.');
+  const faces = el('div',{class:'cmp-overall__faces'}, [mod, his].filter(Boolean).map((l, i) => {
+    const f = portraitNode(l.name, l.photo); f.classList.add(i ? 'is-historical' : 'is-modern'); return f;
+  }));
+  const body = el('div',{class:'cmp-overall__text'},[
+    el('div',{class:'cmp-overall__kicker'}, narrow ? 'YOUR CARD' : 'OVERALL · THE LEADERS ON YOUR CARD'),
+    line,
+    narrow ? el('div',{class:'cmp-overall__open'}, 'Tap to open and save ›') : null,
+  ]);
+  if(!narrow) return el('div',{class:'cmp-overall'},[faces, body]);
+  const card = buildResultCard();
+  return el('div',{class:'cmp-overall cmp-overall--card', role:'button', tabindex:'0', 'aria-label':'Open your result card',
+    onclick: openCard, onkeydown:(e)=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openCard(); } }},
+    [el('div',{class:'cmp-overall__thumb', 'aria-hidden':'true'}, card), body]);
+}
 function renderCompassSection(section){
   const me = state.user;
   const def = COMPASS_DEFS[section];
@@ -6324,7 +6475,7 @@ function renderCompassSection(section){
   text.appendChild(el('h3',{class:'opposites__title'}, 'You\'re ' + (/^[aeiou]/i.test(label) ? 'an ' : 'a ') + label + '.'));
   if(figures.length){
     text.appendChild(el('p',{class:'opposites__sub'}, [
-      'On this map you\'re closest to ',
+      'On this map only, you\'re closest to ',
       el('b',{}, figures[0].name), ' (' + figures[0].mapPct + '%)',
       figures[1] ? ' today, and ' : '.',
       figures[1] ? el('b',{}, figures[1].name) : null, figures[1] ? ' (' + figures[1].mapPct + '%) in history.' : null,
@@ -6337,7 +6488,7 @@ function renderCompassSection(section){
     el('span',{},[el('i',{class:'is-historical'}), 'Historical leader']), el('span',{},[el('i',{}), 'Others on Majlis']),
   ]));
   text.appendChild(el('p',{class:'opposites__sub compass-count'}, crowd.length
-    ? crowd.length + ' others on this map. Hover over a dot to see who it is, or click it to open their profile.'
+    ? crowd.length + ' others on this map. ' + (canHover() ? 'Hover over a dot to see who it is, or click it to open their profile.' : 'Tap a dot to see who it is.')
     : 'Nobody else has mapped their views yet.'));
   if(far) text.appendChild(el('div',{class:'opposite-row'},[
     avatarNode(far.x, 34),
@@ -7038,6 +7189,7 @@ function renderWiki(){
         subscribeToInbox();
         await Promise.all([loadSocialData(), loadMyBooks(), loadDebateHistory(), loadReports(), loadMyModerationStatus()]);
         loadExtrasForUser();
+        retryPendingFaith();
       }
     }
     subscribeToContent();
