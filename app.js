@@ -449,6 +449,8 @@ const state = {
   tab: 'home',
   authMode: 'login',
   showAuth: false,
+  oauthBusy: null,     // which sign-in button is waiting to leave for its provider
+  oauthError: null,    // why the last social sign-in didn't work, shown in the sign-in window
   cardMatches: { loading: false, error: null },   // the AI's closest leaders, nations and ideologies for the result card
   exploreOpen: false,
   mobileNavOpen: false,
@@ -1446,19 +1448,62 @@ function relinkAuthors(){
   pruneBannedContent();
 }
 
+/* ================= SOCIAL SIGN-IN ================= */
+// The social sign-in buttons. 'x' is Supabase's "X / Twitter (OAuth 2.0)" provider ('twitter' is the old, deprecated one).
+const OAUTH_ORDER = ['google', 'discord', 'x'];
+const OAUTH_LABEL = { google: 'Google', discord: 'Discord', x: 'X' };
+const OAUTH_ICON = {
+  google: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.5c2.1-1.9 3.3-4.7 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.2-2.7l-3.5-2.7c-1 .7-2.2 1-3.7 1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.1-3.1A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>',
+  discord: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#5865F2" d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.4 18.4 0 0 0-5.6 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18.1A19.9 19.9 0 0 0 6.2 21l1.3-2.1a12.9 12.9 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.1 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.8 19.8 0 0 0 6-3c.5-5.2-.8-9.7-3.6-13.7zM8 15.4c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.6 8 10.6s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4z"/></svg>',
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.8 2.5h3.3l-7.2 8.2 8.4 11h-6.6l-5.2-6.8-5.9 6.8H1.3l7.7-8.8L1 2.5h6.8l4.7 6.2zm-1.2 17.3h1.8L6.7 4.3H4.7z"/></svg>',
+};
+const listWords = (a) => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' or ' + a[a.length - 1];
+function oauthButton(k){
+  const busy = state.oauthBusy === k;
+  const attrs = {class:'btn secondary oauth-btn' + (busy ? ' oauth-btn--busy' : ''), type:'button', onclick: () => oauthSignIn(k)};
+  if(state.oauthBusy) attrs.disabled = 'disabled';
+  return el('button', attrs,
+    busy ? [el('span',{class:'oauth-spin', 'aria-hidden':'true'}), 'Opening ' + OAUTH_LABEL[k] + '…']
+         : [el('span',{class:'oauth-ico', html: OAUTH_ICON[k]}), OAUTH_LABEL[k]]);
+}
+async function oauthSignIn(k){
+  if(state.oauthBusy) return;
+  state.oauthBusy = k; state.oauthError = null; render();
+  const { error } = await sb.auth.signInWithOAuth({ provider: k, options: { redirectTo: window.location.origin + window.location.pathname } });
+  // Without an error the browser is already on its way to the provider.
+  if(error){ state.oauthBusy = null; state.oauthError = OAUTH_LABEL[k] + ' sign-in isn\'t available right now. Please try again later.'; render(); }
+}
+// Pressing Back on the provider's page brings this page back from the browser's cache with a button still "opening".
+window.addEventListener('pageshow', (e) => { if(e.persisted && state.oauthBusy){ state.oauthBusy = null; render(); } });
+// A provider sent the person back with an error in the address (for example they pressed Cancel).
+// Runs before the site appears; the sign-in window then opens with the reason.
+let oauthReturnFailed = false;
+async function finishOauthReturn(){
+  const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
+  const err = q.get('error_description') || h.get('error_description') || q.get('error') || h.get('error');
+  if(err){
+    const u = new URL(location.href);
+    ['error', 'error_code', 'error_description'].forEach(k => u.searchParams.delete(k));
+    if(/(^|&)error/.test(u.hash.slice(1))) u.hash = '';
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+    state.oauthError = /denied|cancel/i.test(err) ? 'Sign-in was cancelled.' : 'Sign-in didn\'t go through: ' + String(err).replace(/\+/g, ' ').slice(0, 160);
+    oauthReturnFailed = true;   // the sign-in window opens once the site is shown
+  }
+}
+
 function renderAuthOverlay(){
   const backdrop = el('div',{style:
-    'position:fixed;inset:0;background:var(--modal-overlay);display:flex;align-items:center;justify-content:center;z-index:50;'});
+    'position:fixed;inset:0;background:var(--modal-overlay);display:flex;align-items:center;justify-content:center;z-index:50;overflow-y:auto;padding:20px 12px;'});
   backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop){ state.showAuth=false; clearDrafts('auth-password'); render(); } });
 
-  const box = el('div',{style:'width:100%;max-width:380px;padding:24px;'});
+  const box = el('div',{class:'auth-box'});
   const isLogin = state.authMode === 'login';
-  const card = el('div',{class:'card modal-card', style:'position:relative;'});
+  const card = el('div',{class:'card modal-card auth-card', style:'position:relative;'});
   
   card.appendChild(el('button',{class:'icon-btn', title:'Close', style:'position:absolute;top:14px;right:14px;width:32px;height:32px;', onclick:()=>{state.showAuth=false; clearDrafts('auth-password'); render();}}, icon('close', 16)));
   card.appendChild(el('h3',{}, isLogin ? 'Log in' : 'Create an account'));
-  card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:14px;'},
-    'Optional — you can keep using Majlis as a guest. An account just lets you come back to the same profile.'));
+  card.appendChild(el('p',{class:'auth-sub'},
+    'Optional — keep using Majlis as a guest, or make an account to come back to the same profile.'));
 
   // draft() keeps what you've typed if the page re-renders behind the dialog (e.g. a new forum post arrives).
   const userIn = draft('auth-username', el('input',{type:'text', placeholder:'e.g. sam_reads', maxlength:'20', autocomplete:'username'}));
@@ -1513,7 +1558,7 @@ function renderAuthOverlay(){
   const ageBox = el('input',{type:'checkbox', id:'auth-age', style:'margin:3px 8px 0 0;flex:none;', onchange:(e)=>{ state.ageConfirmed = !!e.target.checked; }});
   ageBox.checked = !!state.ageConfirmed;
   if(!isLogin){
-    card.appendChild(el('label',{for:'auth-age', style:'display:flex;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--parchment);margin:2px 0 12px;cursor:pointer;'},[
+    card.appendChild(el('label',{for:'auth-age', style:'display:flex;align-items:flex-start;font-size:13px;line-height:1.4;color:var(--parchment);margin:0 0 10px;cursor:pointer;'},[
       ageBox, 'I am 16 years old or older.',
     ]));
   }
@@ -1574,25 +1619,21 @@ function renderAuthOverlay(){
     ]));
   }
 
-  const divider = el('div',{style:'display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--parchment-dim);font-size:12px;'},[
+  const divider = el('div',{class:'auth-or'},[
     el('div',{style:'flex:1;height:1px;background:var(--line);'}),
     el('span',{}, 'or continue with'),
     el('div',{style:'flex:1;height:1px;background:var(--line);'}),
   ]);
   card.appendChild(divider);
 
-  const oauthRow = el('div',{style:'display:flex;gap:10px;'});
-  oauthRow.appendChild(el('button',{class:'btn secondary', style:'flex:1;', onclick: async ()=>{
-    await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } });
-  }}, 'Google'));
-  oauthRow.appendChild(el('button',{class:'btn secondary', style:'flex:1;', onclick: async ()=>{
-    await sb.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: window.location.origin + window.location.pathname } });
-  }}, 'Discord'));
-  card.appendChild(oauthRow);
-  card.appendChild(el('p',{style:'font-size:12px;line-height:1.5;color:var(--parchment-dim);margin:10px 0 0;text-align:center;'}, 'By continuing with Google or Discord, you confirm you are 16 or older.'));
+  if(state.oauthError) card.appendChild(el('div',{class:'oauth-error', role:'alert'}, state.oauthError));
+  const names = OAUTH_ORDER;
+  card.appendChild(el('div',{class:'oauth-grid'}, names.map(oauthButton)));
+  card.appendChild(el('p',{style:'font-size:12px;line-height:1.5;color:var(--parchment-dim);margin:10px 0 0;text-align:center;'},
+    'By continuing with ' + listWords(names.map(k => OAUTH_LABEL[k])) + ', you confirm you are 16 or older.'));
 
   box.appendChild(card);
-  box.appendChild(el('div',{style:'text-align:center;margin-top:16px;font-size:13px;color:var(--parchment-dim);'},[
+  box.appendChild(el('div',{style:'text-align:center;margin-top:12px;font-size:13px;color:var(--parchment-dim);'},[
     isLogin ? 'New here? ' : 'Already have an account? ',
     el('a',{href:'#', style:'color:var(--brass-bright);cursor:pointer;', onclick:(e)=>{
       e.preventDefault();
@@ -1743,7 +1784,7 @@ function brandLockup(){
   ]);
 }
 
-function openAuth(mode){ state.showAuth = true; state.authMode = mode; state.mobileNavOpen = false; render(); }
+function openAuth(mode){ state.showAuth = true; state.authMode = mode; state.oauthError = null; state.mobileNavOpen = false; render(); }
 
 // The sidebar (also the slide-in menu on smaller screens).
 function buildMobileNav(){
@@ -6987,6 +7028,7 @@ function renderWiki(){
   const showNow = () => { if(shown) return; shown = true; render(); if(window.hideSplash) window.hideSplash(); };
   const slowTimer = setTimeout(showNow, 6000);
   try {
+    await finishOauthReturn();
     // Session, profiles, wiki and forum all load at the same time (was one after another).
     const [{ data }] = await Promise.all([sb.auth.getSession(), loadAllProfiles(), loadWikiFromSupabase(), loadForumFromSupabase()]);
     relinkAuthors();
@@ -7008,6 +7050,7 @@ function renderWiki(){
   if(savedPlace && savedPlace.card && state.user && !state.user.isGuest && state.user.compass) state.showCard = true;
   shown = false;
   showNow();
+  if(oauthReturnFailed && (!state.user || state.user.isGuest)){ state.showAuth = true; state.authMode = 'login'; render(); }
   if(window.MajlisFilters) MajlisFilters.init(() => render());
 })();
 
