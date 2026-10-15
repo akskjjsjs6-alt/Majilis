@@ -46,9 +46,7 @@ const RELIGION_QUESTIONS = {
 
 /* ======================================================================
    Politics and society test. Same format as the philosophy questions: a question, then four real
-   positions to pick from (in the style of iSideWith's "other stances" and the Pew typology's paired
-   statements), not agree/disagree. Axes and weights draw on 8values, 12axes, SapplyValues, the
-   Political Compass and the Moral Foundations Questionnaire.
+   positions to pick from, written as real stances people hold, not agree/disagree.
 
    Each item: [section, question, weights, [four positions]]. The four positions run from the one that
    pushes fully in the direction of the weights (counts +1) to the one that pushes fully the other way

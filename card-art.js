@@ -143,14 +143,35 @@ window.cardCutout = (url) => {
     }
     const top = rows.findIndex(r => r && r[1] - r[0] > mw * 0.02);
     if(top < 0) return null;
-    let headW = 0, cxSum = 0, n = 0, y = top;
-    for(; y < mh; y++){
-      const r = rows[y]; if(!r) continue;
-      const w = r[1] - r[0];
-      if(y - top > 8 && w > headW * 1.6 && y - top > headW * 0.9) break;   // the shoulders start
-      headW = Math.max(headW, w); cxSum += (r[0] + r[1]) / 2; n++;
-      if(y - top >= headW * 1.3 && y - top > 8) break;
+    // The head ends at the neck: the narrowest row below the head's widest point, before the shoulders widen out.
+    // (Measuring until the rows suddenly get much wider failed on painted portraits whose coats widen gradually:
+    // the whole upper body was taken for the head, and the head then sat far too high in its circle.)
+    // The mask is square whatever the picture's shape, so a mask row is k mask columns tall in real pixels.
+    const k = (H / mh) / (W / mw);
+    const span = Math.min(mh - top, Math.round(mh * 0.75));
+    const raw = [];
+    for(let i = 0; i < span; i++){ const r = rows[top + i]; raw.push(r ? r[1] - r[0] : 0); }
+    const sm = raw.map((_, i) => { let s = 0, c = 0; for(let j = i - 2; j <= i + 2; j++) if(j >= 0 && j < raw.length){ s += raw[j]; c++; } return s / c; });
+    let widest = 0, neck = -1, low = -1;
+    for(let i = 1; i < sm.length; i++){
+      if(low < 0){
+        if(sm[i] > sm[widest]) widest = i;
+        // narrowing well below the widest point, once the head is tall enough to be a head
+        else if(i > 6 && i * k > sm[widest] * 0.7 && sm[i] < sm[widest] * 0.88) low = i;
+      } else {
+        if(sm[i] < sm[low]) low = i;
+        else if(sm[i] > sm[low] * 1.25){ neck = low; break; }   // the shoulders start
+      }
     }
+    // No clear neck (a hood, long hair, a high collar): take the top part of the figure, at most half the picture wide.
+    const end = neck > 0 ? neck : Math.max(8, Math.round(mh * 0.16));
+    let headW = 0, cxSum = 0, n = 0;
+    for(let i = 0; i < Math.min(end, raw.length); i++){
+      const r = rows[top + i]; if(!r) continue;
+      if(i > 8 && i * k >= headW * 1.45) break;   // a head is never much taller than it is wide: below this is the body
+      headW = Math.max(headW, r[1] - r[0]); cxSum += (r[0] + r[1]) / 2; n++;
+    }
+    if(neck < 0) headW = Math.min(headW, mw * 0.5);
     if(!n || headW < mw * 0.05) return null;
     // The cut-out: the photo with everything but the person made transparent.
     const c = document.createElement('canvas'); c.width = W; c.height = H;
