@@ -2879,3 +2879,21 @@ input.is-err, textarea.is-err { border-color: var(--danger); box-shadow: 0 0 0 3
 .rc9--swap .rc9__person, .rc9--swap .rc9__pop, .rc9--swap .rc9__bg, .rc9--swap .rc9-one, .rc9--swap .rc9-pyr { animation: rc9Swap 0.25s ease-out; }
 @keyframes rc9Swap { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .rc9--swap .rc9__person, .rc9--swap .rc9__pop, .rc9--swap .rc9__bg, .rc9--swap .rc9-one, .rc9--swap .rc9-pyr { animation: none; } }
+
+/* ===================== Result card: soft edges on cropped portraits (batch 5, option A) ===================== */
+/* A photo that stops at the chest (Sun Yat-sen) used to end in a straight line across the card: each cut-out now
+   fades out towards its own bottom and side edges, wherever they land. */
+.rc9__cut {
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 96%), linear-gradient(to right, transparent 0, #000 14%, #000 86%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 96%), linear-gradient(to right, transparent 0, #000 14%, #000 86%, transparent 100%);
+  mask-composite: intersect;
+}
+/* In the small circle only the head comes out, in a column above the ring: never the shoulders beside it. */
+.rc9-popc__head {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 75%, transparent 84%), linear-gradient(to right, transparent 29%, #000 33%, #000 67%, transparent 71%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, #000 0, #000 75%, transparent 84%), linear-gradient(to right, transparent 29%, #000 33%, #000 67%, transparent 71%);
+  mask-composite: intersect;
+}
+.rc9__axes--few { justify-content: flex-start; gap: 3.4cqw; }

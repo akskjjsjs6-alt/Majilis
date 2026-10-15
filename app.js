@@ -79,6 +79,11 @@ function applyProfileRow(p){
   }
   u.religion = p.religion || null;
   u.denomination = p.denomination || null;
+  // The card's detail and philosophy axes, kept with the account (older results may only be on the device that took the test).
+  const scores = (o) => o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length ? o : null;
+  u.extrasOnServer = !!scores(p.extra_scores);
+  if(scores(p.extra_scores)) u.extraScores = p.extra_scores;
+  if(scores(p.philosophy_axes)) u.philosophyAxes = p.philosophy_axes;
   // AI rivals: retired ones leave the leaderboard and search.
   u.isAi = !!p.is_ai;
   u.aiRetired = !!p.ai_retired;
@@ -3105,8 +3110,11 @@ function buildResultCard(){
   card.appendChild(el('div',{class:'rc9__res'}, 'YOUR RESULTS'));
   card.appendChild(el('div',{class:'rc9__axes-h'}, 'YOUR AXES'));
 
-  const axes = el('div',{class:'rc9__panel rc9__axes'});
-  allAxes(u).forEach(r => {
+  const axisRows = allAxes(u);
+  // Results without the detail axes (taken elsewhere before they were kept with the account) list their few rows
+  // from the top instead of spreading them over the whole panel.
+  const axes = el('div',{class:'rc9__panel rc9__axes' + (axisRows.length < 12 ? ' rc9__axes--few' : '')});
+  axisRows.forEach(r => {
     const high = r.v >= 50;
     axes.appendChild(el('div',{class:'rc9-ax'},[
       el('div',{class:'rc9-ax__row'},[
@@ -3753,6 +3761,17 @@ async function retryPendingFaith(){
   } catch(e){ console.warn('faith retry failed', e); }
   finally { faithRetrying = false; }
 }
+// Saves the card's detail and philosophy axes to the account, so every device shows all of them. Results from before
+// this was kept only on the device that took the test: that device copies them up the next time it opens the site.
+async function syncCardExtras(force){
+  const u = state.user;
+  if(!u || u.isGuest || !u.id || (!force && u.extrasOnServer)) return;
+  loadExtras();
+  if(!u.extraScores && !u.philosophyAxes) return;
+  const { error } = await sb.rpc('save_card_extras', { p_extra: u.extraScores || null, p_phil: u.philosophyAxes || null });
+  if(error){ console.warn('save_card_extras failed', error); return; }
+  u.extrasOnServer = true;
+}
 async function aiAnalyzeAssessment(answers){
   const bySection = (name) => answers.filter(a => name === 'philosophy' ? a.section === 'philosophy'
     : (a.section === 'compass' && (COMPASS_ITEMS.find(i => i.q === a.q) || {}).sec === name)).map(a=>({ q: a.q, choice: a.choice }));
@@ -3902,6 +3921,7 @@ async function finishAssessment(position, viewText){
   state.user.denomination = analysis.denomination;
   state.user.denominationReasoning = analysis.denominationReasoning;
   state.user.philosophyScore = philosophyScore;
+  if(signedIn) syncCardExtras(true);
 
   clearDrafts('assessment-position', 'assessment-case');
   saveAnswersForAI(state.quiz.answers);
@@ -7190,6 +7210,7 @@ function renderWiki(){
         await Promise.all([loadSocialData(), loadMyBooks(), loadDebateHistory(), loadReports(), loadMyModerationStatus()]);
         loadExtrasForUser();
         retryPendingFaith();
+        syncCardExtras(false);
       }
     }
     subscribeToContent();
