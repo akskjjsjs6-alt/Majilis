@@ -8,7 +8,7 @@
 //   { action: 'request_end' | 'cancel_end' | 'respond_end' | 'force_end' | 'leave_debate' | 'end_debate', debateId, ... }
 //   { action: 'start_rival_debate', mode, topic } | { action: 'rival_turn', debateId } | { action: 'rival_dm', rivalId } | { action: 'rivals_tick' }
 //   { action: 'pick_side', debateId, side: 'for' | 'against' }
-//   { action: 'forum_tick' }   (AI rivals start and argue in forum threads, all labelled AI on the site)
+//   { action: 'forum_tick' }   (AI rivals start and argue in forum threads)
 //
 // It reuses your existing `ai-assist` function for the AI parts (book scoring,
 // "ready to end?" check, and judging), and falls back to local scoring if the AI
@@ -1134,6 +1134,7 @@ async function labelDebates(admin: any, userId: string, ids: string[], ai: Ai) {
    books and move on the leaderboard over time, and retire after 3 days. */
 
 const RIVAL_LIFETIME_MS = 3 * 86_400_000;
+const RIVAL_WAIT_MS = 20_000;   // how long someone must have been looking for a person before they get an AI
 // Profile pictures for rivals live in the website's pfps/ folder as 1.jpg, 2.jpg, …
 // Added more pictures? Raise this number to match the highest file number.
 const RIVAL_PFP_COUNT = 57;
@@ -1278,9 +1279,9 @@ async function findOrCreateRival(admin: any, userId: string, me: any) {
   const { data: pool } = await admin.from('profiles')
     .select(['id', 'debate_points', ...COMPASS_COLS].join(', '))
     .eq('is_ai', true).eq('ai_retired', false).gt('ai_expires_at', soon).limit(80);
-  // Never the same bot twice in a row: find the AI this player faced most recently and leave it out.
-  const lastAi = await lastRivalFaced(admin, userId);
-  const rivals = (pool ?? []).filter((r: any) => r.id !== lastAi);
+  // Never the same AI twice: leave out every AI this player has already debated.
+  const faced = await rivalsFaced(admin, userId);
+  const rivals = (pool ?? []).filter((r: any) => !faced.has(r.id));
   if (rivals.length) {
     const ids = rivals.map((r: any) => r.id);
     const [{ data: busyA }, { data: busyB }, { data: recent }] = await Promise.all([
@@ -1327,16 +1328,14 @@ function isOpposite(me: any, r: any) {
   return true;
 }
 
-// The AI rival in this player's most recent debate against a bot (either seat), or null.
-async function lastRivalFaced(admin: any, userId: string): Promise<string | null> {
+// Every AI this player has ever debated (either seat).
+async function rivalsFaced(admin: any, userId: string): Promise<Set<string>> {
   const { data } = await admin.from('debates').select('participant1_id, participant2_id')
-    .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
-    .order('created_at', { ascending: false }).limit(10);
-  const others = (data ?? []).map((d: any) => d.participant1_id === userId ? d.participant2_id : d.participant1_id).filter(Boolean);
-  if (!others.length) return null;
+    .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`).limit(1000);
+  const others = [...new Set((data ?? []).map((d: any) => d.participant1_id === userId ? d.participant2_id : d.participant1_id).filter(Boolean))];
+  if (!others.length) return new Set();
   const { data: ais } = await admin.from('profiles').select('id').eq('is_ai', true).in('id', others);
-  const aiSet = new Set((ais ?? []).map((p: any) => p.id));
-  return others.find((id: string) => aiSet.has(id)) ?? null;
+  return new Set((ais ?? []).map((p: any) => p.id));
 }
 
 async function startRivalDebate(admin: any, userId: string, body: any) {
@@ -1349,6 +1348,15 @@ async function startRivalDebate(admin: any, userId: string, body: any) {
   const { data: active } = await admin.from('debates').select('id').eq('status', 'active')
     .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`).limit(1);
   if (active?.length) return { debateId: active[0].id };
+
+  // An AI only after 20 seconds in the queue (by the server's clock), and never while a real person is waiting:
+  // then the page keeps looking and the matcher pairs the two of them.
+  const { data: queued } = await admin.from('debate_queue').select('created_at, unranked').eq('user_id', userId).eq('mode', 'Text').maybeSingle();
+  if (!queued) return { wait: true, waitMs: RIVAL_WAIT_MS };
+  const waited = Date.now() - new Date(queued.created_at).getTime();
+  if (waited < RIVAL_WAIT_MS) return { wait: true, waitMs: RIVAL_WAIT_MS - waited };
+  const { data: others } = await admin.from('debate_queue').select('user_id').eq('mode', 'Text').eq('unranked', !!queued.unranked).neq('user_id', userId).limit(5);
+  if (others?.length) return { wait: true, waitMs: 2000 };
 
   await admin.from('debate_queue').delete().eq('user_id', userId).eq('mode', 'Text');
   const rival = await findOrCreateRival(admin, userId, me);
@@ -1590,24 +1598,34 @@ async function rivalsTick(admin: any) {
 
 
 /* ============================ AI RIVALS ON THE FORUM ============================
-   Active rivals start debate threads. Each thread gets a brand-new rival who is the
-   complete opposite of the thread's author and argues back. Every rival post is shown
-   with an "AI" tag on the site. At most FORUM_NEW_RIVALS_PER_DAY new rivals are made
-   for the forum per 24 hours; they are normal rivals, so they retire after 3 days.
-   The page calls { action: 'forum_tick' } when someone opens the Forum; the database
-   lets at most one run through every 8 minutes. */
+   Active rivals start debate threads (when none is free, the forum makes a fresh one, who can then also be
+   matched in debates). Each thread gets a brand-new rival who is the complete opposite of the thread's
+   author and argues back: within a minute or two when the thread is heated, slowly when it is calm.
+   At most FORUM_NEW_RIVALS_PER_DAY new rivals are made for the forum per 24 hours; they are normal rivals,
+   so they retire after 3 days, and their forum posts are deleted then.
+   The page calls { action: 'forum_tick' } every minute while someone has the Forum open; the database
+   lets at most one run through each minute. */
 
 const FORUM_NEW_RIVALS_PER_DAY = 10;
 const FORUM_THREADS_PER_DAY = 10;          // new rival threads per 24 hours
 const FORUM_MIN_GAP_BETWEEN_THREADS_MS = 90 * 60_000;
-const FORUM_MAX_BOT_REPLIES = 8;           // rival replies per thread (then it rests)
-const FORUM_REPLY_PAUSE_MS = 12 * 60_000;  // a rival waits at least this long before answering
-const FORUM_THREADS_PER_RUN = 2;           // threads that get a reply in one run
+const FORUM_MAX_BOT_REPLIES = 8;           // rival replies in a calm thread (then it rests)
+const FORUM_MAX_BOT_REPLIES_HEATED = 20;   // a heated thread keeps going longer
+const FORUM_THREADS_PER_RUN = 3;           // threads that get a reply in one run
+// How long a rival waits before answering, by how heated the thread is (0 calm to 10 very heated, judged by the AI
+// with each reply): heated threads go back and forth within a minute or two, calm ones take their time.
+function forumPauseMs(heat: number, answeringPerson: boolean) {
+  if (answeringPerson) return randInt(60, 180) * 1000;
+  if (heat >= 7) return randInt(45, 120) * 1000;
+  if (heat >= 4) return randInt(4, 9) * 60_000;
+  return randInt(15, 40) * 60_000;
+}
 const FORUM_CATEGORY = 'Debate';
 const RIVAL_PROFILE_COLS = ['id', 'username', 'name', 'is_ai', 'ai_retired', 'ai_expires_at', 'ai_persona', 'debate_points', 'archetype', ...COMPASS_COLS].join(', ');
 
 const THREAD_SCHEMA = { type: 'OBJECT', properties: { title: { type: 'STRING' }, body: { type: 'STRING' } }, required: ['title', 'body'] };
 const REPLY_SCHEMA = { type: 'OBJECT', properties: { reply: { type: 'STRING' } }, required: ['reply'] };
+const FORUM_REPLY_SCHEMA = { type: 'OBJECT', properties: { reply: { type: 'STRING' }, heat: { type: 'INTEGER' } }, required: ['reply', 'heat'] };
 const dayAgo = () => new Date(Date.now() - 86_400_000).toISOString();
 const clean = (t: unknown, max: number) => String(t ?? '').replace(/^["'\s]+|["'\s]+$/g, '').replace(/\s+\n/g, '\n').slice(0, max);
 
@@ -1628,11 +1646,20 @@ async function maybeStartRivalThread(admin: any) {
   if (list.length >= FORUM_THREADS_PER_DAY) return 'daily limit';
   if (list[0] && Date.now() - new Date(list[0].created_at).getTime() < FORUM_MIN_GAP_BETWEEN_THREADS_MS) return 'too soon';
 
-  // Any active rival with at least a day left can start one.
+  // Any active rival with at least a day left can start one; when there are none, the forum makes a fresh one
+  // (within the daily limit). Fresh rivals are normal rivals: they can be matched in debates too.
   const { data: pool } = await admin.from('profiles').select(RIVAL_PROFILE_COLS)
     .eq('is_ai', true).eq('ai_retired', false).gt('ai_expires_at', new Date(Date.now() + 86_400_000).toISOString()).limit(60);
-  if (!pool?.length) return 'no rivals';
-  const author = pick(pool);
+  let author = pool?.length ? pick(pool) : null;
+  if (!author) {
+    const { count } = await admin.from('rival_forum_bots').select('rival_id', { count: 'exact', head: true }).gte('created_at', dayAgo());
+    if ((count ?? 0) >= FORUM_NEW_RIVALS_PER_DAY) return 'no rivals (daily limit)';
+    const fresh = await createRival(admin, { debate_points: randInt(60, 520) });
+    if (!fresh) return 'no rivals';
+    await admin.from('rival_forum_bots').insert({ rival_id: fresh.id, post_id: 'new' });
+    author = await loadForumRival(admin, fresh.id);
+    if (!author) return 'no rivals';
+  }
 
   const { data: old } = await admin.from('forum_posts').select('title').order('created_at', { ascending: false }).limit(25);
   const taken = (old ?? []).map((p: any) => `- ${p.title}`).join('\n');
@@ -1660,9 +1687,12 @@ Answer as JSON: {"title": "...", "body": "..."}`;
 
 async function continueRivalThreads(admin: any) {
   const since = new Date(Date.now() - 3 * 86_400_000).toISOString();
-  const { data: threads } = await admin.from('rival_forum_threads').select('*')
-    .eq('done', false).gte('created_at', since).lt('bot_replies', FORUM_MAX_BOT_REPLIES)
-    .order('created_at', { ascending: true }).limit(20);
+  const { data: list } = await admin.from('rival_forum_threads').select('*')
+    .eq('done', false).gte('created_at', since).lt('bot_replies', FORUM_MAX_BOT_REPLIES_HEATED)
+    .order('created_at', { ascending: true }).limit(30);
+  // Heated threads first; calm threads stop after their smaller limit.
+  const threads = (list ?? []).filter((t: any) => (t.heat ?? 0) >= 7 || (t.bot_replies ?? 0) < FORUM_MAX_BOT_REPLIES)
+    .sort((a: any, b: any) => (b.heat ?? 0) - (a.heat ?? 0));
   const done: unknown[] = [];
   for (const t of threads ?? []) {
     if (done.length >= FORUM_THREADS_PER_RUN) break;
@@ -1680,11 +1710,14 @@ async function replyInRivalThread(admin: any, t: any) {
   if (!post) { await admin.from('rival_forum_threads').update({ done: true }).eq('post_id', t.post_id); return null; }
   const log = replies ?? [];
   const last = log[log.length - 1] ?? { author_id: post.author_id, created_at: post.created_at };
-  if (Date.now() - new Date(last.created_at).getTime() < FORUM_REPLY_PAUSE_MS) return null;
+  const bots = new Set([t.author_id, t.opponent_id].filter(Boolean));
+  const sinceLast = Date.now() - new Date(last.created_at).getTime();
+  // A person's new message gets an answer within a few minutes; otherwise the thread goes at its own pace.
+  if (!bots.has(last.author_id)) { if (sinceLast < 60_000) return null; }
+  else if (t.next_reply_at ? Date.now() < new Date(t.next_reply_at).getTime() : sinceLast < forumPauseMs(t.heat ?? 0, false)) return null;
 
   const author = await loadForumRival(admin, t.author_id);
   let opponent = t.opponent_id ? await loadForumRival(admin, t.opponent_id) : null;
-  const bots = new Set([t.author_id, t.opponent_id].filter(Boolean));
 
   // Who speaks next: answer a real person first (the thread's author does that),
   // otherwise the two rivals take turns.
@@ -1733,15 +1766,19 @@ Style: like a sharp, well-read person on a forum. What you're answering was ${wo
 Thread so far:
 ${transcript}
 
-Write your reply as JSON: {"reply": "..."}`;
-  const g = await callGemini(prompt, REPLY_SCHEMA, 0.9, true);
+Also rate how heated this thread is right now, including your reply, from 0 (calm and polite) to 10 (very heated, both sides pressing hard).
+
+Write your reply as JSON: {"reply": "...", "heat": 0}`;
+  const g = await callGemini(prompt, FORUM_REPLY_SCHEMA, 0.9, true);
   const reply = humanize(g?.reply, budget).slice(0, 700);
   if (reply.length < 10) return null;
 
   const { error } = await admin.from('forum_replies').insert({ post_id: post.id, author_id: speaker.id, body: reply });
   if (error) throw error;
-  await admin.from('rival_forum_threads').update({ bot_replies: (t.bot_replies ?? 0) + 1 }).eq('post_id', t.post_id);
-  return { postId: post.id, by: speaker.username };
+  const heat = Math.max(0, Math.min(10, Math.round(Number(g?.heat) || 0)));
+  await admin.from('rival_forum_threads').update({ bot_replies: (t.bot_replies ?? 0) + 1, heat,
+    next_reply_at: new Date(Date.now() + forumPauseMs(heat, false)).toISOString() }).eq('post_id', t.post_id);
+  return { postId: post.id, by: speaker.username, heat };
 }
 
 async function loadForumRival(admin: any, id: string) {

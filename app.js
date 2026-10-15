@@ -1211,14 +1211,16 @@ function nameWithTag(username, prefix, suffix){
   return el('span',{},[ (prefix||'') + username, roleTag(username), badgeRow(username, 'xs'), suffix || '' ]);
 }
 
-// When someone opens the Forum, give the AI rivals a chance to post (the server allows one run every 8 minutes).
+// While someone has the Forum open, give the AI rivals a chance to post or reply once a minute (the server lets one
+// run through per minute for everyone); new posts show up through the live forum updates.
 let lastForumTick = 0;
 function forumTick(){
   if(!state.user || state.user.isGuest) return;
-  if(Date.now() - lastForumTick < 3 * 60 * 1000) return;
+  if(Date.now() - lastForumTick < 60 * 1000) return;
   lastForumTick = Date.now();
   callSecure('forum_tick', {}).catch(() => {});
 }
+setInterval(() => { if(state.tab === 'forum' && !document.hidden) forumTick(); }, 60 * 1000);
 
 // A brand-new rival may post before this page knows about them — fetch their profile, then redraw.
 const fetchingAuthors = new Set();
@@ -1274,8 +1276,22 @@ function render(){
   pointer.down = false; pointer.pending = false;
   renderNow();
 }
+// The page you're on is kept for this browser tab, so if the browser reloads the tab (for example Chrome freeing
+// memory from a tab in the background), you come back to the same page instead of Home.
+const PLACE_KEY = 'majlis-place';
+function rememberPlace(){
+  try { sessionStorage.setItem(PLACE_KEY, JSON.stringify({ tab: state.tab, card: !!state.showCard })); } catch(e){}
+}
+let savedPlace = null;
+function restorePlace(){
+  try {
+    const p = JSON.parse(sessionStorage.getItem(PLACE_KEY) || 'null');
+    if(p && typeof p.tab === 'string' && /^[a-z-]{2,20}$/.test(p.tab)){ savedPlace = p; state.tab = p.tab; }
+  } catch(e){}
+}
 function renderNow(){
   touchActivity();
+  rememberPlace();
   ensureLiveDirectory();
   const app = document.getElementById('app');
 
@@ -3952,8 +3968,15 @@ async function startRivalDebate(mode, topic, unranked){
   rivalStarting = true;
   try {
     const { data, error } = await callSecure('start_rival_debate', { mode, topic: topic || '', unranked: !!unranked });
-    if(!queueEntry(mode)) return;   // cancelled meanwhile
+    const entry = queueEntry(mode);
+    if(!entry) return;   // cancelled meanwhile
     if(error){ alert(error); await cancelQueue(mode); return; }
+    // The server counts the 20 seconds itself, and holds off while a real person is waiting: keep looking.
+    if(data && data.wait){
+      entry.rivalAt = Date.now() + Math.max(1500, Math.min(20000, Number(data.waitMs) || 3000));
+      startDebatePolling(mode, topic, unranked);
+      return;
+    }
     state.debateQueue[mode] = (state.debateQueue[mode]||[]).filter(e=>e.username!==state.currentUser);
     stopDebatePolling();
     state.tab = 'debate';
@@ -3970,7 +3993,7 @@ function startDebatePolling(mode, topic, unranked){
     const entry = queueEntry(mode);
     if(!entry || state.user.activeDebateId){ stopDebatePolling(); return; }
     document.querySelectorAll('[data-queue-seconds]').forEach(n => { n.textContent = queueSearchText(mode); });
-    if(mode === 'Text' && Date.now() - (entry.since || Date.now()) >= RIVAL_AFTER_MS){
+    if(mode === 'Text' && Date.now() - (entry.since || Date.now()) >= RIVAL_AFTER_MS && Date.now() >= (entry.rivalAt || 0)){
       stopDebatePolling();
       startRivalDebate(mode, topic, unranked);
       return;
@@ -6465,7 +6488,7 @@ function renderOtherProfile(username){
     wrap.appendChild(el('p',{class:'bio-text', style:'margin-top:-14px;margin-bottom:14px;max-width:520px;'}, (window.MajlisFilters ? MajlisFilters.wrap(person.bio) : person.bio)));
   }
   if(person.aiRetired){
-    wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:-6px;margin-bottom:14px;'}, 'This AI rival has retired.'));
+    wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:-6px;margin-bottom:14px;'}, 'This account is no longer active.'));
   }
 
   const blockedByMe = isBlocked(username);
@@ -6870,7 +6893,7 @@ function renderMessages(){
       msgsBox.appendChild(el('div',{class:'dm-bubble them'},[el('span',{class:'typing-dots', 'aria-label':'typing'},[el('i'),el('i'),el('i')])]));
     }
     if(person.aiRetired){
-      msgsBox.appendChild(el('div',{class:'dm-empty', style:'padding:14px;'}, person.name+' has retired and won\'t reply any more.'));
+      msgsBox.appendChild(el('div',{class:'dm-empty', style:'padding:14px;'}, person.name+' isn\'t active any more.'));
     }
     threadWrap.appendChild(msgsBox);
     requestAnimationFrame(() => { msgsBox.scrollTop = msgsBox.scrollHeight; });
@@ -6958,6 +6981,7 @@ function renderWiki(){
 
 /* ================= INIT ================= */
 (async function start(){
+  if(!new URLSearchParams(location.search).get('tab')) restorePlace();   // an app shortcut link wins over the remembered page
   // If the server is slow, show the site after 6 s anyway and fill it in when the data arrives.
   let shown = false;
   const showNow = () => { if(shown) return; shown = true; render(); if(window.hideSplash) window.hideSplash(); };
@@ -6980,6 +7004,8 @@ function renderWiki(){
     console.error('Startup failed', e);
   }
   clearTimeout(slowTimer);
+  // The result card was open before the reload: open it again once we know whose it is.
+  if(savedPlace && savedPlace.card && state.user && !state.user.isGuest && state.user.compass) state.showCard = true;
   shown = false;
   showNow();
   if(window.MajlisFilters) MajlisFilters.init(() => render());
