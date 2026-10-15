@@ -100,6 +100,16 @@ function segmenter(){
     .catch(e => { console.warn('person cut-out unavailable', e); segmenterP = null; return null; });
   return segmenterP;
 }
+// The model takes a lot of memory; let it go a little after the last cut-out (it loads again if needed), so the
+// browser has less reason to throw this tab away while it sits in the background.
+let releaseTimer = null;
+function releaseSoon(){
+  clearTimeout(releaseTimer);
+  releaseTimer = setTimeout(() => {
+    const p = segmenterP; segmenterP = null;
+    if(p) p.then(seg => { try { seg && seg.close(); } catch(e){} });
+  }, 20000);
+}
 function loadImg(url){
   return new Promise((done, fail) => {
     const img = new Image();
@@ -158,7 +168,7 @@ window.cardCutout = (url) => {
     if(!blob) return null;
     return { url: URL.createObjectURL(blob), w: W, h: H,
       head: { top: top / mh, cx: cxSum / n / mw, w: headW / mw }, topCut: top < mh * 0.015 };
-  })().catch(e => { console.warn('cut-out failed', e); return null; }).then(v => { cutDone.set(url, v); return v; }));
+  })().catch(e => { console.warn('cut-out failed', e); return null; }).then(v => { cutDone.set(url, v); releaseSoon(); return v; }));
   return cutCache.get(url);
 };
 // The finished cut-out for a picture: the result, null when there is none, undefined while it is still being made.
