@@ -2799,3 +2799,17 @@ h2 .role-tag { font-size: 0.5em; }
 .oauth-spin { width: 15px; height: 15px; border: 2px solid var(--line-2); border-top-color: var(--neon); border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
 .oauth-error { font-size: 13px; line-height: 1.45; color: var(--danger); background: var(--danger-soft); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
 @media (prefers-reduced-motion: reduce) { .oauth-spin { animation: none; } }
+
+/* ===================== Compact sign-up / log-in window ===================== */
+.auth-box { width: 100%; max-width: 352px; margin: auto; padding: 0; }
+.auth-card { padding: 20px 20px 18px; }
+.auth-card h3 { font-size: 18px; margin-bottom: 4px; }
+.auth-sub { font-size: 12.5px; line-height: 1.4; color: var(--parchment-dim); margin: 0 0 14px; }
+.auth-card .field { margin-bottom: 11px; }
+.auth-card .field > label { font-size: 12.5px; }
+.auth-card input[type=text], .auth-card input[type=email], .auth-card input[type=password] { padding-block: 9px; font-size: 13.5px; }
+.auth-card .pw-strength { margin-top: 6px; }
+.auth-card .field-caption { margin-top: 4px; }
+.auth-or { display: flex; align-items: center; gap: 10px; margin: 12px 0; color: var(--parchment-dim); font-size: 12px; }
+.auth-or > div { flex: 1; height: 1px; background: var(--line); }
+.auth-card .oauth-btn { padding: 9px 8px; font-size: 13px; }

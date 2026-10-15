@@ -1504,17 +1504,17 @@ async function finishOauthReturn(){
 
 function renderAuthOverlay(){
   const backdrop = el('div',{style:
-    'position:fixed;inset:0;background:var(--modal-overlay);display:flex;align-items:center;justify-content:center;z-index:50;'});
+    'position:fixed;inset:0;background:var(--modal-overlay);display:flex;align-items:center;justify-content:center;z-index:50;overflow-y:auto;padding:20px 12px;'});
   backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop){ state.showAuth=false; clearDrafts('auth-password'); render(); } });
 
-  const box = el('div',{style:'width:100%;max-width:380px;padding:24px;'});
+  const box = el('div',{class:'auth-box'});
   const isLogin = state.authMode === 'login';
-  const card = el('div',{class:'card modal-card', style:'position:relative;'});
+  const card = el('div',{class:'card modal-card auth-card', style:'position:relative;'});
   
   card.appendChild(el('button',{class:'icon-btn', title:'Close', style:'position:absolute;top:14px;right:14px;width:32px;height:32px;', onclick:()=>{state.showAuth=false; clearDrafts('auth-password'); render();}}, icon('close', 16)));
   card.appendChild(el('h3',{}, isLogin ? 'Log in' : 'Create an account'));
-  card.appendChild(el('p',{style:'font-size:13px;color:var(--parchment-dim);margin-bottom:14px;'},
-    'Optional — you can keep using Majlis as a guest. An account just lets you come back to the same profile.'));
+  card.appendChild(el('p',{class:'auth-sub'},
+    'Optional — keep using Majlis as a guest, or make an account to come back to the same profile.'));
 
   // draft() keeps what you've typed if the page re-renders behind the dialog (e.g. a new forum post arrives).
   const userIn = draft('auth-username', el('input',{type:'text', placeholder:'e.g. sam_reads', maxlength:'20', autocomplete:'username'}));
@@ -1569,7 +1569,7 @@ function renderAuthOverlay(){
   const ageBox = el('input',{type:'checkbox', id:'auth-age', style:'margin:3px 8px 0 0;flex:none;', onchange:(e)=>{ state.ageConfirmed = !!e.target.checked; }});
   ageBox.checked = !!state.ageConfirmed;
   if(!isLogin){
-    card.appendChild(el('label',{for:'auth-age', style:'display:flex;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--parchment);margin:2px 0 12px;cursor:pointer;'},[
+    card.appendChild(el('label',{for:'auth-age', style:'display:flex;align-items:flex-start;font-size:13px;line-height:1.4;color:var(--parchment);margin:0 0 10px;cursor:pointer;'},[
       ageBox, 'I am 16 years old or older.',
     ]));
   }
@@ -1630,7 +1630,7 @@ function renderAuthOverlay(){
     ]));
   }
 
-  const divider = el('div',{style:'display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--parchment-dim);font-size:12px;'},[
+  const divider = el('div',{class:'auth-or'},[
     el('div',{style:'flex:1;height:1px;background:var(--line);'}),
     el('span',{}, 'or continue with'),
     el('div',{style:'flex:1;height:1px;background:var(--line);'}),
@@ -1645,7 +1645,7 @@ function renderAuthOverlay(){
     'By continuing with ' + listWords(names.map(k => OAUTH_LABEL[k])) + ', you confirm you are 16 or older.'));
 
   box.appendChild(card);
-  box.appendChild(el('div',{style:'text-align:center;margin-top:16px;font-size:13px;color:var(--parchment-dim);'},[
+  box.appendChild(el('div',{style:'text-align:center;margin-top:12px;font-size:13px;color:var(--parchment-dim);'},[
     isLogin ? 'New here? ' : 'Already have an account? ',
     el('a',{href:'#', style:'color:var(--brass-bright);cursor:pointer;', onclick:(e)=>{
       e.preventDefault();
