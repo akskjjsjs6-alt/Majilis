@@ -57,8 +57,14 @@ const NOT_PORTRAIT = /signature|autograph|logo|flag|\bmap\b|coat.?of.?arms|emble
 type Cand = { file: string; w: number; h: number; thumb: string; big: string; small: string; main: boolean };
 
 async function candidates(name: string): Promise<Cand[]> {
-  const s = await getJson('https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&language=en&type=item&limit=1&search=' + encodeURIComponent(name));
-  const id = s?.search?.[0]?.id;
+  // The person's Wikidata entry: through their English Wikipedia article first (it copes with names like
+  // "Camillo Benso, Count of Cavour"), then by searching Wikidata.
+  const wp = await getJson('https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&ppprop=wikibase_item&redirects=1&titles=' + encodeURIComponent(name));
+  let id: string | undefined = (Object.values(wp?.query?.pages ?? {}) as any[])[0]?.pageprops?.wikibase_item;
+  if (!id) {
+    const s = await getJson('https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&language=en&type=item&limit=1&search=' + encodeURIComponent(name));
+    id = s?.search?.[0]?.id;
+  }
   if (!id) return [];
   const e = await getJson(`https://www.wikidata.org/w/api.php?action=wbgetclaims&format=json&entity=${id}`);
   const claims = e?.claims ?? {};
