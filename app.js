@@ -3080,14 +3080,10 @@ function buildResultCard(){
   const bg = el('div',{class:'rc9__bg'});
   const bgWho = shown;
   let bigCut = bgWho && bgWho.photo ? cutoutFor(cutSource(bgWho)) : null;
-  // Never stretch a face past its sharpness: a sharp, large photo gets the big
-  // close-up (head 62% of the card wide); a smaller one is shown further back, with more of the body, at a size it
-  // can hold; one too small to look good isn't cut out at all (the plain faded portrait is used instead).
-  const headPx = bigCut ? bigCut.head.w * bigCut.w : 0;
-  if(bigCut && headPx < 150) bigCut = null;
+  // A face too small to cut out cleanly isn't popped out; the plain faded portrait is used instead.
+  if(bigCut && bigCut.head.w * bigCut.w < 120) bigCut = null;
   if(bigCut){
-    const headW = Math.max(0.34, Math.min(0.62, headPx / 1000));
-    const at = cardPlace(bigCut, headW, -0.16 * headW / 0.62);
+    const at = cardPlace(bigCut, 0.62, -0.16);
     const figure = (dx, dy) => el('i',{class:'rc9__cut', style:'background-image:url("' + bigCut.url + '");left:' + cq(at.left + dx) + ';top:' + cq(at.top + dy) + ';width:' + cq(at.width) + ';height:' + cq(at.height) + ';'});
     card.appendChild(el('div',{class:'rc9__person', 'aria-hidden':'true'}, figure(0, 0)));
     const pop = el('div',{class:'rc9__pop', 'aria-hidden':'true'},[
