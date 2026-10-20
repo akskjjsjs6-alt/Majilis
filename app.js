@@ -2890,10 +2890,10 @@ async function fetchCardMatches(){
           photoUrl: typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null,
           photo: typeof l.photo === 'string' && l.photo.startsWith('data:image/') ? l.photo : (typeof l.photoUrl === 'string' && MATCH_PHOTO.test(l.photoUrl) ? l.photoUrl : null) })),
         countries: (card.countries || []).filter(c => c && c.name && /^[a-z]{2}$/.test(c.code)).map(c => ({
-          name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
+          name: c.name, code: c.code, pct: c.pct, pos: okPos(c.pos) ? c.pos : null, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
         oldCountries: (card.oldCountries || []).filter(c => c && c.name).slice(0, 3).map(c => ({
-          name: String(c.name).slice(0, 60), pct: c.pct, flag: typeof c.flag === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/.test(c.flag) ? c.flag : null })),
-        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct, symbol: okSymbol(i.symbol) })) };
+          name: String(c.name).slice(0, 60), pct: c.pct, pos: okPos(c.pos) ? c.pos : null, flag: typeof c.flag === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/.test(c.flag) ? c.flag : null })),
+        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct, pos: okPos(i.pos) ? i.pos : null, symbol: okSymbol(i.symbol) })) };
       out.art = out.ideologies.slice(0, 4).every(i => i.symbol || (window.cardIdeologyEmblem && cardIdeologyEmblem(i.name))) ? 1 : 0;
       if(!out.leaders.some(l => l.era === 'modern') || !out.leaders.some(l => l.era === 'historical')) throw new Error('no leaders came back');
       await confirmCardPhotos(out);
@@ -3274,9 +3274,309 @@ function renderResultOverlay(){
       el('button',{class:'btn secondary', onclick: close}, 'Done'),
       el('button',{class:'btn secondary', onclick:()=>{ state.showCard = false; state.tab = 'compass'; render(); }}, 'Open my compass'),
     ]),
+    savedCardMatches() ? el('button',{class:'rc-replay', onclick:()=>{ state.showCard = false; render(); startResultsReveal(); }}, '▶ Watch your results reveal again') : null,
     el('p',{class:'field-caption', style:'text-align:center;margin:8px 0 0;'}, 'Save the image to share it. You can open this card again from your Compass page.'),
   ]));
   return back;
+}
+
+/* ================= THE RESULTS REVEAL (after the test, before the card) =================
+   A short run through your results that plays by itself, one scene at a time: what sets you apart, the nations,
+   the leaders and the ideologies closest to you, and then the card. It sits outside the page, so the page redrawing
+   underneath it never restarts its animations. Everything it shows comes from the AI's matches: the leaders, nations
+   and ideologies it placed on the three maps are the crowd you're compared with. */
+const RV_MAPS = ['political', 'social', 'economic'];
+const RV_DIM = { political: 'POLITICALLY', social: 'SOCIALLY', economic: 'ECONOMICALLY' };
+const RV_MAP_NAME = { political: 'Political', social: 'Social', economic: 'Economic' };
+// The six map axes, each with both ends (0 = the first end).
+const rvAxes = () => RV_MAPS.flatMap(k => [['x', COMPASS_DEFS[k].xLabels], ['y', COMPASS_DEFS[k].yLabels]].map(([c, l]) => ({ map: k, c, lo: l[0], hi: l[1] })));
+const rvMedian = (vals) => { const s = vals.slice().sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+// Everyone the AI placed on the maps for you.
+function rvPool(m){
+  const tag = (list, kind) => (list || []).filter(i => okPos(i.pos)).map(i => ({ name: i.name, kind, pos: i.pos }));
+  return [...tag(m.leaders, 'leaders'), ...tag(m.countries, 'nations'), ...tag(m.oldCountries, 'nations'), ...tag(m.ideologies, 'ideologies')];
+}
+function rvCrowdName(pool){
+  const kinds = ['leaders', 'nations', 'ideologies'].filter(k => pool.some(p => p.kind === k));
+  return kinds.length > 1 ? kinds.slice(0, -1).join(', ') + ' and ' + kinds[kinds.length - 1] : kinds[0];
+}
+// Your most unusual position (where the fewest lean as far as you), your most typical one (nearest the crowd's
+// middle) and the pair of leanings the fewest of them share.
+function rvApart(m){
+  const me = state.user.compass, pool = rvPool(m);
+  if(pool.length < 6) return null;
+  const rows = rvAxes().map(a => {
+    const v = me[a.map][a.c], vals = pool.map(p => p.pos[a.map][a.c]), toHi = v >= 50;
+    const less = vals.filter(x => toHi ? x < v : x > v).length;
+    return Object.assign({}, a, { v, toHi, pole: toHi ? a.hi : a.lo, share: Math.round(less / vals.length * 100), med: rvMedian(vals), lean: Math.abs(v - 50) });
+  });
+  const unusual = rows.slice().sort((a, b) => b.share - a.share || b.lean - a.lean)[0];
+  const typical = rows.filter(r => r !== unusual).sort((a, b) => Math.abs(a.v - a.med) - Math.abs(b.v - b.med))[0];
+  const leaning = rows.filter(r => r.lean >= 8);
+  let tension = null;
+  leaning.forEach((A, i) => leaning.slice(i + 1).forEach(B => {
+    if(A.map === B.map) return;
+    const names = [...new Set(pool.filter(p => (p.pos[A.map][A.c] >= 50) === A.toHi && (p.pos[B.map][B.c] >= 50) === B.toHi).map(p => p.name))];
+    const better = !tension || (names.length && (!tension.names.length || names.length < tension.names.length));
+    if(better) tension = { a: A, b: B, names };
+  }));
+  return { pool, crowd: rvCrowdName(pool), unusual, typical, tension };
+}
+// The ones closest to you on each map alone, leaving out the overall match and naming no one twice (so fewer than three when the list is short).
+function rvByDimension(list, top){
+  const me = state.user.compass, rest = list.filter(i => i !== top && okPos(i.pos)), used = new Set();
+  if(!rest.length) return [];
+  return RV_MAPS.map(k => {
+    const ranked = rest.map(i => ({ i, d: Math.hypot(i.pos[k].x - me[k].x, i.pos[k].y - me[k].y) })).sort((a, b) => a.d - b.d);
+    const pick = ranked.find(r => !used.has(r.i));
+    if(!pick) return null;
+    used.add(pick.i);
+    return { dim: k, item: pick.i, pct: Math.max(0, Math.round(100 - pick.d / 1.414)) };
+  }).filter(Boolean);
+}
+
+// Small pieces: a number that counts up, a ring that fills, a bar with you (and the crowd's middle) on it.
+function rvCount(to, suffix, delay){
+  const n = el('span',{class:'rv-num'}, '0' + (suffix || ''));
+  setTimeout(() => {
+    const t0 = performance.now(), dur = 900;
+    const step = (t) => { const k = Math.min(1, (t - t0) / dur); n.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))) + (suffix || ''); if(k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }, delay || 0);
+  return n;
+}
+function rvRing(pct, delay){
+  const c = 2 * Math.PI * 44;
+  return el('div',{class:'rv-ring', style:'--d:' + (delay || 0) + 'ms'},[
+    el('span',{class:'rv-ring__svg', html:'<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="rv-ring__track" cx="50" cy="50" r="44"/><circle class="rv-ring__arc" cx="50" cy="50" r="44" style="stroke-dasharray:' + c.toFixed(1) + ';--c:' + c.toFixed(1) + ';--off:' + (c * (1 - pct / 100)).toFixed(1) + '"/></svg>'}),
+    el('div',{class:'rv-ring__in'},[el('b',{}, rvCount(pct, '%', delay)), el('small',{}, 'MATCH')]),
+  ]);
+}
+function rvSlider(r, showMedian, delay){
+  const from = showMedian ? r.med : 50, lo = Math.min(r.v, r.med), hi = Math.max(r.v, r.med);
+  const dot = el('i',{class:'rv-bar__you', style:'left:' + from + '%'});
+  setTimeout(() => { dot.style.left = r.v + '%'; }, (delay || 0) + 60);
+  return el('div',{class:'rv-bar-wrap'},[
+    el('div',{class:'rv-bar'},[
+      showMedian ? el('i',{class:'rv-bar__span', style:'left:' + lo + '%;width:' + (hi - lo) + '%;--d:' + ((delay || 0) + 500) + 'ms'}) : null,
+      showMedian ? el('i',{class:'rv-bar__med', style:'left:' + r.med + '%'}) : null,
+      dot,
+    ]),
+    el('div',{class:'rv-bar__ends'},[el('span',{}, r.lo), el('span',{}, r.hi)]),
+  ]);
+}
+// Present-day / historical (or modern / historical) tabs; the scene flips to the second one halfway through by itself.
+function rvEraTabs(tabs, paint){
+  const box = el('div',{class:'rv-tabs', role:'group'});
+  const btns = tabs.map(t => el('button',{type:'button', class:'rv-tabs__b', onclick:()=>{ box._hold && box._hold(); pick(t.key); }}, t.label));
+  const pick = (key) => { btns.forEach((b, i) => { b.classList.toggle('is-on', tabs[i].key === key); b.setAttribute('aria-pressed', String(tabs[i].key === key)); }); paint(key); };
+  btns.forEach(b => box.appendChild(b));
+  box._pick = pick;
+  return box;
+}
+const rvIn = (d, cls) => ({ class: 'rv-in' + (cls ? ' ' + cls : ''), style: '--d:' + d + 'ms' });
+
+// Scene 1: what sets you apart.
+function rvApartScene(m){
+  const a = rvApart(m);
+  if(!a) return null;
+  const { unusual: u, typical: t, tension } = a, n = a.pool.length;
+  const near = Math.abs(t.v - t.med);
+  const tags = tension ? tension.names.slice(0, 3) : [];
+  const node = el('div',{class:'rv-scene'},[
+    el('div',{class:'rv-head'},[
+      el('h2',{class:'rv-title rv-in', style:'--d:0ms'}, 'What sets you apart'),
+      el('div',rvIn(200, 'rv-legend'),[el('span',{},[el('i',{class:'rv-legend__med'}), 'Their median']), el('span',{},[el('i',{class:'rv-legend__you'}), 'You'])]),
+    ]),
+    el('div',{class:'rv-apart'},[
+      el('div',rvIn(300, 'rv-box rv-box--hi'),[
+        el('div',{class:'rv-box__top'},[el('span',{class:'rv-pill'}, 'Your most unusual position'), el('b',{class:'rv-box__axis'}, RV_MAP_NAME[u.map] + ': ' + u.lo + ' – ' + u.hi)]),
+        el('div',{class:'rv-stat'},[el('div',{class:'rv-stat__big'}, rvCount(u.share, '%', 700)),
+          el('p',{}, 'of the ' + n + ' ' + a.crowd + ' the AI placed around you lean less toward ' + u.pole.toLowerCase() + ' than you do.')]),
+        rvSlider(u, true, 900),
+      ]),
+      el('div',rvIn(1400, 'rv-box'),[
+        el('span',{class:'rv-pill rv-pill--soft'}, 'Your most typical position'),
+        el('b',{class:'rv-box__axis rv-box__axis--own'}, RV_MAP_NAME[t.map] + ': ' + t.lo + ' – ' + t.hi),
+        el('div',{class:'rv-box__big'}, near <= 4 ? 'At the median' : near <= 10 ? 'Near the median' : 'Closest to the crowd'),
+        el('p',{class:'rv-box__p'}, near <= 10 ? 'This is common ground. You lean no further toward ' + t.lo.toLowerCase() + ' or ' + t.hi.toLowerCase() + ' than most of them do.'
+          : 'Even here you stand out a little, but this is where you sit closest to most of them.'),
+        rvSlider(t, true, 1600),
+      ]),
+      tension ? el('div',rvIn(2600, 'rv-box rv-box--wide'),[
+        el('div',{class:'rv-tension'},[
+          el('span',{class:'rv-pill'}, 'Your internal tension'),
+          el('div',{class:'rv-tension__pair'},[el('b',{class:'rv-chip rv-chip--a'}, tension.a.pole), el('span',{}, '+'), el('b',{class:'rv-chip rv-chip--b'}, tension.b.pole)]),
+        ]),
+        el('div',{class:'rv-tension__who'},[
+          el('b',{}, tension.names.length ? 'Only ' + tension.names.length + ' of ' + n + ' hold both of these positions.' : 'None of the ' + n + ' hold both of these positions.'),
+          tags.length ? el('div',{class:'rv-tags'},[...tags.map((x, i) => el('span',rvIn(3000 + i * 150, 'rv-tag'), x)),
+            tension.names.length > 3 ? el('span',rvIn(3450, 'rv-tag'), '+' + (tension.names.length - 3)) : null]) : null,
+        ]),
+      ]) : null,
+    ]),
+  ]);
+  return { node, ms: 11000 };
+}
+
+// The big match at the top of the nations and leaders scenes, and the three "also close" boxes under it.
+function rvHero(pic, name, sub, pct, about){
+  return el('div',rvIn(150, 'rv-hero'),[
+    el('div',{class:'rv-hero__main'},[
+      el('div',{class:'rv-hero__pic'}, pic),
+      el('div',{class:'rv-hero__txt'},[el('h3',{}, name), sub ? el('p',{}, sub) : null]),
+      rvRing(pct, 450),
+    ]),
+    about ? el('div',{class:'rv-hero__about'}, about) : null,
+  ]);
+}
+function rvAlso(rows, picFor){
+  if(!rows.length) return null;
+  return el('div',{class:'rv-also'},[
+    el('div',rvIn(900, 'rv-kicker'), 'ALSO CLOSE, BY DIMENSION'),
+    el('div',{class:'rv-also__row'}, rows.map((r, i) => el('div',rvIn(1100 + i * 180, 'rv-also__box'),[
+      el('div',{class:'rv-also__pic'}, picFor(r.item)),
+      el('div',{class:'rv-also__dim'}, RV_DIM[r.dim]),
+      el('div',{class:'rv-also__foot'},[el('b',{}, r.item.name), el('span',{}, r.pct + '%')]),
+    ]))),
+  ]);
+}
+// Scenes 2 and 3 share their shape: tabs, the closest match, then the closest on each map.
+function rvEraScene(title, tabs, paintEra){
+  const body = el('div',{class:'rv-era-body'});
+  const paint = (key) => { body.innerHTML = ''; body.appendChild(paintEra(key)); };
+  const sw = rvEraTabs(tabs, paint);
+  const node = el('div',{class:'rv-scene'},[
+    el('div',{class:'rv-head'},[el('h2',{class:'rv-title rv-in', style:'--d:0ms'}, title), tabs.length > 1 ? el('div',rvIn(150), sw) : null]),
+    body,
+  ]);
+  sw._pick(tabs[0].key);
+  return { node, ms: tabs.length > 1 ? 12000 : 7000, flip: tabs.length > 1 ? () => sw._pick(tabs[1].key) : null, tabs: sw };
+}
+function rvNationScene(m){
+  const eras = [{ key: 'modern', label: 'Present-day', list: m.countries || [] }, { key: 'historical', label: 'Historical', list: m.oldCountries || [] }].filter(e => e.list.length);
+  if(!eras.length) return null;
+  return rvEraScene('Nations closest to you', eras, (key) => {
+    const list = eras.find(e => e.key === key).list, top = list[0];
+    return el('div',{},[
+      rvHero(el('span',{class:'rv-flag'}, nationFlag(top)), top.name, key === 'modern' ? 'Closest nation today' : 'Closest historical state · before 1900', top.pct),
+      rvAlso(rvByDimension(list, top), (c) => el('span',{class:'rv-flag rv-flag--sm'}, nationFlag(c))),
+    ]);
+  });
+}
+function rvFigureScene(m){
+  const eras = [{ key: 'modern', label: 'Modern' }, { key: 'historical', label: 'Historical' }].filter(e => leaderFor(m, e.key));
+  if(!eras.length) return null;
+  return rvEraScene('Figures closest to you', eras, (key) => {
+    const top = leaderFor(m, key), list = m.leaders.filter(l => l.era === key);
+    return el('div',{},[
+      rvHero(portraitNode(top.name, top.photo), top.name, [top.label, key === 'modern' ? '1900 – today' : 'before 1900'].filter(Boolean).join(' · '), top.pct, top.why),
+      rvAlso(rvByDimension(list, top), (l) => portraitNode(l.name, l.photo)),
+    ]);
+  });
+}
+// Where an ideology sits economically, as a plain tag.
+function rvSide(i){
+  if(!okPos(i.pos)) return null;
+  const x = i.pos.economic.x;
+  return x < 20 ? 'Far-Left' : x < 40 ? 'Left' : x <= 60 ? 'Center' : x <= 80 ? 'Right' : 'Far-Right';
+}
+function rvIdeologyScene(m){
+  const ideos = m.ideologies || [];
+  if(!ideos.length) return null;
+  const top = ideos[0], side = (i) => { const s = rvSide(i); return s ? el('span',{class:'rv-side rv-side--' + s.toLowerCase().replace('far-', 'far')}, s) : null; };
+  const node = el('div',{class:'rv-scene'},[
+    el('div',{class:'rv-head'},[el('h2',{class:'rv-title rv-in', style:'--d:0ms'}, 'Your ideologies')]),
+    el('div',rvIn(150, 'rv-hero'),[
+      el('div',{class:'rv-hero__main'},[
+        el('div',{class:'rv-hero__pic rv-hero__pic--emb'}, ideologyEmblem(top.name, top.symbol)),
+        el('div',{class:'rv-hero__txt'},[el('div',{class:'rv-kicker'}, 'CLOSEST IDEOLOGY'), el('h3',{}, top.name), top.blurb ? el('p',{}, top.blurb) : null]),
+        rvRing(top.pct, 450),
+      ]),
+    ]),
+    ideos.length > 1 ? el('div',{class:'rv-also'},[
+      el('div',rvIn(900, 'rv-kicker'), 'OTHER IDEOLOGIES'),
+      el('div',{class:'rv-ideos'}, ideos.slice(1, 4).map((i, k) => el('div',rvIn(1100 + k * 200, 'rv-ideo' + (rvSide(i) === 'Center' ? ' rv-ideo--mid' : '')),[
+        el('div',{class:'rv-ideo__top'},[side(i), el('b',{}, i.pct + '%')]),
+        el('h4',{}, i.name),
+        i.blurb ? el('p',{}, i.blurb) : null,
+      ]))),
+    ]) : null,
+  ]);
+  return { node, ms: 9000 };
+}
+
+// The player: progress bars along the top, Back / Next / Skip, arrow keys and Escape. Interacting with a scene
+// (switching its tab, scrolling it) holds it until you press Next. It ends on the card.
+let revealOpen = null;
+function startResultsReveal(){
+  const m = savedCardMatches();
+  if(revealOpen) revealOpen.close(true);
+  const openCard = () => { state.showCard = true; render(); };
+  if(!m || !state.user || !state.user.compass) return openCard();
+  const makers = [rvApartScene, rvNationScene, rvFigureScene, rvIdeologyScene];
+  const scenes = makers.map(f => f(m));   // empty ones are passed over
+  if(!scenes.some(Boolean)) return openCard();
+  let i = -1, timer = null, flipTimer = null, ended = false;
+  const bars = makers.map(() => el('i',{class:'rv-prog__seg'}, el('b',{})));
+  const stage = el('div',{class:'rv-stage', 'aria-live':'polite'});
+  const backBtn = el('button',{type:'button', class:'rv-nav', 'aria-label':'Back', onclick:()=>go(i - 1)}, '‹');
+  const nextBtn = el('button',{type:'button', class:'rv-nav rv-nav--next', onclick:()=>go(i + 1)}, 'Next ›');
+  const root = el('div',{class:'rv', role:'dialog', 'aria-modal':'true', 'aria-label':'Your results'},[
+    el('div',{class:'rv-shell'},[
+      el('div',{class:'rv-top'},[el('div',{class:'rv-prog'}, bars), el('button',{type:'button', class:'rv-skip', onclick:()=>finish()}, 'Skip to card')]),
+      stage,
+      el('div',{class:'rv-foot'},[backBtn, nextBtn]),
+    ]),
+  ]);
+  const clear = () => { clearTimeout(timer); clearTimeout(flipTimer); };
+  const hold = () => { clear(); root.classList.add('is-held'); };
+  function go(n){
+    while(n >= 0 && n < scenes.length && !scenes[n]) n += n > i ? 1 : -1;
+    if(n < 0) return;
+    if(n >= scenes.length) return finish();
+    clear(); root.classList.remove('is-held');
+    i = n;
+    // Going back to a scene draws it again, so its animations play from the start.
+    const fresh = scenes[i].seen ? makers[i](m) : scenes[i];
+    fresh.seen = true;
+    scenes[i] = fresh;
+    stage.innerHTML = '';
+    stage.appendChild(fresh.node);
+    stage.scrollTop = 0;
+    if(fresh.tabs) fresh.tabs._hold = hold;
+    bars.forEach((b, k) => { b.className = 'rv-prog__seg' + (k < i ? ' is-done' : k === i ? ' is-on' : ''); b.style.setProperty('--ms', fresh.ms + 'ms'); });
+    backBtn.disabled = !scenes.slice(0, i).some(Boolean);
+    nextBtn.textContent = scenes.slice(i + 1).some(Boolean) ? 'Next ›' : 'See your card ›';
+    if(fresh.flip) flipTimer = setTimeout(fresh.flip, fresh.ms * 0.5);
+    timer = setTimeout(() => go(i + 1), fresh.ms);
+  }
+  const keys = (e) => {
+    const act = { ArrowRight: () => go(i + 1), ArrowLeft: () => go(i - 1), Escape: finish }[e.key];
+    if(!act) return;
+    e.preventDefault(); e.stopPropagation();
+    act();
+  };
+  function close(quiet){
+    if(ended) return;
+    ended = true; clear();
+    document.removeEventListener('keydown', keys, true);
+    document.documentElement.classList.remove('rv-lock');
+    revealOpen = null;
+    if(quiet){ root.remove(); return; }
+    root.classList.add('is-out');
+    setTimeout(() => root.remove(), 380);
+  }
+  function finish(){ close(false); openCard(); }
+  // Scrolling a long scene (on a phone) means you're reading it, so it waits for Next.
+  stage.addEventListener('wheel', hold, { passive: true });
+  stage.addEventListener('touchmove', hold, { passive: true });
+  revealOpen = { close };
+  document.addEventListener('keydown', keys, true);
+  document.documentElement.classList.add('rv-lock');
+  document.body.appendChild(root);
+  go(0);
+  setTimeout(() => nextBtn.focus({ preventScroll: true }), 50);
 }
 
 // The test is long, so your answers are kept on this device and you can pick it up where you left off.
@@ -3963,6 +4263,7 @@ async function finishAssessment(position, viewText){
   clearSavedQuiz();
   state.quiz.active = false;
   state.tab = signedIn ? 'compass' : 'assessment';   // the compass page shows the three maps with your result card beside them
+  if(signedIn) startResultsReveal();   // a short run through the results first, ending on the card
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
