@@ -2825,12 +2825,14 @@ const okPos = (p) => p && ['economic', 'political', 'social'].every(k => p[k] &&
 // An ideology's symbol, chosen and saved by the server (only our own storage is accepted).
 const SYMBOL_URL = /^https:\/\/bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/object\/public\/portraits\/symbols\/[\w.-]+\.(png|jpg)$/;
 const okSymbol = (u) => typeof u === 'string' && SYMBOL_URL.test(u) ? u : null;
-// Cards made before the server picked portraits and symbols ask for them once, then keep them.
-let artAsked = false;
+// Cards made before the server picked portraits and symbols ask for them, then keep them.
+// The server keeps picking after it answers, so a card still missing some asks again a little later.
+let artTries = 0, artBusy = false;
 async function refreshCardArt(){
   const m = savedCardMatches();
-  if(artAsked || !m || m.art || !state.user || state.user.isGuest) return;
-  artAsked = true;
+  if(artBusy || artTries >= 4 || !m || m.art || !state.user || state.user.isGuest) return;
+  artBusy = true;
+  artTries++;
   try {
     const { data } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body: { mode: 'art',
       leaders: m.leaders.map(l => ({ name: l.name, era: l.era })), ideologies: m.ideologies.map(i => i.name) } });
@@ -2850,6 +2852,11 @@ async function refreshCardArt(){
     try { localStorage.setItem(cardMatchKey(), JSON.stringify(cur)); } catch(e){}
     render();
   } catch(e){ console.warn('card art unavailable', e); }
+  finally {
+    artBusy = false;
+    const now = savedCardMatches();
+    if(now && !now.art && artTries < 4) setTimeout(refreshCardArt, 30000);
+  }
 }
 const MATCH_PHOTO = /^https:\/\/((upload|thumb)\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/|bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/object\/public\/portraits\/)/;
 async function fetchCardMatches(){
