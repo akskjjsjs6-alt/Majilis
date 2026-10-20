@@ -3281,10 +3281,11 @@ function renderResultOverlay(){
 }
 
 /* ================= THE RESULTS REVEAL (after the test, before the card) =================
-   A short run through your results that plays by itself, one scene at a time: what sets you apart, the nations,
-   the leaders and the ideologies closest to you, and then the card. It sits outside the page, so the page redrawing
-   underneath it never restarts its animations. Everything it shows comes from the AI's matches: the leaders, nations
-   and ideologies it placed on the three maps are the crowd you're compared with. */
+   A short animation through your results that plays by itself: the Majlis M draws itself, then what sets you
+   apart, the nations, the leaders and the ideologies closest to you, and finally the card spins up and hands over to
+   the card window. It sits outside the page, so the page redrawing underneath never restarts it. Everything it
+   shows comes from the AI's matches: the leaders, nations and ideologies it placed on the three maps are the crowd
+   you're compared with. */
 const RV_MAPS = ['political', 'social', 'economic'];
 const RV_DIM = { political: 'POLITICALLY', social: 'SOCIALLY', economic: 'ECONOMICALLY' };
 const RV_MAP_NAME = { political: 'Political', social: 'Social', economic: 'Economic' };
@@ -3335,133 +3336,166 @@ function rvByDimension(list, top){
   }).filter(Boolean);
 }
 
-// Small pieces: a number that counts up, a ring that fills, a bar with you (and the crowd's middle) on it.
+// Small pieces: words that rise in one by one, a number that counts up, a ring that fills, a bar with you (and the
+// crowd's middle) on it. Delays are written in ms from the moment the scene comes on, and all go through rvD, which
+// sets the pace of the whole reveal (about 25 seconds of animation from start to card).
+const RV_PACE = 0.8;
+const rvD = (ms) => Math.round((ms || 0) * RV_PACE);
+function rvWords(text, delay, step, cls){
+  return el('span',{class:'rv-words' + (cls ? ' ' + cls : '')}, String(text).split(' ').map((w, i) =>
+    el('span',{class:'rv-w', style:'--d:' + rvD(delay + i * (step || 70)) + 'ms'}, w + ' ')));
+}
 function rvCount(to, suffix, delay){
   const n = el('span',{class:'rv-num'}, '0' + (suffix || ''));
   setTimeout(() => {
-    const t0 = performance.now(), dur = 900;
+    const t0 = performance.now(), dur = 1100;
     const step = (t) => { const k = Math.min(1, (t - t0) / dur); n.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))) + (suffix || ''); if(k < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
-  }, delay || 0);
+  }, rvD(delay));
   return n;
 }
 function rvRing(pct, delay){
   const c = 2 * Math.PI * 44;
-  return el('div',{class:'rv-ring', style:'--d:' + (delay || 0) + 'ms'},[
+  return el('div',{class:'rv-ring rv-in rv-in--pop', style:'--d:' + rvD(delay) + 'ms'},[
     el('span',{class:'rv-ring__svg', html:'<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="rv-ring__track" cx="50" cy="50" r="44"/><circle class="rv-ring__arc" cx="50" cy="50" r="44" style="stroke-dasharray:' + c.toFixed(1) + ';--c:' + c.toFixed(1) + ';--off:' + (c * (1 - pct / 100)).toFixed(1) + '"/></svg>'}),
-    el('div',{class:'rv-ring__in'},[el('b',{}, rvCount(pct, '%', delay)), el('small',{}, 'MATCH')]),
+    el('div',{class:'rv-ring__in'},[el('b',{}, rvCount(pct, '%', (delay || 0) + 200)), el('small',{}, 'MATCH')]),
   ]);
 }
-function rvSlider(r, showMedian, delay){
-  const from = showMedian ? r.med : 50, lo = Math.min(r.v, r.med), hi = Math.max(r.v, r.med);
-  const dot = el('i',{class:'rv-bar__you', style:'left:' + from + '%'});
-  setTimeout(() => { dot.style.left = r.v + '%'; }, (delay || 0) + 60);
-  return el('div',{class:'rv-bar-wrap'},[
+function rvSlider(r, delay){
+  const lo = Math.min(r.v, r.med), hi = Math.max(r.v, r.med);
+  const dot = el('i',{class:'rv-bar__you', style:'left:' + r.med + '%'});
+  setTimeout(() => { dot.style.left = r.v + '%'; }, rvD((delay || 0) + 400));
+  return el('div',{class:'rv-bar-wrap rv-in', style:'--d:' + rvD(delay) + 'ms'},[
     el('div',{class:'rv-bar'},[
-      showMedian ? el('i',{class:'rv-bar__span', style:'left:' + lo + '%;width:' + (hi - lo) + '%;--d:' + ((delay || 0) + 500) + 'ms'}) : null,
-      showMedian ? el('i',{class:'rv-bar__med', style:'left:' + r.med + '%'}) : null,
+      el('i',{class:'rv-bar__span', style:'left:' + lo + '%;width:' + (hi - lo) + '%;--d:' + rvD((delay || 0) + 700) + 'ms'}),
+      el('i',{class:'rv-bar__med', style:'left:' + r.med + '%'}),
       dot,
     ]),
     el('div',{class:'rv-bar__ends'},[el('span',{}, r.lo), el('span',{}, r.hi)]),
   ]);
 }
-// Present-day / historical (or modern / historical) tabs; the scene flips to the second one halfway through by itself.
+const rvIn = (d, cls, kind) => ({ class: 'rv-in' + (kind ? ' rv-in--' + kind : '') + (cls ? ' ' + cls : ''), style: '--d:' + rvD(d) + 'ms' });
+// Two big switches (present-day / historical, modern / historical). A pill slides between them and the match below
+// turns over to the other era.
 function rvEraTabs(tabs, paint){
-  const box = el('div',{class:'rv-tabs', role:'group'});
-  const btns = tabs.map(t => el('button',{type:'button', class:'rv-tabs__b', onclick:()=>{ box._hold && box._hold(); pick(t.key); }}, t.label));
-  const pick = (key) => { btns.forEach((b, i) => { b.classList.toggle('is-on', tabs[i].key === key); b.setAttribute('aria-pressed', String(tabs[i].key === key)); }); paint(key); };
+  const box = el('div',{class:'rv-tabs', role:'group', 'aria-label':'Which era'});
+  box.appendChild(el('i',{class:'rv-tabs__ind', 'aria-hidden':'true'}));
+  let cur = null;
+  const btns = tabs.map((t, i) => el('button',{type:'button', class:'rv-tabs__b', onclick:()=>pick(t.key)}, t.label));
+  const pick = (key) => {
+    if(key === cur) return;
+    const first = cur === null;
+    cur = key;
+    const k = tabs.findIndex(t => t.key === key);
+    box.style.setProperty('--k', k);
+    btns.forEach((b, i) => { b.classList.toggle('is-on', i === k); b.setAttribute('aria-pressed', String(i === k)); });
+    paint(key, !first);
+  };
   btns.forEach(b => box.appendChild(b));
   box._pick = pick;
   return box;
 }
-const rvIn = (d, cls) => ({ class: 'rv-in' + (cls ? ' ' + cls : ''), style: '--d:' + d + 'ms' });
 
-// Scene 1: what sets you apart.
+// Opening: the Majlis M draws itself, then the title.
+function rvIntroScene(){
+  return { title: 'Intro', ms: 3200, auto: true, node: el('div',{class:'rv-scene rv-scene--intro'},[el('div',{class:'rv-scene__in'},[
+    el('div',{class:'rv-logo', html: M_SVG(10)}),
+    el('h2',{class:'rv-title rv-title--xl'}, rvWords('Your results are in', 500, 110)),
+    el('p',rvIn(1300, 'rv-lede'), 'The AI read every answer. Here\'s where you stand.'),
+  ])]) };
+}
+
+// What sets you apart.
 function rvApartScene(m){
   const a = rvApart(m);
   if(!a) return null;
   const { unusual: u, typical: t, tension } = a, n = a.pool.length;
   const near = Math.abs(t.v - t.med);
   const tags = tension ? tension.names.slice(0, 3) : [];
-  const node = el('div',{class:'rv-scene'},[
+  return { title: 'What sets you apart', ms: rvD(8900), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
     el('div',{class:'rv-head'},[
-      el('h2',{class:'rv-title rv-in', style:'--d:0ms'}, 'What sets you apart'),
-      el('div',rvIn(200, 'rv-legend'),[el('span',{},[el('i',{class:'rv-legend__med'}), 'Their median']), el('span',{},[el('i',{class:'rv-legend__you'}), 'You'])]),
+      el('h2',{class:'rv-title'}, rvWords('What sets you apart', 0, 90)),
+      el('div',rvIn(400, 'rv-legend'),[el('span',{},[el('i',{class:'rv-legend__med'}), 'Their median']), el('span',{},[el('i',{class:'rv-legend__you'}), 'You'])]),
     ]),
     el('div',{class:'rv-apart'},[
-      el('div',rvIn(300, 'rv-box rv-box--hi'),[
+      el('div',rvIn(500, 'rv-box rv-box--hi', 'zoom'),[
         el('div',{class:'rv-box__top'},[el('span',{class:'rv-pill'}, 'Your most unusual position'), el('b',{class:'rv-box__axis'}, RV_MAP_NAME[u.map] + ': ' + u.lo + ' – ' + u.hi)]),
-        el('div',{class:'rv-stat'},[el('div',{class:'rv-stat__big'}, rvCount(u.share, '%', 700)),
-          el('p',{}, 'of the ' + n + ' ' + a.crowd + ' the AI placed around you lean less toward ' + u.pole.toLowerCase() + ' than you do.')]),
-        rvSlider(u, true, 900),
+        el('div',{class:'rv-stat'},[el('div',rvIn(900, 'rv-stat__big', 'punch'), rvCount(u.share, '%', 1000)),
+          el('p',rvIn(1300), 'of the ' + n + ' ' + a.crowd + ' the AI placed around you lean less toward ' + u.pole.toLowerCase() + ' than you do.')]),
+        rvSlider(u, 1500),
       ]),
-      el('div',rvIn(1400, 'rv-box'),[
+      el('div',rvIn(3600, 'rv-box', 'right'),[
         el('span',{class:'rv-pill rv-pill--soft'}, 'Your most typical position'),
         el('b',{class:'rv-box__axis rv-box__axis--own'}, RV_MAP_NAME[t.map] + ': ' + t.lo + ' – ' + t.hi),
-        el('div',{class:'rv-box__big'}, near <= 4 ? 'At the median' : near <= 10 ? 'Near the median' : 'Closest to the crowd'),
+        el('div',{class:'rv-box__big'}, rvWords(near <= 4 ? 'At the median' : near <= 10 ? 'Near the median' : 'Closest to the crowd', 3900, 90)),
         el('p',{class:'rv-box__p'}, near <= 10 ? 'This is common ground. You lean no further toward ' + t.lo.toLowerCase() + ' or ' + t.hi.toLowerCase() + ' than most of them do.'
           : 'Even here you stand out a little, but this is where you sit closest to most of them.'),
-        rvSlider(t, true, 1600),
+        rvSlider(t, 4300),
       ]),
-      tension ? el('div',rvIn(2600, 'rv-box rv-box--wide'),[
+      tension ? el('div',rvIn(6600, 'rv-box rv-box--wide', 'rise'),[
         el('div',{class:'rv-tension'},[
           el('span',{class:'rv-pill'}, 'Your internal tension'),
-          el('div',{class:'rv-tension__pair'},[el('b',{class:'rv-chip rv-chip--a'}, tension.a.pole), el('span',{}, '+'), el('b',{class:'rv-chip rv-chip--b'}, tension.b.pole)]),
+          el('div',{class:'rv-tension__pair'},[el('b',rvIn(7000, 'rv-chip rv-chip--a', 'from-left'), tension.a.pole), el('span',rvIn(7450, '', 'pop'), '+'), el('b',rvIn(7000, 'rv-chip rv-chip--b', 'from-right'), tension.b.pole)]),
         ]),
         el('div',{class:'rv-tension__who'},[
-          el('b',{}, tension.names.length ? 'Only ' + tension.names.length + ' of ' + n + ' hold both of these positions.' : 'None of the ' + n + ' hold both of these positions.'),
-          tags.length ? el('div',{class:'rv-tags'},[...tags.map((x, i) => el('span',rvIn(3000 + i * 150, 'rv-tag'), x)),
-            tension.names.length > 3 ? el('span',rvIn(3450, 'rv-tag'), '+' + (tension.names.length - 3)) : null]) : null,
+          el('b',rvIn(7700), tension.names.length ? 'Only ' + tension.names.length + ' of ' + n + ' hold both of these positions.' : 'None of the ' + n + ' hold both of these positions.'),
+          tags.length ? el('div',{class:'rv-tags'},[...tags.map((x, i) => el('span',rvIn(8100 + i * 160, 'rv-tag', 'pop'), x)),
+            tension.names.length > 3 ? el('span',rvIn(8100 + tags.length * 160, 'rv-tag', 'pop'), '+' + (tension.names.length - 3)) : null]) : null,
         ]),
       ]) : null,
     ]),
-  ]);
-  return { node, ms: 11000 };
+  ])]) };
 }
 
-// The big match at the top of the nations and leaders scenes, and the three "also close" boxes under it.
-function rvHero(pic, name, sub, pct, about){
-  return el('div',rvIn(150, 'rv-hero'),[
+// The big match at the top of the nations, leaders and ideologies scenes, and the boxes dealt out under it.
+function rvHero(pic, name, sub, pct, about, kicker){
+  return el('div',rvIn(200, 'rv-hero', 'zoom'),[
     el('div',{class:'rv-hero__main'},[
-      el('div',{class:'rv-hero__pic'}, pic),
-      el('div',{class:'rv-hero__txt'},[el('h3',{}, name), sub ? el('p',{}, sub) : null]),
-      rvRing(pct, 450),
+      el('div',rvIn(300, 'rv-hero__pic', 'pic'), pic),
+      el('div',{class:'rv-hero__txt'},[kicker ? el('div',rvIn(500, 'rv-kicker'), kicker) : null,
+        el('h3',{}, rvWords(name, 550, 80)), sub ? el('p',rvIn(900), sub) : null]),
+      rvRing(pct, 800),
     ]),
-    about ? el('div',{class:'rv-hero__about'}, about) : null,
+    about ? el('div',rvIn(1500, 'rv-hero__about'), about) : null,
   ]);
 }
 function rvAlso(rows, picFor){
   if(!rows.length) return null;
   return el('div',{class:'rv-also'},[
-    el('div',rvIn(900, 'rv-kicker'), 'ALSO CLOSE, BY DIMENSION'),
-    el('div',{class:'rv-also__row'}, rows.map((r, i) => el('div',rvIn(1100 + i * 180, 'rv-also__box'),[
+    el('div',rvIn(1900, 'rv-kicker'), 'ALSO CLOSE, BY DIMENSION'),
+    el('div',{class:'rv-also__row'}, rows.map((r, i) => el('div',rvIn(2100 + i * 220, 'rv-also__box', 'deal'),[
       el('div',{class:'rv-also__pic'}, picFor(r.item)),
       el('div',{class:'rv-also__dim'}, RV_DIM[r.dim]),
-      el('div',{class:'rv-also__foot'},[el('b',{}, r.item.name), el('span',{}, r.pct + '%')]),
+      el('div',{class:'rv-also__foot'},[el('b',{}, r.item.name), el('span',{}, rvCount(r.pct, '%', 2300 + i * 220))]),
     ]))),
   ]);
 }
-// Scenes 2 and 3 share their shape: tabs, the closest match, then the closest on each map.
+// Nations and leaders share their shape: the era switches, the closest match, then the closest on each map.
 function rvEraScene(title, tabs, paintEra){
   const body = el('div',{class:'rv-era-body'});
-  const paint = (key) => { body.innerHTML = ''; body.appendChild(paintEra(key)); };
+  const paint = (key, turn) => {
+    const pane = el('div',{class:'rv-era-pane' + (turn ? ' is-turn' : '')}, paintEra(key));
+    body.innerHTML = '';
+    body.appendChild(pane);
+  };
   const sw = rvEraTabs(tabs, paint);
-  const node = el('div',{class:'rv-scene'},[
-    el('div',{class:'rv-head'},[el('h2',{class:'rv-title rv-in', style:'--d:0ms'}, title), tabs.length > 1 ? el('div',rvIn(150), sw) : null]),
+  const node = el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
+    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords(title, 0, 90)),
+      tabs.length > 1 ? el('div',rvIn(300, 'rv-tabs-wrap', 'pop'),[sw, el('small',{class:'rv-tabs__hint'}, 'Tap to switch')]) : null]),
     body,
-  ]);
+  ])]);
   sw._pick(tabs[0].key);
-  return { node, ms: tabs.length > 1 ? 12000 : 7000, flip: tabs.length > 1 ? () => sw._pick(tabs[1].key) : null, tabs: sw };
+  return { title, ms: rvD(3300), node };
 }
 function rvNationScene(m){
   const eras = [{ key: 'modern', label: 'Present-day', list: m.countries || [] }, { key: 'historical', label: 'Historical', list: m.oldCountries || [] }].filter(e => e.list.length);
   if(!eras.length) return null;
   return rvEraScene('Nations closest to you', eras, (key) => {
     const list = eras.find(e => e.key === key).list, top = list[0];
-    return el('div',{},[
+    return [
       rvHero(el('span',{class:'rv-flag'}, nationFlag(top)), top.name, key === 'modern' ? 'Closest nation today' : 'Closest historical state · before 1900', top.pct),
       rvAlso(rvByDimension(list, top), (c) => el('span',{class:'rv-flag rv-flag--sm'}, nationFlag(c))),
-    ]);
+    ];
   });
 }
 function rvFigureScene(m){
@@ -3469,10 +3503,10 @@ function rvFigureScene(m){
   if(!eras.length) return null;
   return rvEraScene('Figures closest to you', eras, (key) => {
     const top = leaderFor(m, key), list = m.leaders.filter(l => l.era === key);
-    return el('div',{},[
+    return [
       rvHero(portraitNode(top.name, top.photo), top.name, [top.label, key === 'modern' ? '1900 – today' : 'before 1900'].filter(Boolean).join(' · '), top.pct, top.why),
       rvAlso(rvByDimension(list, top), (l) => portraitNode(l.name, l.photo)),
-    ]);
+    ];
   });
 }
 // Where an ideology sits economically, as a plain tag.
@@ -3485,97 +3519,107 @@ function rvIdeologyScene(m){
   const ideos = m.ideologies || [];
   if(!ideos.length) return null;
   const top = ideos[0], side = (i) => { const s = rvSide(i); return s ? el('span',{class:'rv-side rv-side--' + s.toLowerCase().replace('far-', 'far')}, s) : null; };
-  const node = el('div',{class:'rv-scene'},[
-    el('div',{class:'rv-head'},[el('h2',{class:'rv-title rv-in', style:'--d:0ms'}, 'Your ideologies')]),
-    el('div',rvIn(150, 'rv-hero'),[
-      el('div',{class:'rv-hero__main'},[
-        el('div',{class:'rv-hero__pic rv-hero__pic--emb'}, ideologyEmblem(top.name, top.symbol)),
-        el('div',{class:'rv-hero__txt'},[el('div',{class:'rv-kicker'}, 'CLOSEST IDEOLOGY'), el('h3',{}, top.name), top.blurb ? el('p',{}, top.blurb) : null]),
-        rvRing(top.pct, 450),
-      ]),
-    ]),
+  return { title: 'Your ideologies', ms: rvD(3700), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
+    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your ideologies', 0, 90))]),
+    rvHero(el('span',{class:'rv-emb-spin'}, ideologyEmblem(top.name, top.symbol)), top.name, top.blurb, top.pct, null, 'CLOSEST IDEOLOGY'),
     ideos.length > 1 ? el('div',{class:'rv-also'},[
-      el('div',rvIn(900, 'rv-kicker'), 'OTHER IDEOLOGIES'),
-      el('div',{class:'rv-ideos'}, ideos.slice(1, 4).map((i, k) => el('div',rvIn(1100 + k * 200, 'rv-ideo' + (rvSide(i) === 'Center' ? ' rv-ideo--mid' : '')),[
-        el('div',{class:'rv-ideo__top'},[side(i), el('b',{}, i.pct + '%')]),
+      el('div',rvIn(1900, 'rv-kicker'), 'OTHER IDEOLOGIES'),
+      el('div',{class:'rv-ideos'}, ideos.slice(1, 4).map((i, k) => el('div',rvIn(2100 + k * 260, 'rv-ideo' + (rvSide(i) === 'Center' ? ' rv-ideo--mid' : ''), 'deal'),[
+        el('div',{class:'rv-ideo__top'},[side(i), el('b',{}, rvCount(i.pct, '%', 2300 + k * 260))]),
         el('h4',{}, i.name),
         i.blurb ? el('p',{}, i.blurb) : null,
       ]))),
     ]) : null,
-  ]);
-  return { node, ms: 9000 };
+  ])]) };
+}
+// Closing: your card spins up out of the scene, a light sweeps across it, and it hands over to the card window.
+function rvCardScene(){
+  const card = buildResultCard();
+  if(!card) return null;
+  return { title: 'Your card', ms: 3000, auto: true, node: el('div',{class:'rv-scene rv-scene--card'},[el('div',{class:'rv-scene__in'},[
+    el('h2',{class:'rv-title rv-title--c'}, rvWords('Here\'s your card', 0, 100)),
+    el('div',{class:'rv-cardfly'},[card, el('i',{class:'rv-cardfly__shine', 'aria-hidden':'true'})]),
+  ])]) };
 }
 
-// The player: progress bars along the top, Back / Next / Skip, arrow keys and Escape. Interacting with a scene
-// (switching its tab, scrolling it) holds it until you press Next. It ends on the card.
+// The player: the opening plays and moves on by itself; each results scene plays its entrance and then stays until
+// you press Next (or the arrow keys), with the camera pushing through to the next scene over a background that keeps
+// drifting. The dots jump to a scene, Back goes back, Escape or "Skip" goes straight to the card. The closing card
+// scene hands over to the card window by itself.
 let revealOpen = null;
 function startResultsReveal(){
   const m = savedCardMatches();
   if(revealOpen) revealOpen.close(true);
   const openCard = () => { state.showCard = true; render(); };
   if(!m || !state.user || !state.user.compass) return openCard();
-  const makers = [rvApartScene, rvNationScene, rvFigureScene, rvIdeologyScene];
-  const scenes = makers.map(f => f(m));   // empty ones are passed over
-  if(!scenes.some(Boolean)) return openCard();
-  let i = -1, timer = null, flipTimer = null, ended = false;
-  const bars = makers.map(() => el('i',{class:'rv-prog__seg'}, el('b',{})));
+  // Each scene is built once here (empty ones are left out) and built again only when you go back to it.
+  const parts = [rvIntroScene, rvApartScene, rvNationScene, rvFigureScene, rvIdeologyScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
+  if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
+  const titles = parts.map(x => x.s.title);
+  let ch = -1, scene = null, ended = false, readyTimer = null;
+
+  const dots = el('div',{class:'rv-dots', role:'group', 'aria-label':'Parts of the reveal'}, parts.map((x, k) => x.s.auto ? null :
+    el('button',{type:'button', class:'rv-dot', 'aria-label': titles[k], title: titles[k], onclick:()=>show(k)})));
+  const backBtn = el('button',{type:'button', class:'rv-back', 'aria-label':'Back', onclick:()=>back()}, '‹');
+  const nextBtn = el('button',{type:'button', class:'rv-next', onclick:()=>show(ch + 1)}, 'Next ›');
   const stage = el('div',{class:'rv-stage', 'aria-live':'polite'});
-  const backBtn = el('button',{type:'button', class:'rv-nav', 'aria-label':'Back', onclick:()=>go(i - 1)}, '‹');
-  const nextBtn = el('button',{type:'button', class:'rv-nav rv-nav--next', onclick:()=>go(i + 1)}, 'Next ›');
   const root = el('div',{class:'rv', role:'dialog', 'aria-modal':'true', 'aria-label':'Your results'},[
-    el('div',{class:'rv-shell'},[
-      el('div',{class:'rv-top'},[el('div',{class:'rv-prog'}, bars), el('button',{type:'button', class:'rv-skip', onclick:()=>finish()}, 'Skip to card')]),
-      stage,
-      el('div',{class:'rv-foot'},[backBtn, nextBtn]),
-    ]),
+    el('div',{class:'rv-bg', 'aria-hidden':'true'},[el('i',{class:'rv-blob rv-blob--a'}), el('i',{class:'rv-blob rv-blob--b'}), el('i',{class:'rv-blob rv-blob--c'}), el('i',{class:'rv-gridbg'})]),
+    el('div',{class:'rv-top'},[el('button',{type:'button', class:'rv-skip', onclick:()=>finish()}, 'Skip to card ›')]),
+    stage,
+    el('div',{class:'rv-ctrl'},[backBtn, dots, nextBtn]),
   ]);
-  const clear = () => { clearTimeout(timer); clearTimeout(flipTimer); };
-  const hold = () => { clear(); root.classList.add('is-held'); };
-  function go(n){
-    while(n >= 0 && n < scenes.length && !scenes[n]) n += n > i ? 1 : -1;
-    if(n < 0) return;
-    if(n >= scenes.length) return finish();
-    clear(); root.classList.remove('is-held');
-    i = n;
-    // Going back to a scene draws it again, so its animations play from the start.
-    const fresh = scenes[i].seen ? makers[i](m) : scenes[i];
-    fresh.seen = true;
-    scenes[i] = fresh;
-    stage.innerHTML = '';
-    stage.appendChild(fresh.node);
-    stage.scrollTop = 0;
-    if(fresh.tabs) fresh.tabs._hold = hold;
-    bars.forEach((b, k) => { b.className = 'rv-prog__seg' + (k < i ? ' is-done' : k === i ? ' is-on' : ''); b.style.setProperty('--ms', fresh.ms + 'ms'); });
-    backBtn.disabled = !scenes.slice(0, i).some(Boolean);
-    nextBtn.textContent = scenes.slice(i + 1).some(Boolean) ? 'Next ›' : 'See your card ›';
-    if(fresh.flip) flipTimer = setTimeout(fresh.flip, fresh.ms * 0.5);
-    timer = setTimeout(() => go(i + 1), fresh.ms);
+  // Back stops at the first results scene: the opening only plays once.
+  function back(){ const k = ch - 1; if(k >= 0 && parts[k].f !== rvIntroScene) show(k); }
+  function show(k){
+    if(ended) return;
+    if(k >= parts.length) return finish();
+    clearTimeout(readyTimer);
+    ch = k;
+    const next = parts[k].s || parts[k].f(m);
+    parts[k].s = null;
+    const old = scene;
+    if(old){ old.node.classList.add('is-out'); setTimeout(() => old.node.remove(), 900); }
+    scene = next;
+    stage.appendChild(next.node);
+    root.dataset.ch = String(k);
+    root.classList.toggle('is-auto', !!next.auto);
+    [...dots.children].forEach(d => d.classList.toggle('is-on', d.title === titles[k]));
+    backBtn.disabled = !(k > 0 && parts[k - 1].f !== rvIntroScene);
+    const after = titles[k + 1] || '';
+    nextBtn.textContent = !after || after === 'Your card' ? 'See your card ›' : 'Next: ' + after.replace(/ closest to you$/, '') + ' ›';
+    nextBtn.classList.remove('is-ready');
+    // The opening and the card move on by themselves; every other scene waits for you once it has played.
+    readyTimer = setTimeout(() => {
+      if(parts[k].f === rvCardScene) return handOver();
+      if(next.auto) return show(k + 1);
+      nextBtn.classList.add('is-ready');
+    }, next.ms);
   }
   const keys = (e) => {
-    const act = { ArrowRight: () => go(i + 1), ArrowLeft: () => go(i - 1), Escape: finish }[e.key];
+    const act = { ArrowRight: () => show(ch + 1), ArrowLeft: back, Escape: finish }[e.key];
     if(!act) return;
     e.preventDefault(); e.stopPropagation();
     act();
   };
   function close(quiet){
     if(ended) return;
-    ended = true; clear();
+    ended = true; clearTimeout(readyTimer);
     document.removeEventListener('keydown', keys, true);
     document.documentElement.classList.remove('rv-lock');
     revealOpen = null;
     if(quiet){ root.remove(); return; }
     root.classList.add('is-out');
-    setTimeout(() => root.remove(), 380);
+    setTimeout(() => root.remove(), 650);
   }
-  function finish(){ close(false); openCard(); }
-  // Scrolling a long scene (on a phone) means you're reading it, so it waits for Next.
-  stage.addEventListener('wheel', hold, { passive: true });
-  stage.addEventListener('touchmove', hold, { passive: true });
+  // The card window opens underneath and the reveal fades away over it.
+  function handOver(){ if(ended) return; openCard(); close(false); }
+  const finish = handOver;
   revealOpen = { close };
   document.addEventListener('keydown', keys, true);
   document.documentElement.classList.add('rv-lock');
   document.body.appendChild(root);
-  go(0);
+  show(0);
   setTimeout(() => nextBtn.focus({ preventScroll: true }), 50);
 }
 
