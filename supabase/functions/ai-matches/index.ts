@@ -7,6 +7,7 @@
 // Photos and flags are fetched here on the server and sent as embedded images, so the page does not depend on the
 // visitor's browser reaching Wikipedia. If a photo cannot be embedded, its link is still sent.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { pickPortrait, savedPortraits, keyOf } from './portraits.ts';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 // Same fallback order as secure-actions: if the first model is busy, try the next.
@@ -303,6 +304,33 @@ async function cardMode(b: any) {
     ]),
     new Promise((done) => setTimeout(done, 8000)),
   ]);
+  // Portraits chosen by the automatic picker (portraits.ts) replace the plain Wikipedia photo. A leader seen for the
+  // first time is judged now: the closest leader of each era is waited for (up to 25 s, while the page shows its
+  // loading screen), the rest are judged in the background for the next card.
+  // Only pages that accept saved portraits ask for them (older pages only take Wikipedia links).
+  if (b.portraits) try {
+    const shown = ['modern', 'historical'].map((era) => leaders.find((l: any) => l.era === era)).filter(Boolean);
+    let saved = await savedPortraits(wanted.map((l: any) => l.name));
+    const missing = wanted.filter((l: any) => !saved.has(keyOf(l.name)));
+    const now = missing.filter((l: any) => shown.includes(l));
+    const later = missing.filter((l: any) => !shown.includes(l));
+    if (later.length) {
+      const bg = Promise.all(later.map((l: any) => pickPortrait(l.name).catch(() => {})));
+      (globalThis as any).EdgeRuntime?.waitUntil?.(bg);
+    }
+    if (now.length) {
+      await Promise.race([Promise.all(now.map((l: any) => pickPortrait(l.name).catch(() => {}))), new Promise((done) => setTimeout(done, 25000))]);
+      saved = await savedPortraits(wanted.map((l: any) => l.name));
+    }
+    await Promise.all(wanted.map(async (l: any) => {
+      const p = saved.get(keyOf(l.name));
+      if (!p) return;
+      const small = await fetchImage(p.small, 250000);
+      l.photoUrl = p.big;
+      l.photo = small.data || p.small;
+      l.picked = true;
+    }));
+  } catch (e) { console.warn('portraits', String(e).slice(0, 120)); }
   console.log(`card: AI ${tAI}ms, photos ${Date.now() - t0 - tAI}ms, ${wanted.filter((l: any) => l.photo).length}/${wanted.length} photos, ${nations.oldCountries.slice(0, 3).filter((c: any) => c.flag).length}/${Math.min(3, nations.oldCountries.length)} old flags`);
   return json({ card: { leaders, countries: nations.countries, oldCountries: nations.oldCountries.slice(0, 3), ideologies: nations.ideologies } });
 }

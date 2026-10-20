@@ -2821,7 +2821,8 @@ function saveAnswersForAI(answers){
   try { localStorage.setItem(answersKey(), JSON.stringify(answers.filter(a => a.section === 'compass').map(a => [a.q, a.choice]))); } catch(e){}
 }
 const okPos = (p) => p && ['economic', 'political', 'social'].every(k => p[k] && typeof p[k].x === 'number' && typeof p[k].y === 'number');
-const MATCH_PHOTO = /^https:\/\/((upload|thumb)\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/)/;
+// Wikipedia/Commons photos, and the portraits the server chose and saved in our own storage.
+const MATCH_PHOTO = /^https:\/\/((upload|thumb)\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/|bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/object\/public\/portraits\/)/;
 async function fetchCardMatches(){
   const u = state.user;
   if(!u || u.isGuest || !u.id || !u.compass || state.cardMatches.loading) return;
@@ -2837,7 +2838,7 @@ async function fetchCardMatches(){
   const axes = allAxes(u).slice(6).map(r => r.lo + ' ' + (100 - r.v) + '% / ' + r.hi + ' ' + r.v + '%').join('\n');
   const extra = [u.archetype && !/not yet/i.test(u.archetype) ? 'Philosophy: ' + u.archetype : '',
     u.religion && u.religion !== 'Prefer not to say' ? 'Religion: ' + u.religion + (u.denomination ? ', ' + u.denomination : '') : ''].filter(Boolean).join('. ');
-  const body = { mode: 'card', maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') };
+  const body = { mode: 'card', portraits: 1, maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') };
   let lastErr = null;
   // A busy AI is the usual reason for a miss, so try up to three times before showing "Try again".
   for(let attempt = 0; attempt < 3; attempt++){
@@ -2981,7 +2982,7 @@ function bigPortrait(url, w = 1920){
 }
 const cutSource = (l) => l && (l.photoUrl ? (bigPortrait(l.photoUrl) || l.photoUrl) : l.photo) || null;
 const cardTheme = () => THEMES.includes(state.theme) ? state.theme : 'dark';
-// Waits (up to 12 seconds) for everything the card draws: the background portrait, the cut-outs of the leaders that
+// Waits (up to 25 seconds) for everything the card draws: the background portrait, the cut-outs of the leaders that
 // pop out of it, and the theme's background scene, so the card appears complete.
 function preloadCardPortrait(){
   const m = savedCardMatches();
@@ -2993,7 +2994,7 @@ function preloadCardPortrait(){
     jobs.push(who.photoUrl ? load(bigPortrait(who.photoUrl) || who.photoUrl) : who.photo ? null : new Promise(done => loadPortrait(who.name, (url) => load(url).then(done))));
     if(window.cardCutout) pair.forEach(l => { jobs.push(cardCutout(cutSource(l))); jobs.push(cardCutout(l.photo)); });
   }
-  return Promise.race([Promise.all(jobs), new Promise(done => setTimeout(done, 12000))]);
+  return Promise.race([Promise.all(jobs), new Promise(done => setTimeout(done, 25000))]);
 }
 // Asks for a cut-out (or a scene) once, and draws the card again when it is ready.
 const cardArtAsked = new Set();
@@ -3023,7 +3024,7 @@ function poppingPortrait(f){
     el('div',{class:'rc9-popc__head'}, el('i',{style: geo(cut.url, -0.5, -1, 2, 1.5)})),
   ]);
 }
-const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|thumb\.wikimedia\.org|commons\.wikimedia\.org)\/[^"'()\s\\]+)$/;
+const SAFE_BG = /^(data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+|https:\/\/(upload\.wikimedia\.org|thumb\.wikimedia\.org|commons\.wikimedia\.org|bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/object\/public\/portraits)\/[^"'()\s\\]+)$/;
 // Laid out on the sketch (864 x 1536): logo top left, "Your results" top right, the closest leader's portrait
 // behind everything, every axis in one tall panel on the left, three stacked panels on the right (leader, nation,
 // ideology) and the other ideologies in a wide panel along the bottom.
@@ -3555,7 +3556,7 @@ function renderAssessment(){
         { key: 'answers', label: 'Reading your answers', weight: 18, secs: 7 },
         { key: 'case', label: 'Grading your written case', weight: 14, secs: 7 },
         { key: 'save', label: 'Saving your compass', weight: 6, secs: 2 },
-        { key: 'leaders', label: 'Finding your closest leaders', note: 'the longest step, about 30 s', weight: 50, secs: 16 },
+        { key: 'leaders', label: 'Finding your closest leaders', note: 'the longest step, up to a minute', weight: 50, secs: 26 },
         { key: 'card', label: 'Building your result card', weight: 12, secs: 3 },
       ],
     }));
