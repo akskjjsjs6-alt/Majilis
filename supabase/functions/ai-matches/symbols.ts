@@ -13,7 +13,7 @@ const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 const UA = 'MajlisApp/1.0 (https://akskjjsjs6-alt.github.io/Majilis/; debate and reading site)';
 const BUCKET = 'portraits';
-const MAX_CANDIDATES = 10;
+const MAX_CANDIDATES = 12;
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 export const symbolKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 120);
@@ -91,6 +91,14 @@ async function candidates(name: string): Promise<Cand[]> {
     byFile.set(String(p.title).replace(/^File:/, ''), String(ii.thumburl));
   }
   for (const f of unique) { const t = byFile.get(f); if (t) out.push({ file: f, thumb: t }); }
+  // Most likely symbols first: files named as a flag, symbol, logo or emblem, or naming the ideology, then the rest.
+  const words = name.toLowerCase().replace(/\(.*?\)/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
+  const rank = (f: string) => {
+    const l = f.toLowerCase();
+    return (/flag|symbol|logo|emblem|torch|rose|fist|star|banner|icon/.test(l) ? 2 : 0) + (words.some((w) => l.includes(w.slice(0, 6))) ? 2 : 0)
+      + (/^flag of /.test(l) ? -2 : 0);
+  };
+  out.sort((a, b) => rank(b.file) - rank(a.file));
   return out.slice(0, MAX_CANDIDATES);
 }
 
@@ -112,7 +120,8 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
     + `(for example the rose, the red flag, the torch of liberty), or the logo of the party or movement most identified with it. `
     + `It must be a symbol, not a photo of people, a portrait, a map, a chart, a building or a document, and it must be about `
     + `this ideology (a country's national flag only if the ideology is about that one country). Prefer a clear, simple symbol `
-    + `that reads well when small. Give "best" (the index, or -1 if none of them fits), "kind", and a short reason.` }];
+    + `that reads well when small. A generic stock icon that is not specifically tied to this ideology (a plain ballot box, money, a `
+    + `gear, a book) does not count. Give "best" (the index, or -1 if none of them fits), "kind", and a short reason.` }];
   cands.forEach((c, i) => {
     parts.push({ text: `Picture ${i}: ${c.file}` });
     parts.push({ inline_data: { mime_type: 'image/png', data: images[i] } });
@@ -124,6 +133,7 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
         body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: JUDGE_SCHEMA, temperature: 0.1 } }),
         signal: AbortSignal.timeout(40000),
       });
+      if (r.status === 429 || r.status >= 500) { await new Promise((res) => setTimeout(res, 2500)); }
       if (!r.ok) { console.warn('symbol judge', model, r.status); continue; }
       const dd = await r.json();
       const j = JSON.parse(dd?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'null');
@@ -137,12 +147,13 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
 // Finds and saves the symbol for one ideology. Safe to call more than once: the row is claimed first.
 export async function pickSymbol(name: string): Promise<void> {
   const key = symbolKey(name);
-  const { data: row } = await admin.from('ideology_symbols').select('status, tries, updated_at').eq('key', key).maybeSingle();
+  const { data: row } = await admin.from('ideology_symbols').select('status, tries, updated_at, reason').eq('key', key).maybeSingle();
   if (row) {
     const age = Date.now() - new Date(row.updated_at).getTime();
     if (row.status === 'ok') return;
     if (row.status === 'pending' && age < 10 * 60_000) return;
-    if (row.status === 'none' && (row.tries >= 3 || age < 24 * 3600_000)) return;
+    const busy = /unavailable|did not load|error:/.test(row.reason ?? '');
+    if (row.status === 'none' && (row.tries >= 3 || age < (busy ? 120_000 : 24 * 3600_000))) return;
   }
   const tries = (row?.tries ?? 0) + 1;
   await admin.from('ideology_symbols').upsert({ key, name, status: 'pending', tries, updated_at: new Date().toISOString() });

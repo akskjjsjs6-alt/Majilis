@@ -279,6 +279,11 @@ async function stateFlagUrl(name: string): Promise<string | null> {
 // drawn icon. Anything seen for the first time is judged now: the closest leader of each era and every ideology on
 // the card are waited for (up to waitMs, while the page shows its loading screen); other leaders are judged in the
 // background for the next card.
+// Runs fn over the items, `width` at a time (the AI rejects too many at once).
+async function inTurns<T>(items: T[], width: number, fn: (x: T) => Promise<unknown>) {
+  const queue = [...items];
+  await Promise.all(Array.from({ length: Math.min(width, queue.length) }, async () => { while (queue.length) await fn(queue.shift()!); }));
+}
 async function addArt(leaders: any[], wanted: any[], ideologies: any[], waitMs: number) {
   try {
     const shown = ['modern', 'historical'].map((era) => leaders.find((l: any) => l.era === era)).filter(Boolean);
@@ -290,7 +295,7 @@ async function addArt(leaders: any[], wanted: any[], ideologies: any[], waitMs: 
     if (later.length) (globalThis as any).EdgeRuntime?.waitUntil?.(Promise.all(later.map((l: any) => pickPortrait(l.name).catch(() => {}))));
     const now = [
       ...missing.filter((l: any) => shown.includes(l)).map((l: any) => pickPortrait(l.name).catch(() => {})),
-      ...ideoNames.filter((n: string) => !symbols.has(symbolKey(n))).map((n: string) => pickSymbol(n).catch(() => {})),
+      inTurns(ideoNames.filter((n: string) => !symbols.has(symbolKey(n))), 3, (n: string) => pickSymbol(n).catch(() => {})),
     ];
     if (now.length) {
       const all = Promise.all(now);

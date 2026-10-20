@@ -137,6 +137,7 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
         body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: JUDGE_SCHEMA, temperature: 0.1 } }),
         signal: AbortSignal.timeout(45000),
       });
+      if (r.status === 429 || r.status >= 500) { await new Promise((res) => setTimeout(res, 2500)); }
       if (!r.ok) { console.warn('portrait judge', model, r.status); continue; }
       const d = await r.json();
       const j = JSON.parse(d?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'null');
@@ -161,12 +162,13 @@ async function upload(path: string, url: string): Promise<string | null> {
 // Picks and saves the portrait for one leader. Safe to call more than once: the row is claimed first.
 export async function pickPortrait(name: string): Promise<void> {
   const key = keyOf(name);
-  const { data: row } = await admin.from('leader_portraits').select('status, tries, updated_at').eq('key', key).maybeSingle();
+  const { data: row } = await admin.from('leader_portraits').select('status, tries, updated_at, reason').eq('key', key).maybeSingle();
   if (row) {
     const age = Date.now() - new Date(row.updated_at).getTime();
     if (row.status === 'ok') return;
     if (row.status === 'pending' && age < 10 * 60_000) return;              // someone else is on it
-    if (row.status === 'none' && (row.tries >= 3 || age < 24 * 3600_000)) return;
+    const busy = /unavailable|did not load|could not copy|error:/.test(row.reason ?? '');
+    if (row.status === 'none' && (row.tries >= 3 || age < (busy ? 120_000 : 24 * 3600_000))) return;
   }
   const tries = (row?.tries ?? 0) + 1;
   await admin.from('leader_portraits').upsert({ key, name, status: 'pending', tries, updated_at: new Date().toISOString() });
