@@ -2844,7 +2844,8 @@ async function refreshCardArt(){
       l.photo = typeof p.photo === 'string' && (p.photo.startsWith('data:image/') || MATCH_PHOTO.test(p.photo)) ? p.photo : p.photoUrl;
     });
     cur.ideologies.forEach(i => { const u = okSymbol((data.symbols || {})[i.name]); if(u) i.symbol = u; });
-    cur.art = 1;
+    // Done for good once every ideology on the card has a real symbol; otherwise asked again on the next visit.
+    cur.art = cur.ideologies.slice(0, 4).every(i => i.symbol || (window.cardIdeologyEmblem && cardIdeologyEmblem(i.name))) ? 1 : 0;
     cardMatchesMemory = cur;
     try { localStorage.setItem(cardMatchKey(), JSON.stringify(cur)); } catch(e){}
     render();
@@ -2885,8 +2886,8 @@ async function fetchCardMatches(){
           name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
         oldCountries: (card.oldCountries || []).filter(c => c && c.name).slice(0, 3).map(c => ({
           name: String(c.name).slice(0, 60), pct: c.pct, flag: typeof c.flag === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/.test(c.flag) ? c.flag : null })),
-        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct, symbol: okSymbol(i.symbol) })),
-        art: 1 };
+        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct, symbol: okSymbol(i.symbol) })) };
+      out.art = out.ideologies.slice(0, 4).every(i => i.symbol || (window.cardIdeologyEmblem && cardIdeologyEmblem(i.name))) ? 1 : 0;
       if(!out.leaders.some(l => l.era === 'modern') || !out.leaders.some(l => l.era === 'historical')) throw new Error('no leaders came back');
       await confirmCardPhotos(out);
       // Keep embedded photos only for the leaders that are shown (card and maps), so it fits in the device's storage.

@@ -13,7 +13,7 @@ const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 const UA = 'MajlisApp/1.0 (https://akskjjsjs6-alt.github.io/Majilis/; debate and reading site)';
 const BUCKET = 'portraits';
-const MAX_CANDIDATES = 12;
+const MAX_CANDIDATES = 8;
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
 export const symbolKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 120);
@@ -54,7 +54,7 @@ function b64(buf: Uint8Array): string {
 // Wikipedia's own interface pictures and other files that are never the ideology's symbol.
 const SKIP = /commons-logo|wiktionary|wikiquote|wikibooks|wikisource|wikinews|wikiversity|wikidata|wikimedia|symbol category class|emblem-money|question[_ ]book|edit-clear|ambox|padlock|portal|crystal[_ ]clear|nuvola|text[_ ]document|folder|speakerlink|sound-icon|disambig|stub|ballot|map\b|locator|population|chart|graph|diagram|signature/i;
 
-type Cand = { file: string; thumb: string };
+type Cand = { file: string; thumb: string; article?: boolean };
 
 async function candidates(name: string): Promise<Cand[]> {
   const files: string[] = [];
@@ -74,7 +74,8 @@ async function candidates(name: string): Promise<Cand[]> {
       if (v) files.push(String(v));
     }
   }
-  for (const im of page?.images ?? []) files.push(String(im.title).replace(/^File:/, ''));
+  const inArticle = new Set<string>();
+  for (const im of page?.images ?? []) { const f = String(im.title).replace(/^File:/, ''); files.push(f); inArticle.add(f); }
   const cs = await getJson('https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srnamespace=6&srlimit=8&srsearch='
     + encodeURIComponent(`${name} symbol OR flag OR logo OR emblem`));
   for (const x of cs?.query?.search ?? []) files.push(String(x.title).replace(/^File:/, ''));
@@ -90,7 +91,7 @@ async function candidates(name: string): Promise<Cand[]> {
     if (!ii?.thumburl || !/^image\/(svg\+xml|png|jpeg)$/.test(ii.mime)) continue;
     byFile.set(String(p.title).replace(/^File:/, ''), String(ii.thumburl));
   }
-  for (const f of unique) { const t = byFile.get(f); if (t) out.push({ file: f, thumb: t }); }
+  for (const f of unique) { const t = byFile.get(f); if (t) out.push({ file: f, thumb: t, article: inArticle.has(f) }); }
   // Most likely symbols first: files named as a flag, symbol, logo or emblem, or naming the ideology, then the rest.
   const words = name.toLowerCase().replace(/\(.*?\)/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
   const rank = (f: string) => {
@@ -165,8 +166,13 @@ export async function pickSymbol(name: string): Promise<void> {
     const usable = cands.filter((_, i) => imgs[i]);
     const data = imgs.filter(Boolean).map((x) => b64(x!.buf));
     if (!usable.length) { await done({ status: 'none', reason: 'previews did not load' }); return; }
-    const v = await judge(name, usable, data);
-    if (!v) { await done({ status: 'none', reason: 'the AI judge was unavailable' }); return; }
+    let v = await judge(name, usable, data);
+    // The AI is busy: Wikipedia's own colour flag for this ideology (the one in its article's sidebar) is used instead.
+    if (!v) {
+      const i = usable.findIndex((c) => c.article && /^[A-Za-z]+ flag waving\.svg$/i.test(c.file));
+      if (i < 0) { await done({ status: 'none', reason: 'the AI judge was unavailable' }); return; }
+      v = { best: i, reason: "Wikipedia's colour flag for it (chosen without the AI, which was busy)" };
+    }
     if (v.best < 0 || v.best >= usable.length) { await done({ status: 'none', reason: v.reason || 'nothing fitted' }); return; }
     const c = usable[v.best];
     const img = imgs[cands.indexOf(c)]!;
