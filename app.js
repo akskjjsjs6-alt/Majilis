@@ -2972,10 +2972,11 @@ function cardFaith(u){
   const sub = (u.denomination || '').split(/ \(|,| or /)[0].trim();
   return { name: FAITH_SHORT[u.religion] || u.religion, sub: sub.length > 22 ? '' : sub, pic: window.cardFaithEmblem && cardFaithEmblem(u.religion) };
 }
-// Wikipedia thumbnails come at 320px; the background asks for a bigger copy and falls back to the small one.
-function bigPortrait(url){
-  if(/^https:\/\/(upload|thumb)\.wikimedia\.org\/.*\/thumb\/.*\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, '/960px-$1');   // Wikipedia only serves standard sizes (900 is refused)
-  if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=960');
+// Wikipedia thumbnails come at 320px; the card asks for a 1920px copy (the cut-out steps down through the standard
+// sizes when the original is smaller) and falls back to the small one.
+function bigPortrait(url, w = 1920){
+  if(/^https:\/\/(upload|thumb)\.wikimedia\.org\/.*\/thumb\/.*\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, '/' + w + 'px-$1');   // Wikipedia only serves standard sizes (900 is refused)
+  if(/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)) return url.replace(/width=\d+/, 'width=' + w);
   return null;
 }
 const cutSource = (l) => l && (l.photoUrl ? (bigPortrait(l.photoUrl) || l.photoUrl) : l.photo) || null;
@@ -3078,7 +3079,9 @@ function buildResultCard(){
   // photo, he stands in front of the scene and his head and shoulders come out over the edges of the card.
   const bg = el('div',{class:'rc9__bg'});
   const bgWho = shown;
-  const bigCut = bgWho && bgWho.photo ? cutoutFor(cutSource(bgWho)) : null;
+  let bigCut = bgWho && bgWho.photo ? cutoutFor(cutSource(bgWho)) : null;
+  // A face too small to cut out cleanly isn't popped out; the plain faded portrait is used instead.
+  if(bigCut && bigCut.head.w * bigCut.w < 120) bigCut = null;
   if(bigCut){
     const at = cardPlace(bigCut, 0.62, -0.16);
     const figure = (dx, dy) => el('i',{class:'rc9__cut', style:'background-image:url("' + bigCut.url + '");left:' + cq(at.left + dx) + ';top:' + cq(at.top + dy) + ';width:' + cq(at.width) + ';height:' + cq(at.height) + ';'});
@@ -3092,7 +3095,7 @@ function buildResultCard(){
   } else if(bgWho){
     const setBg = (url) => { if(url && SAFE_BG.test(url)) bg.style.backgroundImage = 'url("' + url + '")'; };
     const tryBig = (url) => {
-      const big = url && bigPortrait(url);
+      const big = url && bigPortrait(url, 960);
       if(!big){ setBg(url); return; }
       const probe = new Image(); probe.referrerPolicy = 'no-referrer';
       probe.onload = () => setBg(big); probe.onerror = () => { if(!bg.style.backgroundImage) setBg(url); };

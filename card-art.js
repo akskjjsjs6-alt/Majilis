@@ -119,6 +119,18 @@ function loadImg(url){
     img.src = url;
   });
 }
+// Wikipedia only makes copies at standard widths, and none wider than the original: a 1920px request for a
+// smaller original fails, so step down through the standard sizes until one loads.
+const STD_WIDTHS = [1920, 1280, 960, 500, 330];
+async function loadLargest(url){
+  const m = /^(.*\/)(\d+)px-([^/]+)$/.exec(url);
+  if(!m) return loadImg(url);
+  const asked = +m[2];
+  for(const w of STD_WIDTHS.filter(w => w <= asked)){
+    try { return await loadImg(m[1] + w + 'px-' + m[3]); } catch(e){}
+  }
+  return loadImg(url);
+}
 const cutCache = new Map(), cutDone = new Map();
 // Resolves to { url, w, h, head: { top, cx, w } (fractions of the picture), topCut } or null.
 window.cardCutout = (url) => {
@@ -126,7 +138,7 @@ window.cardCutout = (url) => {
   if(!cutCache.has(url)) cutCache.set(url, (async () => {
     const seg = await segmenter();
     if(!seg) return null;
-    const img = await loadImg(url);
+    const img = await loadLargest(url);
     const W = img.naturalWidth, H = img.naturalHeight;
     if(!W || !H) return null;
     const res = seg.segment(img);
@@ -176,15 +188,18 @@ window.cardCutout = (url) => {
     // The cut-out: the photo with everything but the person made transparent.
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d'); x.drawImage(img, 0, 0);
-    const d = x.getImageData(0, 0, W, H), px = d.data;
-    for(let yy = 0; yy < H; yy++){
-      const my = Math.min(mh - 1, (yy * mh / H) | 0) * mw;
-      for(let xx = 0; xx < W; xx++){
-        const v = a[my + Math.min(mw - 1, (xx * mw / W) | 0)];
-        px[(yy * W + xx) * 4 + 3] = v <= 0.35 ? 0 : v >= 0.65 ? 255 : ((v - 0.35) / 0.3 * 255) | 0;
-      }
+    // The mask is small (256 x 256); scaled up with smoothing it gives soft, clean edges instead of blocky steps.
+    const mc = document.createElement('canvas'); mc.width = mw; mc.height = mh;
+    const mx = mc.getContext('2d'), md = mx.createImageData(mw, mh);
+    for(let i = 0; i < mw * mh; i++){
+      const v = a[i];
+      md.data[i * 4 + 3] = v <= 0.35 ? 0 : v >= 0.65 ? 255 : ((v - 0.35) / 0.3 * 255) | 0;
     }
-    x.putImageData(d, 0, 0);
+    mx.putImageData(md, 0, 0);
+    x.globalCompositeOperation = 'destination-in';
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(mc, 0, 0, W, H);
+    x.globalCompositeOperation = 'source-over';
     const blob = await new Promise(done => c.toBlob(done, 'image/png'));
     if(!blob) return null;
     return { url: URL.createObjectURL(blob), w: W, h: H,
