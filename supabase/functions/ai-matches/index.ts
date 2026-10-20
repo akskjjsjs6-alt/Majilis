@@ -8,6 +8,7 @@
 // visitor's browser reaching Wikipedia. If a photo cannot be embedded, its link is still sent.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { pickPortrait, savedPortraits, keyOf } from './portraits.ts';
+import { pickSymbol, savedSymbols, symbolKey } from './symbols.ts';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 // Same fallback order as secure-actions: if the first model is busy, try the next.
@@ -274,6 +275,50 @@ async function stateFlagUrl(name: string): Promise<string | null> {
   return null;
 }
 
+// Saved portraits (portraits.ts) and ideology symbols (symbols.ts) replace the plain Wikipedia photo and the
+// drawn icon. Anything seen for the first time is judged now: the closest leader of each era and every ideology on
+// the card are waited for (up to waitMs, while the page shows its loading screen); other leaders are judged in the
+// background for the next card.
+async function addArt(leaders: any[], wanted: any[], ideologies: any[], waitMs: number) {
+  try {
+    const shown = ['modern', 'historical'].map((era) => leaders.find((l: any) => l.era === era)).filter(Boolean);
+    const leaderNames = wanted.map((l: any) => l.name);
+    const ideoNames = ideologies.map((i: any) => i.name).filter(Boolean);
+    let [portraits, symbols] = await Promise.all([savedPortraits(leaderNames), savedSymbols(ideoNames)]);
+    const missing = wanted.filter((l: any) => !portraits.has(keyOf(l.name)));
+    const later = missing.filter((l: any) => !shown.includes(l));
+    if (later.length) (globalThis as any).EdgeRuntime?.waitUntil?.(Promise.all(later.map((l: any) => pickPortrait(l.name).catch(() => {}))));
+    const now = [
+      ...missing.filter((l: any) => shown.includes(l)).map((l: any) => pickPortrait(l.name).catch(() => {})),
+      ...ideoNames.filter((n: string) => !symbols.has(symbolKey(n))).map((n: string) => pickSymbol(n).catch(() => {})),
+    ];
+    if (now.length) {
+      const all = Promise.all(now);
+      (globalThis as any).EdgeRuntime?.waitUntil?.(all);   // keeps going for the next card if the wait runs out
+      await Promise.race([all, new Promise((done) => setTimeout(done, waitMs))]);
+      [portraits, symbols] = await Promise.all([savedPortraits(leaderNames), savedSymbols(ideoNames)]);
+    }
+    await Promise.all(wanted.map(async (l: any) => {
+      const p = portraits.get(keyOf(l.name));
+      if (!p) return;
+      const small = await fetchImage(p.small, 250000);
+      l.photoUrl = p.big;
+      l.photo = small.data || p.small;
+      l.picked = true;
+    }));
+    for (const i of ideologies) { const u = symbols.get(symbolKey(String(i.name || ''))); if (u) i.symbol = u; }
+  } catch (e) { console.warn('art', String(e).slice(0, 120)); }
+}
+
+// mode "art": the saved portraits and symbols for a card the page already has (cards made before these existed).
+async function artMode(b: any) {
+  const leaders = ((b.leaders ?? []) as any[]).slice(0, 12).map((l) => ({ name: clip(l?.name, 80), era: l?.era === 'historical' ? 'historical' : 'modern' })).filter((l) => l.name);
+  const ideologies = ((b.ideologies ?? []) as any[]).slice(0, 10).map((n) => ({ name: clip(n, 80) })).filter((i) => i.name);
+  await addArt(leaders, leaders, ideologies, 20000);
+  return json({ leaders: leaders.filter((l: any) => l.picked).map((l: any) => ({ name: l.name, photo: l.photo, photoUrl: l.photoUrl })),
+    symbols: Object.fromEntries(ideologies.filter((i: any) => i.symbol).map((i: any) => [i.name, i.symbol])) });
+}
+
 async function cardMode(b: any) {
   const mapsIn = b.maps ?? {};
   const maps: CardInput['maps'] = {};
@@ -307,30 +352,8 @@ async function cardMode(b: any) {
   // Portraits chosen by the automatic picker (portraits.ts) replace the plain Wikipedia photo. A leader seen for the
   // first time is judged now: the closest leader of each era is waited for (up to 25 s, while the page shows its
   // loading screen), the rest are judged in the background for the next card.
-  // Only pages that accept saved portraits ask for them (older pages only take Wikipedia links).
-  if (b.portraits) try {
-    const shown = ['modern', 'historical'].map((era) => leaders.find((l: any) => l.era === era)).filter(Boolean);
-    let saved = await savedPortraits(wanted.map((l: any) => l.name));
-    const missing = wanted.filter((l: any) => !saved.has(keyOf(l.name)));
-    const now = missing.filter((l: any) => shown.includes(l));
-    const later = missing.filter((l: any) => !shown.includes(l));
-    if (later.length) {
-      const bg = Promise.all(later.map((l: any) => pickPortrait(l.name).catch(() => {})));
-      (globalThis as any).EdgeRuntime?.waitUntil?.(bg);
-    }
-    if (now.length) {
-      await Promise.race([Promise.all(now.map((l: any) => pickPortrait(l.name).catch(() => {}))), new Promise((done) => setTimeout(done, 25000))]);
-      saved = await savedPortraits(wanted.map((l: any) => l.name));
-    }
-    await Promise.all(wanted.map(async (l: any) => {
-      const p = saved.get(keyOf(l.name));
-      if (!p) return;
-      const small = await fetchImage(p.small, 250000);
-      l.photoUrl = p.big;
-      l.photo = small.data || p.small;
-      l.picked = true;
-    }));
-  } catch (e) { console.warn('portraits', String(e).slice(0, 120)); }
+  // Only pages that accept saved portraits and symbols ask for them (older pages only take Wikipedia links).
+  if (b.portraits) await addArt(leaders, wanted, nations.ideologies, 25000);
   console.log(`card: AI ${tAI}ms, photos ${Date.now() - t0 - tAI}ms, ${wanted.filter((l: any) => l.photo).length}/${wanted.length} photos, ${nations.oldCountries.slice(0, 3).filter((c: any) => c.flag).length}/${Math.min(3, nations.oldCountries.length)} old flags`);
   return json({ card: { leaders, countries: nations.countries, oldCountries: nations.oldCountries.slice(0, 3), ideologies: nations.ideologies } });
 }
@@ -347,6 +370,7 @@ Deno.serve(async (req) => {
 
     const b = await req.json();
     if (b?.mode === 'card') return await cardMode(b);
+    if (b?.mode === 'art') return await artMode(b);
 
     const wanted: Cat[] = ((b.categories ?? []) as any[]).slice(0, 6).map((c) => ({
       key: clip(c.key, 20), title: clip(c.title, 40), summary: clip(c.summary, 600),

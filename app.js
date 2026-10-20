@@ -2822,6 +2822,34 @@ function saveAnswersForAI(answers){
 }
 const okPos = (p) => p && ['economic', 'political', 'social'].every(k => p[k] && typeof p[k].x === 'number' && typeof p[k].y === 'number');
 // Wikipedia/Commons photos, and the portraits the server chose and saved in our own storage.
+// An ideology's symbol, chosen and saved by the server (only our own storage is accepted).
+const SYMBOL_URL = /^https:\/\/bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/object\/public\/portraits\/symbols\/[\w.-]+\.(png|jpg)$/;
+const okSymbol = (u) => typeof u === 'string' && SYMBOL_URL.test(u) ? u : null;
+// Cards made before the server picked portraits and symbols ask for them once, then keep them.
+let artAsked = false;
+async function refreshCardArt(){
+  const m = savedCardMatches();
+  if(artAsked || !m || m.art || !state.user || state.user.isGuest) return;
+  artAsked = true;
+  try {
+    const { data } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body: { mode: 'art',
+      leaders: m.leaders.map(l => ({ name: l.name, era: l.era })), ideologies: m.ideologies.map(i => i.name) } });
+    if(!data || data.error) return;
+    const cur = savedCardMatches();
+    if(!cur || cur.sig !== m.sig) return;
+    (data.leaders || []).forEach(p => {
+      const l = cur.leaders.find(x => x.name === p.name);
+      if(!l || typeof p.photoUrl !== 'string' || !MATCH_PHOTO.test(p.photoUrl)) return;
+      l.photoUrl = p.photoUrl;
+      l.photo = typeof p.photo === 'string' && (p.photo.startsWith('data:image/') || MATCH_PHOTO.test(p.photo)) ? p.photo : p.photoUrl;
+    });
+    cur.ideologies.forEach(i => { const u = okSymbol((data.symbols || {})[i.name]); if(u) i.symbol = u; });
+    cur.art = 1;
+    cardMatchesMemory = cur;
+    try { localStorage.setItem(cardMatchKey(), JSON.stringify(cur)); } catch(e){}
+    render();
+  } catch(e){ console.warn('card art unavailable', e); }
+}
 const MATCH_PHOTO = /^https:\/\/((upload|thumb)\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/|bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/object\/public\/portraits\/)/;
 async function fetchCardMatches(){
   const u = state.user;
@@ -2857,7 +2885,8 @@ async function fetchCardMatches(){
           name: c.name, code: c.code, pct: c.pct, flag: typeof c.flag === 'string' && c.flag.startsWith('data:image/') ? c.flag : null })),
         oldCountries: (card.oldCountries || []).filter(c => c && c.name).slice(0, 3).map(c => ({
           name: String(c.name).slice(0, 60), pct: c.pct, flag: typeof c.flag === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,/.test(c.flag) ? c.flag : null })),
-        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct })) };
+        ideologies: (card.ideologies || []).filter(i => i && i.name).map(i => ({ name: i.name, blurb: i.blurb || '', pct: i.pct, symbol: okSymbol(i.symbol) })),
+        art: 1 };
       if(!out.leaders.some(l => l.era === 'modern') || !out.leaders.some(l => l.era === 'historical')) throw new Error('no leaders came back');
       await confirmCardPhotos(out);
       // Keep embedded photos only for the leaders that are shown (card and maps), so it fits in the device's storage.
@@ -2914,6 +2943,7 @@ async function confirmCardPhotos(m){
 // The AI's results for the card, asking for them the first time they're needed.
 function cardMatches(){
   const m = savedCardMatches();
+  if(m && !m.art) setTimeout(refreshCardArt, 0);
   if(!m && !state.cardMatches.loading && !state.cardMatches.error && state.user && !state.user.isGuest) setTimeout(fetchCardMatches, 0);
   return m;
 }
@@ -2934,37 +2964,20 @@ function closestOnMap(m, section, era, raw){
 
 const M_SVG = (w) => '<svg viewBox="40 45 120 110" fill="none"><path d="' + M_PATH + '" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const initialsOf = (name) => name.split(/[\s-]+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join('');
-// Circular emblems for the ideologies, picked from words in the name; anything else gets its initials.
-const IDEOLOGY_ICONS = [
-  [/monarch|royal|legitim|tradition/i, '<path d="M3 17h18l-1.5-9-4.5 4-3-6-3 6-4.5-4z"/><rect x="3" y="18.5" width="18" height="2.2" rx="1"/>'],
-  [/christian|catholic|protestant|orthodox|distribut/i, '<path d="M10 2h4v6h6v4h-6v10h-4V12H4V8h6z"/>'],
-  [/islam|muslim/i, '<path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.4A7 7 0 1 1 14.5 3.5z"/>'],
-  [/national|patriot|sovereign|kemal|gaull|fascis|falang/i, '<path d="M5 2h2v20H5z"/><path d="M8 3h12l-3 4.5 3 4.5H8z"/>'],
-  [/green|eco|environment/i, '<path d="M20 3C9 3 4 9 4 16c0 1.6.3 3 .8 4.2L6.5 19C8 13 12 9 17 7c-4 3-7 7-8 13 9 0 11-8 11-17z"/>'],
-  [/social|labou?r|worker|syndical|marx|lenin|trotsk|mao/i, '<path d="M9 21v-6.5L6.5 12V7.5a1.5 1.5 0 0 1 3 0V11h1V5.5a1.5 1.5 0 0 1 3 0V11h1V6.5a1.5 1.5 0 0 1 3 0V11h.5V9a1.5 1.5 0 0 1 3 0v5.5L17 21z"/>'],
-  [/libert|anarch|minarch|objectiv/i, '<path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z"/>'],
-  [/liberal|democra|republic/i, '<path d="M12 2 2 7v2h20V7zM4 10h3v8H4zm6.5 0h3v8h-3zM17 10h3v8h-3zM2 19h20v3H2z"/>'],
-  [/conserv|paternal|order|author/i, '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/>'],
-  [/techno|futur|transhuman|accelera/i, '<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 2.5V13l-2.3.6-.7 1.7 1.2 2-1.8 1.8-2-1.2-1.7.7L13 21h-2.5l-.6-2.3-1.7-.7-2 1.2-1.8-1.8 1.2-2-.7-1.7L3 13v-2.5l2.3-.6.7-1.7-1.2-2 1.8-1.8 2 1.2 1.7-.7L10.5 3H13l.6 2.3 1.7.7 2-1.2 1.8 1.8-1.2 2 .7 1.7z"/>'],
-  [/communit|georg|cooperat|mutual/i, '<circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M1 20c0-4 3-6.5 6-6.5s6 2.5 6 6.5zM11 20c0-4 3-6.5 6-6.5s6 2.5 6 6.5z"/>'],
-  [/centr|third way|pragmat|moderat/i, '<path d="M11 3h2v3h6l3 7a4 4 0 0 1-8 0l2.7-6H13v13h4v2H7v-2h4V7H6.3L9 13a4 4 0 0 1-8 0l3-7h7z"/>'],
-];
-function ideologyEmblem(name){
-  const pic = window.cardIdeologyEmblem && cardIdeologyEmblem(name);
+// Ideologies always show a real symbol associated with them, never a made-up icon: one of the checked emblems in
+// card/emblems, else the symbol the server found for it (its Wikipedia flag colour, emblem or party logo).
+function ideologyEmblem(name, symbol){
+  const pic = (window.cardIdeologyEmblem && cardIdeologyEmblem(name)) || okSymbol(symbol);
   if(pic) return emblemPicture(pic, name);
-  return IDEOLOGY_ICONS.some(([re]) => re.test(name)) ? ideologyEmblemDrawn(name) : el('span',{class:'rc9-emb'}, initialsOf(name));
+  return el('span',{class:'rc9-emb rc9-emb--wait'}, initialsOf(name));   // only until the server has found its symbol
 }
 // A real flag or symbol (card/emblems), falling back to the drawn emblem if the picture is missing.
 function emblemPicture(url, name, fallback){
   const box = el('span',{class:'rc9-emb rc9-emb--pic'});
   const img = new Image(); img.alt = ''; img.src = url;
-  img.onerror = () => box.replaceWith(fallback ? fallback() : IDEOLOGY_ICONS.some(([re]) => re.test(name)) ? ideologyEmblemDrawn(name) : el('span',{class:'rc9-emb'}, initialsOf(name)));
+  img.onerror = () => box.replaceWith(fallback ? fallback() : el('span',{class:'rc9-emb'}, initialsOf(name)));
   box.appendChild(img);
   return box;
-}
-function ideologyEmblemDrawn(name){
-  const hit = IDEOLOGY_ICONS.find(([re]) => re.test(name));
-  return el('span',{class:'rc9-emb', html:'<svg viewBox="0 0 24 24" fill="#fff">' + hit[1] + '</svg>'});
 }
 // Your faith from the test (none for "Other" or "Prefer not to say"): its name, the tradition within it, its symbol.
 const FAITH_SHORT = { 'Spiritual but not religious': 'Spiritual', 'Paganism / Wicca': 'Paganism' };
@@ -3081,8 +3094,6 @@ function buildResultCard(){
   const bg = el('div',{class:'rc9__bg'});
   const bgWho = shown;
   let bigCut = bgWho && bgWho.photo ? cutoutFor(cutSource(bgWho)) : null;
-  // A face too small to cut out cleanly isn't popped out; the plain faded portrait is used instead.
-  if(bigCut && bigCut.head.w * bigCut.w < 120) bigCut = null;
   if(bigCut){
     const at = cardPlace(bigCut, 0.62, -0.16);
     const figure = (dx, dy) => el('i',{class:'rc9__cut', style:'background-image:url("' + bigCut.url + '");left:' + cq(at.left + dx) + ';top:' + cq(at.top + dy) + ';width:' + cq(at.width) + ';height:' + cq(at.height) + ';'});
@@ -3138,7 +3149,7 @@ function buildResultCard(){
     el('div',{class:'rc9-who__pct'}, f.pct + '%'),
   ]) : null;
   const ideology = (i) => el('div',{class:'rc9-who', title: i.blurb || ''},[
-    ideologyEmblem(i.name),
+    ideologyEmblem(i.name, i.symbol),
     el('div',{class:'rc9-who__name'}, i.name),
     el('div',{class:'rc9-who__pct'}, i.pct + '%'),
   ]);
