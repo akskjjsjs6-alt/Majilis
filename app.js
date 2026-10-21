@@ -3860,12 +3860,17 @@ function savedQuiz(){
   } catch(e){}
   return null;
 }
+// Answers given before a question was reworded take its new wording, so they still score (QUESTION_RENAMES in questions.js).
+function renamedAnswers(answers){
+  const map = typeof QUESTION_RENAMES === 'object' ? QUESTION_RENAMES : {};
+  return answers.map(a => { const r = map[a.q]; return r ? Object.assign({}, a, { q: r[0], choice: r[1][a.choice] || a.choice }) : a; });
+}
 function resumeQuizButton(){
   const saved = savedQuiz();
   if(!saved) return null;
   return el('button',{class:'btn secondary', style:'margin-right:10px;', onclick:()=>{
     state.quiz.active = true; state.quiz.section = saved.section; state.quiz.index = saved.index;
-    state.quiz.answers = saved.answers; state.quiz.order = saved.order; state.quiz.philOrder = saved.philOrder || null; state.quiz.mode = saved.mode || 'full'; state.quiz.religion = saved.religion;
+    state.quiz.answers = renamedAnswers(saved.answers); state.quiz.order = saved.order; state.quiz.philOrder = saved.philOrder || null; state.quiz.mode = saved.mode || 'full'; state.quiz.religion = saved.religion;
     render();
   }}, 'Resume your test (' + saved.answers.length + ' answered)');
 }
@@ -7084,7 +7089,7 @@ function savedPrecision(){
   if(!c) return null;
   const sig = compassSig(c);
   if(precisionMemory && precisionMemory.sig === sig && precisionMemory.key === precisionKey()) return precisionMemory;
-  try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); return p && p.v === 1 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
+  try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); return p && p.v === 2 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
 }
 function savePrecision(p){
   p.at = Date.now();
@@ -7092,14 +7097,14 @@ function savePrecision(p){
   try { localStorage.setItem(precisionKey(), JSON.stringify(p)); } catch(e){}
 }
 function startPrecision(){
-  savePrecision({ v: 1, sig: compassSig(state.user.compass), key: precisionKey(), round: 0, batch: [], idx: 0, asked: [], candidates: [], result: null });
+  savePrecision({ v: 2, sig: compassSig(state.user.compass), key: precisionKey(), round: 0, batch: [], idx: 0, asked: [], skipped: [], candidates: [], result: null });
   precisionUi.error = null;
   navigateWithLoading('precision');
   loadPrecisionRound();
 }
 async function callPrecision(extra){
   const p = savedPrecision(), m = savedCardMatches();
-  const body = Object.assign({ mode: 'precision', asked: p.asked, shortlist: m ? m.ideologies.map(i => i.name) : [] }, aiPersonBody(state.user), extra);
+  const body = Object.assign({ mode: 'precision', asked: p.asked, skipped: p.skipped || [], shortlist: m ? m.ideologies.map(i => i.name) : [] }, aiPersonBody(state.user), extra);
   let lastErr = null;
   // A busy AI is the usual reason for a miss, so try twice before showing "Try again".
   for(let attempt = 0; attempt < 2; attempt++){
@@ -7160,6 +7165,17 @@ function answerPrecision(opt){
   else if(p.idx >= p.batch.length) loadPrecisionRound();
   else render();
 }
+// A question that doesn't make sense is dropped (and the AI is told, so it writes nothing like it); the round's
+// remaining questions carry on, and any shortfall is made up in the next round.
+function skipPrecision(){
+  const p = savedPrecision();
+  if(!p || precisionUi.loading || !p.batch[p.idx]) return;
+  (p.skipped = p.skipped || []).push(p.batch[p.idx].q);
+  p.batch.splice(p.idx, 1);
+  savePrecision(p);
+  if(p.idx >= p.batch.length) loadPrecisionRound();
+  else render();
+}
 // Back goes as far as the start of the current round (earlier rounds were written from those answers).
 function precisionBack(){
   const p = savedPrecision();
@@ -7198,7 +7214,7 @@ function renderPrecision(){
   if(precisionUi.loading === 'round'){
     const first = !p || !p.asked.length;
     wrap.appendChild(thinkStage('precision-round', {
-      kicker: 'PRECISION ROUND · ROUND ' + ((p ? p.round : 0) + 1) + ' OF 4',
+      kicker: 'PRECISION ROUND · ROUND ' + ((p ? p.round : 0) + 1) + ' OF ' + Math.max(4, (p ? p.round : 0) + 1),
       title: first ? 'Writing your first 10 questions' : 'Narrowing it down',
       steps: first ? ['Reading your test results', 'Picking the ideologies still in the running', 'Writing questions to tell them apart']
         : ['Reading your last 10 answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
@@ -7245,7 +7261,7 @@ function renderPrecision(){
   const item = p.batch[p.idx];
   if(!item){ setTimeout(() => p.asked.length >= PRECISION_TOTAL ? loadPrecisionFinal() : loadPrecisionRound(), 0); return wrap; }
   const at = p.asked.length + 1;
-  wrap.appendChild(el('p',{class:'section-sub'}, 'Question ' + at + ' of ' + PRECISION_TOTAL + ' · Round ' + p.round + ' of 4' +
+  wrap.appendChild(el('p',{class:'section-sub'}, 'Question ' + at + ' of ' + PRECISION_TOTAL + ' · Round ' + p.round + ' of ' + Math.max(4, p.round) +
     (p.candidates.length ? ' · ' + p.candidates.length + ' ideologies still in the running' : '')));
   if(p.idx) wrap.appendChild(el('button',{class:'linkbtn quiz-back', onclick: precisionBack}, '← Back'));
   const track = el('div',{class:'progress-track'});
@@ -7257,6 +7273,7 @@ function renderPrecision(){
   card.appendChild(el('div',{class:'quiz-q'}, item.q));
   card.appendChild(el('div',{class:'quiz-opts'}, item.opts.map(opt => el('button',{class:'quiz-opt', onclick:()=>answerPrecision(opt)}, opt))));
   wrap.appendChild(card);
+  wrap.appendChild(el('button',{class:'linkbtn prec-skip', onclick: skipPrecision}, 'This question doesn\'t make sense: skip it'));
   wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:10px;'}, 'Tip: press 1 to ' + item.opts.length + ' to answer. Back goes as far as the start of this round. Your answers are saved on this device.'));
   return wrap;
 }
