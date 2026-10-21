@@ -2919,6 +2919,14 @@ async function fetchCardMatches(){
   state.cardMatches = { loading: false, error: String(lastErr && lastErr.message || lastErr).slice(0, 160) };
   render();
 }
+// After the test: the matches and the card's pictures, started in the background. Whoever needs them (the
+// precision round's questions, the results reveal) waits on this one promise instead of asking again.
+let cardMatchesP = null;
+function cardMatchesAfterTest(){
+  cardMatchesP = fetchCardMatches().then(() => preloadCardPortrait()).catch(e => console.warn('card matches after the test', e))
+    .finally(() => { cardMatchesP = null; });
+  return cardMatchesP;
+}
 // Checks in this browser that a picture really loads (8 seconds at most).
 function imageLoads(url){
   return new Promise(done => {
@@ -4215,8 +4223,6 @@ function renderAssessment(){
         { key: 'answers', label: 'Reading your answers', weight: 18, secs: 7 },
         { key: 'case', label: 'Grading your written case', weight: 14, secs: 7 },
         { key: 'save', label: 'Saving your compass', weight: 6, secs: 2 },
-        { key: 'leaders', label: 'Finding your closest leaders', note: 'the longest step, up to a minute', weight: 50, secs: 26 },
-        { key: 'card', label: 'Building your result card', weight: 12, secs: 3 },
       ],
     }));
     return wrap;
@@ -4589,18 +4595,13 @@ async function finishAssessment(position, viewText){
 
   clearDrafts('assessment-position', 'assessment-case');
   saveAnswersForAI(state.quiz.answers);
-  // The loading screen stays up until the card is complete: the AI finds your closest leaders, nations and
-  // ideologies, and the leader's portrait for the background has loaded.
   thinkItem('assessment', 'save', 'done');
+  // The AI finds your closest leaders, nations and ideologies (the slow part, up to a minute) in the background,
+  // while you do the precision round; the results reveal at the end waits for it if it isn't done yet.
   if(signedIn){
     state.cardMatches = { loading: false, error: null };
-    thinkItem('assessment', 'leaders', 'active');
-    await fetchCardMatches();
-    thinkItem('assessment', 'leaders', 'done');
-    thinkItem('assessment', 'card', 'active');
-    await preloadCardPortrait();
+    cardMatchesAfterTest();
   }
-  thinkItem('assessment', 'leaders', 'done'); thinkItem('assessment', 'card', 'done');
   clearSavedQuiz();
   state.quiz.active = false;
   // Signed in, the test carries straight on into the precision round, and the results reveal follows it.
@@ -7177,12 +7178,15 @@ function queuePrecisionAfterTest(){
   state.tab = 'precision';
 }
 // Leaves the round for your results: the compass page, with the reveal playing over it.
-function finishPrecisionFlow(){
+// If the AI is still finding your matches, the compass page says so and the reveal starts as soon as they're in.
+async function finishPrecisionFlow(){
   const p = savedPrecision();
   const reveal = p && p.afterTest;
   if(p && p.afterTest){ p.afterTest = false; savePrecision(p); }
   navigateWithLoading('compass');
-  if(reveal) startResultsReveal();
+  if(!reveal) return;
+  if(cardMatchesP) await cardMatchesP;
+  if(state.tab === 'compass') startResultsReveal();   // not if you've gone somewhere else meanwhile
 }
 function startPrecision(){
   precisionAhead = null;
@@ -7192,6 +7196,9 @@ function startPrecision(){
   loadPrecisionRound();
 }
 async function callPrecision(extra){
+  // Right after the test the AI may still be finding your ideologies; they help it write the questions, so wait
+  // for them a little (20 seconds at most) rather than ask without them.
+  if(!savedCardMatches() && cardMatchesP) await Promise.race([cardMatchesP, new Promise(done => setTimeout(done, 20000))]);
   const p = savedPrecision(), m = savedCardMatches();
   const body = Object.assign({ mode: 'precision', asked: p.asked, skipped: p.skipped || [], shortlist: m ? m.ideologies.map(i => i.name) : [] }, aiPersonBody(state.user), extra);
   let lastErr = null;
