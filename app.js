@@ -2819,7 +2819,7 @@ function leaderFor(m, era){
 }
 // Your chosen positions are kept so the AI can read them, not just the scores.
 function saveAnswersForAI(answers){
-  try { localStorage.setItem(answersKey(), JSON.stringify(answers.filter(a => a.section === 'compass').map(a => [a.q, a.choice]))); } catch(e){}
+  try { localStorage.setItem(answersKey(), JSON.stringify(answers.filter(a => a.section === 'compass').map(a => [a.q, answerText(a)]))); } catch(e){}
 }
 const okPos = (p) => p && ['economic', 'political', 'social'].every(k => p[k] && typeof p[k].x === 'number' && typeof p[k].y === 'number');
 // Wikipedia/Commons photos, and the portraits the server chose and saved in our own storage.
@@ -3962,8 +3962,8 @@ document.addEventListener('keydown', (e) => {
   const t = e.target;
   if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
   const sec = state.quiz.section;
-  if(e.key === 'Backspace' || e.key === 'ArrowLeft'){ if(sec !== 'written'){ e.preventDefault(); quizBack(); } return; }
-  if(!['philosophy', 'compass', 'religion-followup'].includes(sec)) return;
+  if(e.key === 'Backspace' || e.key === 'ArrowLeft'){ if(sec !== 'written' && !ownAnswerOpen){ e.preventDefault(); quizBack(); } return; }
+  if(!['philosophy', 'compass', 'religion-followup'].includes(sec) || ownAnswerOpen) return;   // keys go to your own answer while its box is open
   const n = parseInt(e.key, 10);
   if(n >= 1 && n <= 5){
     const opts = document.querySelectorAll('.quiz-opt');
@@ -3974,6 +3974,63 @@ function quizBackButton(){
   const q = state.quiz;
   if(q.section === 'philosophy' && q.index === 0) return null;   // nothing before the first question
   return el('button',{class:'linkbtn quiz-back', onclick: quizBack}, '← Back');
+}
+
+/* Your own answer: under the listed answers, "None of these" opens a box to write one. When the test ends the AI reads
+   them all at once and matches each to the listed answer it is closest to, so it scores like a picked one (one it
+   can't place counts as skipped). Signed-in only, since the AI needs an account. */
+let ownAnswerOpen = null;   // the question whose box is open
+function ownAnswerBox(item, onSubmit){
+  if(!state.user || state.user.isGuest || !state.user.id) return null;
+  if(ownAnswerOpen !== item.q){
+    return el('button',{class:'linkbtn own-answer__open', onclick:()=>{ ownAnswerOpen = item.q; render(); setTimeout(() => { const t = document.querySelector('.own-answer textarea'); if(t) t.focus(); }, 0); }},
+      '✏️ None of these fit? Write your own answer');
+  }
+  const box = el('textarea',{maxlength:'500', placeholder:'Say what you think in a sentence or two…'});
+  const err = el('div',{class:'field-err', role:'alert'});
+  const submit = () => {
+    const t = box.value.trim();
+    if(t.length < 3){ box.classList.add('is-err'); err.textContent = 'Write a few words, or pick one of the answers above.'; return; }
+    ownAnswerOpen = null;
+    onSubmit(t.slice(0, 500));
+  };
+  box.addEventListener('keydown', (e) => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); submit(); } });
+  return el('div',{class:'own-answer'},[
+    el('label',{class:'own-answer__label'}, 'Your own answer'),
+    box, err,
+    el('div',{class:'own-answer__actions'},[
+      el('button',{class:'btn', onclick: submit}, 'Use my answer'),
+      el('button',{class:'linkbtn', onclick:()=>{ ownAnswerOpen = null; render(); }}, 'Cancel'),
+    ]),
+    el('p',{class:'field-caption'}, 'At the end the AI matches it to the answer above it is closest to, so it counts like a picked one.'),
+  ]);
+}
+// How an answer reads to the AI: the picked answer, plus your own words when you wrote them.
+function answerText(a){
+  if(!a.custom) return a.choice;
+  return a.choice ? a.choice + ' (in their own words: "' + a.custom + '")' : 'In their own words: "' + a.custom + '"';
+}
+// Before scoring: every answer written in your own words is matched to its closest listed answer, all in one AI call.
+async function resolveOwnAnswers(answers){
+  const bankFor = (a) => a.section === 'philosophy' ? PHIL_QUESTIONS.find(q => q.q === a.q)
+    : a.section === 'compass' ? COMPASS_ITEMS.find(q => q.q === a.q)
+    : a.section === 'religion-detail' ? (RELIGION_QUESTIONS[state.quiz.religion] || []).find(q => q.q === a.q) : null;
+  const todo = answers.filter(a => a.custom && !a.choice && bankFor(a));
+  if(!todo.length) return;
+  const items = todo.map(a => ({ q: a.q, opts: bankFor(a).opts, text: a.custom }));
+  for(let attempt = 0; attempt < 2; attempt++){
+    if(attempt) await new Promise(r => setTimeout(r, 3000));
+    try {
+      const { data, error } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body: { mode: 'own_answers', items } });
+      if(error || !data || data.error || !Array.isArray(data.picks)) throw new Error((data && data.error) || (error && error.message) || 'no answer');
+      data.picks.forEach(p => {
+        const a = todo.find(x => x.q === p.q), opts = a && bankFor(a).opts;
+        if(a && Number.isInteger(p.pick) && p.pick >= 0 && opts[p.pick]){ a.choice = opts[p.pick]; a.readAs = p.why || ''; }
+      });
+      return;
+    } catch(e){ console.warn('own answers unavailable (try ' + (attempt + 1) + ')', e); }
+  }
+  // Still unread: they count as skipped in the scores, and the AI still reads your words for the card.
 }
 
 function renderAssessment(){
@@ -4049,9 +4106,9 @@ function renderAssessment(){
     const optsWrap = el('div',{class:'quiz-opts'});
     // The four positions run from one pole to the other in the bank, so they are shown in a fixed shuffle per question.
     const shown = isCompass ? item.opts.slice().sort((a, b) => hashString(item.q + a) - hashString(item.q + b)) : item.opts;
-    shown.forEach((opt)=>{
-      optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>{
-        state.quiz.answers.push({section: state.quiz.section, axis: null, q: item.q, choice: opt});
+    // A picked answer, or (choice null) one written in your own words, read by the AI when the test ends.
+    const answer = (choice, custom) => {
+        state.quiz.answers.push(Object.assign({section: state.quiz.section, axis: null, q: item.q, choice}, custom ? { custom } : {}));
         if(displayIndex >= displayTotal){
           const nextIdx = QUIZ_SECTIONS.indexOf(state.quiz.section) + 1;
           if(nextIdx < QUIZ_SECTIONS.length){
@@ -4064,9 +4121,12 @@ function renderAssessment(){
           state.quiz.index += 1;
         }
         render();
-      }}, opt));
+    };
+    shown.forEach((opt)=>{
+      optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>answer(opt)}, opt));
     });
     card.appendChild(optsWrap);
+    card.appendChild(ownAnswerBox(item, text => answer(null, text)));
     wrap.appendChild(card);
     wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:10px;'}, 'Tip: press 1 to ' + item.opts.length + ' to answer, Backspace to go back. Your answers are saved on this device.'));
     return wrap;
@@ -4117,18 +4177,20 @@ function renderAssessment(){
     const card = el('div',{class:'card'});
     card.appendChild(el('div',{class:'quiz-q'}, item.q));
     const optsWrap = el('div',{class:'quiz-opts'});
+    const answer = (choice, custom) => {
+      state.quiz.answers.push(Object.assign({section:'religion-detail', axis:null, q:item.q, choice}, custom ? { custom } : {}));
+      if(displayIndex >= displayTotal){
+        state.quiz.section = 'written';
+      } else {
+        state.quiz.index += 1;
+      }
+      render();
+    };
     item.opts.forEach((opt)=>{
-      optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>{
-        state.quiz.answers.push({section:'religion-detail', axis:null, q:item.q, choice:opt});
-        if(displayIndex >= displayTotal){
-          state.quiz.section = 'written';
-        } else {
-          state.quiz.index += 1;
-        }
-        render();
-      }}, opt));
+      optsWrap.appendChild(el('button',{class:'quiz-opt', onclick:()=>answer(opt)}, opt));
     });
     card.appendChild(optsWrap);
+    card.appendChild(ownAnswerBox(item, text => answer(null, text)));
     wrap.appendChild(card);
     wrap.appendChild(el('div',{style:'height:12px'}));
     wrap.appendChild(el('button',{class:'btn secondary', onclick:()=>{ state.quiz.section = 'written'; render(); }},
@@ -4366,8 +4428,8 @@ async function syncCardExtras(force){
   u.extrasOnServer = true;
 }
 async function aiAnalyzeAssessment(answers){
-  const bySection = (name) => answers.filter(a => name === 'philosophy' ? a.section === 'philosophy'
-    : (a.section === 'compass' && (COMPASS_ITEMS.find(i => i.q === a.q) || {}).sec === name)).map(a=>({ q: a.q, choice: a.choice }));
+  const bySection = (name) => answers.filter(a => name === 'philosophy' || name === 'religion-detail' ? a.section === name
+    : (a.section === 'compass' && (COMPASS_ITEMS.find(i => i.q === a.q) || {}).sec === name)).map(a=>({ q: a.q, choice: answerText(a) }));
   const religionAnswer = answers.find(a=>a.section==='religion');
   const payload = {
     action: 'analyze_assessment',
@@ -4459,6 +4521,7 @@ async function finishAssessment(position, viewText){
   const signedIn = !state.user.isGuest && state.user.id;
   // The AI compass analysis and the AI grading of your written case run at the same time.
   thinkItem('assessment', 'answers', 'active'); thinkItem('assessment', 'case', 'active');
+  if(signedIn) await resolveOwnAnswers(state.quiz.answers);
   const [analysis, placement] = await Promise.all([
     aiAnalyzeAssessment(state.quiz.answers).then(r => { thinkItem('assessment', 'answers', 'done'); return r; }),
     (signedIn ? callSecure('submit_placement', { position, case: viewText }) : Promise.resolve(null)).then(r => { thinkItem('assessment', 'case', 'done'); return r; }),

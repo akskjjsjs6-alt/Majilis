@@ -2861,6 +2861,13 @@ input.is-err, textarea.is-err { border-color: var(--danger); box-shadow: 0 0 0 3
 .prec-item__blurb { font-size: 13.5px; margin-bottom: 4px; }
 .prec-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .prec-skip { margin-top: 12px; font-size: 13px; color: var(--muted); }
+/* Your own answer on a test question */
+.own-answer__open { margin-top: 14px; font-size: 13.5px; color: var(--muted); }
+.own-answer__open:hover { color: var(--neon); }
+.own-answer { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line-2); }
+.own-answer__label { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.own-answer textarea { width: 100%; min-height: 80px; }
+.own-answer__actions { display: flex; align-items: center; gap: 14px; margin: 10px 0 6px; }
 
 /* Narrow screens: the tappable copy at the top replaces the big card that sat below all three maps. */
 @media (max-width: 1100px) { .compass-aside { display: none; } }
