@@ -100,8 +100,10 @@ async function portrait(name: string): Promise<{ photo?: string; photoUrl?: stri
 // Runs one structured request with model fallback.
 // Each request may take 40 seconds at most, and all the tries together 95, so the whole call stays well inside the
 // server's 150-second limit and the page gets an answer (or a clear "busy") instead of a timeout.
-async function gemini(prompt: string, schema: unknown, temperature: number): Promise<{ data: any } | { error: string }> {
-  const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature } });
+// quick: the model thinks briefly (much faster) — for jobs where the page is waiting on it; dropped if a model refuses it.
+async function gemini(prompt: string, schema: unknown, temperature: number, quick = false): Promise<{ data: any } | { error: string }> {
+  const bodyFor = (q: boolean) => JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: {
+    responseMimeType: 'application/json', responseSchema: schema, temperature, ...(q ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) } });
   let lastErr = 'unknown';
   const deadline = Date.now() + 95000;
   for (const model of GEMINI_MODELS) {
@@ -111,13 +113,14 @@ async function gemini(prompt: string, schema: unknown, temperature: number): Pro
       let res: Response;
       try {
         res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-          method: 'POST', headers: { 'x-goog-api-key': GEMINI_API_KEY!, 'Content-Type': 'application/json' }, body,
+          method: 'POST', headers: { 'x-goog-api-key': GEMINI_API_KEY!, 'Content-Type': 'application/json' }, body: bodyFor(quick),
           signal: AbortSignal.timeout(Math.min(40000, left)),
         });
       } catch (e) { lastErr = `${model}: ${String(e).slice(0, 60)}`; break; }   // too slow or unreachable: try the next model
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         lastErr = `${model} ${res.status}: ${String(data?.error?.message ?? '').slice(0, 120)}`;
+        if (res.status === 400 && quick) { quick = false; attempt--; continue; }   // this model doesn't take a thinking level: ask again without
         if (res.status === 429 || res.status >= 500) { await new Promise((r) => setTimeout(r, 800)); continue; }
         break;   // a 4xx other than rate limits: try the next model
       }
@@ -421,9 +424,9 @@ async function precisionRound(inp: CardInput, b: any) {
 
   const seen = new Set(asked.map((a) => a.q.toLowerCase()));
   let questions: any[] = [], candidates: any[] = [], lastErr = '';
-  // A round short of questions gets one more try; the page asks for any still missing in its next round.
-  for (let attempt = 0; attempt < 2 && questions.length < want; attempt++) {
-    const r = await gemini(prompt, schema, 0.4);
+  // Only a round with no usable questions gets a second try; any shortfall is made up in the page's next round.
+  for (let attempt = 0; attempt < 2 && !questions.length; attempt++) {
+    const r = await gemini(prompt, schema, 0.4, true);
     if ('error' in r) { lastErr = r.error; continue; }
     const cands = (r.data.candidates ?? []).map((c: any) => ({ name: clip(c?.name, 60), blurb: clip(c?.blurb, 160) })).filter((c: any) => c.name);
     if (cands.length) candidates = cands.slice(0, 10);
@@ -457,7 +460,7 @@ async function precisionFinal(inp: CardInput, b: any) {
     runnersUp: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, blurb: { type: 'STRING' }, fit: { type: 'INTEGER' }, gap: { type: 'STRING' } }, required: ['name', 'blurb', 'fit', 'gap'] } },
     deciding: { type: 'ARRAY', items: { type: 'OBJECT', properties: { q: { type: 'STRING' }, choice: { type: 'STRING' }, note: { type: 'STRING' } }, required: ['q', 'choice', 'note'] } },
   }, required: ['match', 'runnersUp', 'deciding'] };
-  const r = await gemini(prompt, schema, 0.3);
+  const r = await gemini(prompt, schema, 0.3, true);
   if ('error' in r) return json({ error: r.error });
   const m = r.data.match ?? {};
   if (!m.name) return json({ error: 'The AI did not name a match' });
@@ -497,7 +500,7 @@ async function ownAnswersMode(b: any) {
   const schema = { type: 'OBJECT', properties: { picks: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
     id: { type: 'INTEGER' }, pick: { type: 'INTEGER' }, why: { type: 'STRING' },
   }, required: ['id', 'pick'] } } }, required: ['picks'] };
-  const r = await gemini(prompt, schema, 0.1);
+  const r = await gemini(prompt, schema, 0.1, true);
   if ('error' in r) return json({ error: r.error });
   const picks = ((r.data.picks ?? []) as any[]).map((p) => {
     const id = Number(p?.id), pick = Number(p?.pick);

@@ -7171,6 +7171,7 @@ function savePrecision(p){
 // afterTest: the round follows on from a test just finished, and ends in the results reveal.
 const freshPrecision = (afterTest) => ({ v: 2, sig: compassSig(state.user.compass), key: precisionKey(), round: 0, batch: [], idx: 0, asked: [], skipped: [], candidates: [], result: null, afterTest: !!afterTest });
 function queuePrecisionAfterTest(){
+  precisionAhead = null;   // anything written ahead for an earlier run doesn't apply
   savePrecision(freshPrecision(true));
   precisionUi.error = null;
   state.tab = 'precision';
@@ -7184,6 +7185,7 @@ function finishPrecisionFlow(){
   if(reveal) startResultsReveal();
 }
 function startPrecision(){
+  precisionAhead = null;
   savePrecision(freshPrecision(false));
   precisionUi.error = null;
   navigateWithLoading('precision');
@@ -7213,20 +7215,51 @@ async function loadPrecision(kind, fn){
   catch(e){ precisionUi.error = String(e && e.message || e).slice(0, 160); }
   finally { precisionUi.loading = null; stopThink('precision-' + kind); render(); }
 }
-// The next round: the questions still owed (10, or fewer if an earlier round came back short).
+// The next round is written in the background while you answer the last few questions of the current one (and
+// round 1 while the intro is showing), so it is usually ready the moment you need it. It is written from the answers
+// given so far; the last few of the round still count towards the rounds after it and the final match.
+const PREFETCH_FROM_END = 4;
+let precisionAhead = null;   // { sig, round, promise, data }
+function prefetchPrecisionRound(){
+  const p = savedPrecision();
+  if(!p || p.result || !state.user || state.user.isGuest) return;
+  const owedAfter = PRECISION_TOTAL - p.asked.length - (p.batch.length - p.idx);
+  if(owedAfter <= 0) return;   // what comes next is the final match, which needs every answer
+  const round = p.round + 1;
+  if(precisionAhead && precisionAhead.sig === p.sig && precisionAhead.round === round) return;
+  const ahead = { sig: p.sig, round, data: null };
+  ahead.promise = callPrecision({ step: 'round', round, want: Math.min(10, owedAfter) });
+  ahead.promise.then(d => { ahead.data = d; }, () => { if(precisionAhead === ahead) precisionAhead = null; });   // a failed early start is asked again when needed
+  precisionAhead = ahead;
+}
+// Turns a written round into the questions you answer next.
+function applyPrecisionRound(p, data){
+  const questions = (data.questions || []).filter(q => q && typeof q.q === 'string' && Array.isArray(q.opts) && q.opts.length >= 3)
+    .map(q => ({ q: q.q, opts: q.opts.filter(o => typeof o === 'string').slice(0, 4), areas: Array.isArray(q.areas) ? q.areas : [] }))
+    .slice(0, Math.max(1, PRECISION_TOTAL - p.asked.length));
+  if(!questions.length) throw new Error('no questions came back');
+  const cur = savedPrecision();
+  if(!cur || cur.sig !== p.sig) return;
+  cur.round += 1; cur.batch = questions; cur.idx = 0;
+  cur.candidates = (data.candidates || []).filter(c => c && c.name).map(c => ({ name: String(c.name), blurb: String(c.blurb || '') }));
+  savePrecision(cur);
+}
+// The next round: the questions still owed (10, or fewer if an earlier round came back short). Written in the
+// background already, it appears straight away; otherwise the loading screen shows until it is ready.
 function loadPrecisionRound(){
+  const p = savedPrecision();
+  if(!p || precisionUi.loading) return;
+  const round = p.round + 1;
+  const ahead = precisionAhead && precisionAhead.sig === p.sig && precisionAhead.round === round ? precisionAhead : null;
+  precisionAhead = null;
+  if(ahead && ahead.data){
+    try { applyPrecisionRound(p, ahead.data); precisionUi.error = null; render(); return; } catch(e){ /* write it again below */ }
+  }
   return loadPrecision('round', async () => {
-    const p = savedPrecision();
-    if(!p) return;
-    const data = await callPrecision({ step: 'round', round: p.round + 1, want: Math.min(10, PRECISION_TOTAL - p.asked.length) });
-    const questions = (data.questions || []).filter(q => q && typeof q.q === 'string' && Array.isArray(q.opts) && q.opts.length >= 3)
-      .map(q => ({ q: q.q, opts: q.opts.filter(o => typeof o === 'string').slice(0, 4), areas: Array.isArray(q.areas) ? q.areas : [] }));
-    if(!questions.length) throw new Error('no questions came back');
-    const cur = savedPrecision();
-    if(!cur || cur.sig !== p.sig) return;
-    cur.round += 1; cur.batch = questions; cur.idx = 0;
-    cur.candidates = (data.candidates || []).filter(c => c && c.name).map(c => ({ name: String(c.name), blurb: String(c.blurb || '') }));
-    savePrecision(cur);
+    let data = null;
+    if(ahead){ try { data = await ahead.promise; } catch(e){ data = null; } }
+    try { if(data){ applyPrecisionRound(p, data); return; } } catch(e){ /* write it again */ }
+    applyPrecisionRound(p, await callPrecision({ step: 'round', round, want: Math.min(10, PRECISION_TOTAL - p.asked.length) }));
   });
 }
 function loadPrecisionFinal(){
@@ -7280,6 +7313,28 @@ document.addEventListener('keydown', (e) => {
   if(n >= 1 && opts[n - 1]){ e.preventDefault(); opts[n - 1].click(); }
 });
 
+// The precision round's loading screen: the ideologies still in the running drift down a funnel and fade, and the
+// one that fits glows at the bottom. Its own look, so it doesn't feel like the test's radar.
+function precisionLoader(p, cfg){
+  const m = savedCardMatches();
+  let names = (p && p.candidates && p.candidates.length ? p.candidates.map(c => c.name) : (m ? m.ideologies.map(i => i.name) : []));
+  if(names.length < 4) names = names.concat(['Social democracy', 'Conservatism', 'Liberalism', 'Socialism', 'Libertarianism', 'Christian democracy']);
+  names = [...new Set(names)].slice(0, cfg.final ? 4 : 7);
+  const spread = [-150, 120, -60, 170, -190, 40, -100];
+  // Negative delays start each name part-way down, so the funnel is full from the first frame (one cycle is 3.2 s).
+  const chips = names.map((n, i) => el('span',{class:'pl-chip', style:'--from:' + spread[i % spread.length] + 'px;--d:' + (-(i * 3.2 / names.length)).toFixed(2) + 's'}, n));
+  return el('div',{class:'pl' + (cfg.final ? ' pl--final' : ''), role:'status', 'aria-live':'polite'},[
+    el('div',{class:'pl-stage', 'aria-hidden':'true'},[
+      el('div',{class:'pl-chips'}, chips),
+      el('div',{class:'pl-funnel', html:'<svg viewBox="0 0 300 150" preserveAspectRatio="none"><path d="M10 10 C 110 30, 130 90, 138 145 M290 10 C 190 30, 170 90, 162 145"/></svg>'}),
+      el('div',{class:'pl-glow'}),
+    ]),
+    el('div',{class:'pl-kicker'}, cfg.kicker),
+    el('div',{class:'pl-title'}, cfg.title),
+    el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{style:'--s:' + i}, t + '…'))),
+    el('div',{class:'pl-bar'}, el('i')),
+  ]);
+}
 const AREA_LABEL = { political: 'Politics', economic: 'Economics', social: 'Society', religious: 'Religion', philosophical: 'Philosophy' };
 function renderPrecision(){
   const wrap = el('div',{class:'prec-page'});
@@ -7300,19 +7355,18 @@ function renderPrecision(){
 
   if(precisionUi.loading === 'round'){
     const first = !p || !p.asked.length;
-    wrap.appendChild(thinkStage('precision-round', {
+    wrap.appendChild(precisionLoader(p, {
       kicker: 'PRECISION ROUND · ROUND ' + ((p ? p.round : 0) + 1) + ' OF ' + Math.max(4, (p ? p.round : 0) + 1),
       title: first ? 'Writing your first 10 questions' : 'Narrowing it down',
-      steps: first ? ['Reading your test results', 'Picking the ideologies still in the running', 'Writing questions to tell them apart']
-        : ['Reading your last 10 answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
-      secondsPerStep: 6,
+      steps: first ? ['Reading your test results', 'Picking the ideologies in the running', 'Writing questions to tell them apart']
+        : ['Reading your answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
     }));
     return wrap;
   }
   if(precisionUi.loading === 'final'){
-    wrap.appendChild(thinkStage('precision-final', {
-      kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match',
-      steps: ['Weighing all 40 answers', 'Comparing the last candidates', 'Naming your match'], secondsPerStep: 6,
+    wrap.appendChild(precisionLoader(p, {
+      kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match', final: true,
+      steps: ['Weighing all 40 answers', 'Comparing the last few', 'Naming your match'],
     }));
     return wrap;
   }
@@ -7334,6 +7388,7 @@ function renderPrecision(){
   }
 
   if(p && !p.batch.length && p.afterTest){
+    setTimeout(prefetchPrecisionRound, 0);   // round 1 is written while you read this
     wrap.appendChild(el('p',{class:'section-sub'},
       'Your test is done and your three maps are ready. One last part: 40 questions, written for you by the AI, to find the one specific ideology closest to you. They come in four rounds of 10, each written from your answers so far.'));
     wrap.appendChild(el('div',{class:'card'},[
@@ -7361,6 +7416,7 @@ function renderPrecision(){
   const item = p.batch[p.idx];
   if(!item){ setTimeout(() => p.asked.length >= PRECISION_TOTAL ? loadPrecisionFinal() : loadPrecisionRound(), 0); return wrap; }
   const at = p.asked.length + 1;
+  if(p.batch.length - p.idx <= PREFETCH_FROM_END) setTimeout(prefetchPrecisionRound, 0);
   wrap.appendChild(el('p',{class:'section-sub'}, 'Question ' + at + ' of ' + PRECISION_TOTAL + ' · Round ' + p.round + ' of ' + Math.max(4, p.round) +
     (p.candidates.length ? ' · ' + p.candidates.length + ' ideologies still in the running' : '')));
   if(p.idx) wrap.appendChild(el('button',{class:'linkbtn quiz-back', onclick: precisionBack}, '← Back'));
