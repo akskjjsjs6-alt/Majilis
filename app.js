@@ -4052,7 +4052,6 @@ function renderAssessment(){
       startQuizButtons(true),
     ]));
     if(state.user.compass) wrap.appendChild(el('button',{class:'btn secondary', style:'margin-top:16px;', onclick:()=>navigateWithLoading('compass')}, 'See my compass and result card'));
-    if(state.user.compass && !state.user.isGuest) wrap.appendChild(el('button',{class:'btn secondary', style:'margin:16px 0 0 10px;', onclick:()=>navigateWithLoading('precision')}, 'Precision round: find your exact match'));
     return wrap;
   }
 
@@ -4595,8 +4594,9 @@ async function finishAssessment(position, viewText){
   thinkItem('assessment', 'leaders', 'done'); thinkItem('assessment', 'card', 'done');
   clearSavedQuiz();
   state.quiz.active = false;
-  state.tab = signedIn ? 'compass' : 'assessment';   // the compass page shows the three maps with your result card beside them
-  if(signedIn) startResultsReveal();   // a short run through the results first, ending on the card
+  // Signed in, the test carries straight on into the precision round, and the results reveal follows it.
+  if(signedIn) queuePrecisionAfterTest();
+  else state.tab = 'assessment';
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
@@ -7159,8 +7159,23 @@ function savePrecision(p){
   precisionMemory = p;
   try { localStorage.setItem(precisionKey(), JSON.stringify(p)); } catch(e){}
 }
+// afterTest: the round follows on from a test just finished, and ends in the results reveal.
+const freshPrecision = (afterTest) => ({ v: 2, sig: compassSig(state.user.compass), key: precisionKey(), round: 0, batch: [], idx: 0, asked: [], skipped: [], candidates: [], result: null, afterTest: !!afterTest });
+function queuePrecisionAfterTest(){
+  savePrecision(freshPrecision(true));
+  precisionUi.error = null;
+  state.tab = 'precision';
+}
+// Leaves the round for your results: the compass page, with the reveal playing over it.
+function finishPrecisionFlow(){
+  const p = savedPrecision();
+  const reveal = p && p.afterTest;
+  if(p && p.afterTest){ p.afterTest = false; savePrecision(p); }
+  navigateWithLoading('compass');
+  if(reveal) startResultsReveal();
+}
 function startPrecision(){
-  savePrecision({ v: 2, sig: compassSig(state.user.compass), key: precisionKey(), round: 0, batch: [], idx: 0, asked: [], skipped: [], candidates: [], result: null });
+  savePrecision(freshPrecision(false));
   precisionUi.error = null;
   navigateWithLoading('precision');
   loadPrecisionRound();
@@ -7299,6 +7314,7 @@ function renderPrecision(){
       el('p',{class:'field-caption'}, precisionUi.error),
       el('p',{}, 'Your answers so far are saved on this device.'),
       el('button',{class:'btn', onclick:()=> finalStep ? loadPrecisionFinal() : loadPrecisionRound()}, 'Try again'),
+      p && p.afterTest ? el('button',{class:'linkbtn', style:'margin-left:14px;', onclick: finishPrecisionFlow}, 'See my results now, and finish this later') : null,
     ]));
     return wrap;
   }
@@ -7308,6 +7324,18 @@ function renderPrecision(){
     return wrap;
   }
 
+  if(p && !p.batch.length && p.afterTest){
+    wrap.appendChild(el('p',{class:'section-sub'},
+      'Your test is done and your three maps are ready. One last part: 40 questions, written for you by the AI, to find the one specific ideology closest to you. They come in four rounds of 10, each written from your answers so far.'));
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'Last part: the precision round'),
+      el('p',{class:'field-caption'},'About 10 minutes. Then you get your exact match and the full reveal of your results.'),
+      el('div',{style:'height:10px'}),
+      el('button',{class:'btn', onclick: loadPrecisionRound}, 'Start the precision round'),
+      el('button',{class:'linkbtn', style:'margin-left:14px;', onclick: finishPrecisionFlow}, 'Skip it and see my results'),
+    ]));
+    return wrap;
+  }
   if(!p || !p.batch.length){
     wrap.appendChild(el('p',{class:'section-sub'},
       'Your test placed you on three maps. This round finds the one specific ideology closest to you. The AI writes 40 more questions in four rounds of 10. Each question mixes politics, economics, society and religion, and each round is written from your answers so far to tell apart the ideologies still in the running.'));
@@ -7371,7 +7399,7 @@ function precisionResult(p){
     ]))));
   }
   box.appendChild(el('div',{class:'prec-actions'},[
-    el('button',{class:'btn', onclick:()=>navigateWithLoading('compass')}, 'Back to your compass'),
+    p.afterTest ? el('button',{class:'btn', onclick: finishPrecisionFlow}, 'See all my results') : el('button',{class:'btn', onclick:()=>navigateWithLoading('compass')}, 'Back to your compass'),
     el('button',{class:'btn secondary', onclick:()=>{ if(confirm('Start the precision round again? Your current match will be replaced.')) startPrecision(); }}, 'Redo the precision round'),
   ]));
   return box;
