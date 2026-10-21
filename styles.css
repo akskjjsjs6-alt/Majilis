@@ -3191,8 +3191,20 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rv-world__pin text { font: 700 15px var(--font); fill: var(--text); text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
 .rv-world__list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; }
 .rv-world__item { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-2); font-size: 14px; }
+.rv-world__item { color: var(--text); font: inherit; font-size: 14px; cursor: pointer; transition: border-color .25s, background .25s, transform .25s; }
+.rv-world__item:hover { border-color: var(--accent); transform: translateY(-2px); }
+.rv-world__item.is-on { border-color: var(--neon); background: color-mix(in srgb, var(--neon) 14%, var(--surface)); }
+.rv-world__item:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
 .rv-world__item em { font-style: normal; font-weight: 800; color: var(--accent); }
-.rv-flag--dot { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex: none; }
+.rv-world__hot { transition: filter .3s, stroke .3s, stroke-width .3s; }
+/* a filter, not opacity: the entrance animation keeps hold of opacity */
+.rv-world__map.has-pick .rv-world__hot:not(.is-pick), .rv-world__map.has-pick .rv-world__pin { filter: opacity(.22); }
+.rv-world__hot.is-pick { stroke: var(--text); stroke-width: 1.6; filter: drop-shadow(0 0 10px var(--neon)); }
+/* a flag filling its round frame (podium, map dots, the list under the world map) */
+.rv-flag { display: flex; width: 100%; height: 100%; }
+.rv .rv-flag .rc-flag { width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; object-fit: cover; background: var(--surface-2); }
+.rv .rv-flag .rc-flag--code { display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--text); }
+.rv-flag--dot { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; flex: none; box-shadow: 0 0 0 1.5px var(--line-2); }
 .rv-flag--dot .rc-flag--code { font-size: 9px; }
 
 /* a ring that fills to a match percentage */
