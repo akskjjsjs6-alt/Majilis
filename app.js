@@ -1962,6 +1962,7 @@ function renderTab(){
     case 'ranks': return renderRanks();
     case 'leaderboard': return renderLeaderboard();
     case 'compass': return renderCompass();
+    case 'precision': return renderPrecision();
     case 'wiki': return renderWiki();
     case 'members': return renderMembers();
     case 'messages': return renderMessages();
@@ -2859,11 +2860,8 @@ async function refreshCardArt(){
   }
 }
 const MATCH_PHOTO = /^https:\/\/((upload|thumb)\.wikimedia\.org\/|commons\.wikimedia\.org\/wiki\/Special:FilePath\/|bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/object\/public\/portraits\/)/;
-async function fetchCardMatches(){
-  const u = state.user;
-  if(!u || u.isGuest || !u.id || !u.compass || state.cardMatches.loading) return;
-  state.cardMatches = { loading: true, error: null };
-  render();
+// What the AI is told about you: the three maps, every other axis, your background and your chosen answers.
+function aiPersonBody(u){
   let answers = [];
   try { answers = JSON.parse(localStorage.getItem(answersKey()) || '[]'); } catch(e){}
   const maps = {};
@@ -2874,7 +2872,14 @@ async function fetchCardMatches(){
   const axes = allAxes(u).slice(6).map(r => r.lo + ' ' + (100 - r.v) + '% / ' + r.hi + ' ' + r.v + '%').join('\n');
   const extra = [u.archetype && !/not yet/i.test(u.archetype) ? 'Philosophy: ' + u.archetype : '',
     u.religion && u.religion !== 'Prefer not to say' ? 'Religion: ' + u.religion + (u.denomination ? ', ' + u.denomination : '') : ''].filter(Boolean).join('. ');
-  const body = { mode: 'card', portraits: 1, maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') };
+  return { maps, axes, extra, answers: answers.map(([q, c]) => q + ' -> ' + c).join('\n') };
+}
+async function fetchCardMatches(){
+  const u = state.user;
+  if(!u || u.isGuest || !u.id || !u.compass || state.cardMatches.loading) return;
+  state.cardMatches = { loading: true, error: null };
+  render();
+  const body = Object.assign({ mode: 'card', portraits: 1 }, aiPersonBody(u));
   let lastErr = null;
   // A busy AI is the usual reason for a miss, so try up to three times before showing "Try again".
   for(let attempt = 0; attempt < 3; attempt++){
@@ -3985,6 +3990,7 @@ function renderAssessment(){
       startQuizButtons(true),
     ]));
     if(state.user.compass) wrap.appendChild(el('button',{class:'btn secondary', style:'margin-top:16px;', onclick:()=>navigateWithLoading('compass')}, 'See my compass and result card'));
+    if(state.user.compass && !state.user.isGuest) wrap.appendChild(el('button',{class:'btn secondary', style:'margin:16px 0 0 10px;', onclick:()=>navigateWithLoading('precision')}, 'Precision round: find your exact match'));
     return wrap;
   }
 
@@ -7014,6 +7020,7 @@ function renderCompass(){
 
   const overall = compassOverall();
   if(overall) wrap.appendChild(overall);
+  { const b = precisionBanner(); if(b) wrap.appendChild(b); }
   // The three maps on the left; your result card stays beside them.
   const maps = el('div',{class:'compass-maps'});
   ['political', 'economic', 'social'].forEach(sec => maps.appendChild(renderCompassSection(sec)));
@@ -7064,6 +7071,249 @@ function compassOverall(){
     onclick: openCard, onkeydown:(e)=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openCard(); } }},
     [el('div',{class:'cmp-overall__thumb', 'aria-hidden':'true'}, card), body]);
 }
+/* ================= PRECISION ROUND =================
+   After the test, 40 more questions narrow you down to one specific ideology. The AI writes them in four rounds
+   of 10: each round is written in one go, from everything you have answered so far, to split the ideologies still
+   in the running; then it names your closest match. Kept on this device until your results change. */
+const PRECISION_TOTAL = 40;
+const precisionKey = () => 'majlis-precision-' + (state.user && state.user.id || 'guest');
+const precisionUi = { loading: null, error: null };   // loading: 'round' or 'final' while the AI is writing
+let precisionMemory = null;   // kept here too, in case the device can't store it
+function savedPrecision(){
+  const c = state.user && state.user.compass;
+  if(!c) return null;
+  const sig = compassSig(c);
+  if(precisionMemory && precisionMemory.sig === sig && precisionMemory.key === precisionKey()) return precisionMemory;
+  try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); return p && p.v === 1 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
+}
+function savePrecision(p){
+  p.at = Date.now();
+  precisionMemory = p;
+  try { localStorage.setItem(precisionKey(), JSON.stringify(p)); } catch(e){}
+}
+function startPrecision(){
+  savePrecision({ v: 1, sig: compassSig(state.user.compass), key: precisionKey(), round: 0, batch: [], idx: 0, asked: [], candidates: [], result: null });
+  precisionUi.error = null;
+  navigateWithLoading('precision');
+  loadPrecisionRound();
+}
+async function callPrecision(extra){
+  const p = savedPrecision(), m = savedCardMatches();
+  const body = Object.assign({ mode: 'precision', asked: p.asked, shortlist: m ? m.ideologies.map(i => i.name) : [] }, aiPersonBody(state.user), extra);
+  let lastErr = null;
+  // A busy AI is the usual reason for a miss, so try twice before showing "Try again".
+  for(let attempt = 0; attempt < 2; attempt++){
+    if(attempt) await new Promise(r => setTimeout(r, 3000));
+    try {
+      const { data, error } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body });
+      if(data && data.error) throw new Error(data.error);
+      if(error || !data) throw new Error(error ? 'the server call failed (' + (error.message || 'no details') + ')' : 'no answer');
+      return data;
+    } catch(e){ console.warn('precision round unavailable (try ' + (attempt + 1) + ')', e); lastErr = e; }
+  }
+  throw lastErr;
+}
+async function loadPrecision(kind, fn){
+  if(precisionUi.loading) return;
+  precisionUi.loading = kind; precisionUi.error = null;
+  render();
+  try { await fn(); }
+  catch(e){ precisionUi.error = String(e && e.message || e).slice(0, 160); }
+  finally { precisionUi.loading = null; stopThink('precision-' + kind); render(); }
+}
+// The next round: the questions still owed (10, or fewer if an earlier round came back short).
+function loadPrecisionRound(){
+  return loadPrecision('round', async () => {
+    const p = savedPrecision();
+    if(!p) return;
+    const data = await callPrecision({ step: 'round', round: p.round + 1, want: Math.min(10, PRECISION_TOTAL - p.asked.length) });
+    const questions = (data.questions || []).filter(q => q && typeof q.q === 'string' && Array.isArray(q.opts) && q.opts.length >= 3)
+      .map(q => ({ q: q.q, opts: q.opts.filter(o => typeof o === 'string').slice(0, 4), areas: Array.isArray(q.areas) ? q.areas : [] }));
+    if(!questions.length) throw new Error('no questions came back');
+    const cur = savedPrecision();
+    if(!cur || cur.sig !== p.sig) return;
+    cur.round += 1; cur.batch = questions; cur.idx = 0;
+    cur.candidates = (data.candidates || []).filter(c => c && c.name).map(c => ({ name: String(c.name), blurb: String(c.blurb || '') }));
+    savePrecision(cur);
+  });
+}
+function loadPrecisionFinal(){
+  return loadPrecision('final', async () => {
+    const data = await callPrecision({ step: 'final' });
+    const r = data.result;
+    if(!r || !r.match || !r.match.name) throw new Error('no match came back');
+    const cur = savedPrecision();
+    if(!cur) return;
+    cur.result = { match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] };
+    savePrecision(cur);
+  });
+}
+function answerPrecision(opt){
+  const p = savedPrecision();
+  if(!p || precisionUi.loading) return;
+  const item = p.batch[p.idx];
+  if(!item) return;
+  p.asked.push({ q: item.q, choice: opt, round: p.round });
+  p.idx += 1;
+  savePrecision(p);
+  if(p.asked.length >= PRECISION_TOTAL) loadPrecisionFinal();
+  else if(p.idx >= p.batch.length) loadPrecisionRound();
+  else render();
+}
+// Back goes as far as the start of the current round (earlier rounds were written from those answers).
+function precisionBack(){
+  const p = savedPrecision();
+  if(!p || !p.idx || precisionUi.loading) return;
+  p.asked.pop(); p.idx -= 1;
+  savePrecision(p);
+  render();
+}
+document.addEventListener('keydown', (e) => {
+  if(state.tab !== 'precision' || precisionUi.loading || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  if(e.key === 'Backspace' || e.key === 'ArrowLeft'){ e.preventDefault(); precisionBack(); return; }
+  const n = parseInt(e.key, 10), opts = document.querySelectorAll('.prec-q .quiz-opt');
+  if(n >= 1 && opts[n - 1]){ e.preventDefault(); opts[n - 1].click(); }
+});
+
+const AREA_LABEL = { political: 'Politics', economic: 'Economics', social: 'Society', religious: 'Religion', philosophical: 'Philosophy' };
+function renderPrecision(){
+  const wrap = el('div',{class:'prec-page'});
+  wrap.appendChild(el('h2',{class:'section-title'},'Precision Round'));
+  const u = state.user;
+  if(!u || u.isGuest || !u.id){
+    wrap.appendChild(el('div',{class:'card'},[el('p',{},'Sign in to take the precision round: the AI writes its questions for you.')]));
+    return wrap;
+  }
+  if(!u.placementTaken || !u.compass){
+    wrap.appendChild(el('div',{class:'card'},[
+      el('p',{},'Take the placement assessment first. The precision round builds on your results.'),
+      el('button',{class:'btn', onclick:()=>navigateWithLoading('assessment')},'Go to Assessment'),
+    ]));
+    return wrap;
+  }
+  const p = savedPrecision();
+
+  if(precisionUi.loading === 'round'){
+    const first = !p || !p.asked.length;
+    wrap.appendChild(thinkStage('precision-round', {
+      kicker: 'PRECISION ROUND · ROUND ' + ((p ? p.round : 0) + 1) + ' OF 4',
+      title: first ? 'Writing your first 10 questions' : 'Narrowing it down',
+      steps: first ? ['Reading your test results', 'Picking the ideologies still in the running', 'Writing questions to tell them apart']
+        : ['Reading your last 10 answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
+      secondsPerStep: 6,
+    }));
+    return wrap;
+  }
+  if(precisionUi.loading === 'final'){
+    wrap.appendChild(thinkStage('precision-final', {
+      kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match',
+      steps: ['Weighing all 40 answers', 'Comparing the last candidates', 'Naming your match'], secondsPerStep: 6,
+    }));
+    return wrap;
+  }
+  if(precisionUi.error){
+    const finalStep = p && p.asked.length >= PRECISION_TOTAL;
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{}, finalStep ? 'Your match couldn\'t be found just now' : 'The next questions couldn\'t be written just now'),
+      el('p',{class:'field-caption'}, precisionUi.error),
+      el('p',{}, 'Your answers so far are saved on this device.'),
+      el('button',{class:'btn', onclick:()=> finalStep ? loadPrecisionFinal() : loadPrecisionRound()}, 'Try again'),
+    ]));
+    return wrap;
+  }
+
+  if(p && p.result){
+    wrap.appendChild(precisionResult(p));
+    return wrap;
+  }
+
+  if(!p || !p.batch.length){
+    wrap.appendChild(el('p',{class:'section-sub'},
+      'Your test placed you on three maps. This round finds the one specific ideology closest to you. The AI writes 40 more questions in four rounds of 10. Each question mixes politics, economics, society and religion, and each round is written from your answers so far to tell apart the ideologies still in the running.'));
+    wrap.appendChild(el('div',{class:'card'},[
+      el('h3',{},'40 questions, written for you'),
+      el('p',{class:'field-caption'},'About 10 minutes. There are no right answers: pick the one closest to what you really think.'),
+      el('div',{style:'height:10px'}),
+      el('button',{class:'btn', onclick: startPrecision}, 'Start the precision round'),
+    ]));
+    return wrap;
+  }
+
+  // A question.
+  const item = p.batch[p.idx];
+  if(!item){ setTimeout(() => p.asked.length >= PRECISION_TOTAL ? loadPrecisionFinal() : loadPrecisionRound(), 0); return wrap; }
+  const at = p.asked.length + 1;
+  wrap.appendChild(el('p',{class:'section-sub'}, 'Question ' + at + ' of ' + PRECISION_TOTAL + ' · Round ' + p.round + ' of 4' +
+    (p.candidates.length ? ' · ' + p.candidates.length + ' ideologies still in the running' : '')));
+  if(p.idx) wrap.appendChild(el('button',{class:'linkbtn quiz-back', onclick: precisionBack}, '← Back'));
+  const track = el('div',{class:'progress-track'});
+  track.appendChild(el('div',{class:'progress-fill', style:'width:' + Math.round(at / PRECISION_TOTAL * 100) + '%'}));
+  wrap.appendChild(track);
+  wrap.appendChild(el('div',{style:'height:20px'}));
+  const card = el('div',{class:'card prec-q'});
+  if(item.areas.length) card.appendChild(el('div',{class:'prec-areas'}, item.areas.map(a => el('span',{class:'prec-area'}, AREA_LABEL[a] || a))));
+  card.appendChild(el('div',{class:'quiz-q'}, item.q));
+  card.appendChild(el('div',{class:'quiz-opts'}, item.opts.map(opt => el('button',{class:'quiz-opt', onclick:()=>answerPrecision(opt)}, opt))));
+  wrap.appendChild(card);
+  wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:10px;'}, 'Tip: press 1 to ' + item.opts.length + ' to answer. Back goes as far as the start of this round. Your answers are saved on this device.'));
+  return wrap;
+}
+
+function precisionResult(p){
+  const r = p.result, m = r.match;
+  const box = el('div',{class:'prec-result'});
+  box.appendChild(el('div',{class:'card prec-match'},[
+    el('div',{class:'prec-kicker'}, 'YOUR PRECISE MATCH · FROM ' + p.asked.length + ' ANSWERS'),
+    el('div',{class:'prec-name'}, m.name),
+    el('div',{class:'prec-fit'},[
+      el('div',{class:'prec-fit__bar'},[el('div',{class:'prec-fit__fill', style:'width:' + (m.fit || 0) + '%'})]),
+      el('b',{}, (m.fit || 0) + '% fit'),
+    ]),
+    m.blurb ? el('p',{class:'prec-blurb'}, m.blurb) : null,
+    m.why ? el('p',{class:'prec-why'}, m.why) : null,
+  ]));
+  if(r.deciding.length){
+    box.appendChild(el('h3',{class:'prec-h'}, 'What settled it'));
+    box.appendChild(el('div',{class:'prec-list'}, r.deciding.map(d => el('div',{class:'card prec-item'},[
+      el('div',{class:'prec-item__q'}, d.q),
+      el('div',{class:'prec-item__a'}, '“' + d.choice + '”'),
+      d.note ? el('div',{class:'field-caption'}, d.note) : null,
+    ]))));
+  }
+  if(r.runnersUp.length){
+    box.appendChild(el('h3',{class:'prec-h'}, 'Close behind'));
+    box.appendChild(el('div',{class:'prec-list'}, r.runnersUp.map(x => el('div',{class:'card prec-item'},[
+      el('div',{class:'prec-item__top'},[el('b',{}, x.name), el('span',{class:'prec-item__fit'}, (x.fit || 0) + '%')]),
+      x.blurb ? el('div',{class:'prec-item__blurb'}, x.blurb) : null,
+      x.gap ? el('div',{class:'field-caption'}, x.gap) : null,
+    ]))));
+  }
+  box.appendChild(el('div',{class:'prec-actions'},[
+    el('button',{class:'btn', onclick:()=>navigateWithLoading('compass')}, 'Back to your compass'),
+    el('button',{class:'btn secondary', onclick:()=>{ if(confirm('Start the precision round again? Your current match will be replaced.')) startPrecision(); }}, 'Redo the precision round'),
+  ]));
+  return box;
+}
+
+// On the Compass page: your precise match, the round in progress, or an invitation to take it.
+function precisionBanner(){
+  const u = state.user;
+  if(!u || u.isGuest || !u.id || !u.compass) return null;
+  const p = savedPrecision(), go = () => navigateWithLoading('precision');
+  const [kicker, line, action] = p && p.result
+    ? ['YOUR PRECISE MATCH', [el('b',{}, p.result.match.name), ' · ' + (p.result.match.fit || 0) + '% fit'], 'See why ›']
+    : p && p.asked.length
+      ? ['PRECISION ROUND', p.asked.length + ' of ' + PRECISION_TOTAL + ' answered', 'Carry on ›']
+      : ['WANT AN EXACT MATCH?', '40 more questions, written for you by the AI, narrow your result down to one specific ideology.', 'Start the precision round ›'];
+  return el('div',{class:'prec-banner', role:'button', tabindex:'0', onclick: go, onkeydown:(e)=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } }},[
+    el('div',{class:'cmp-overall__kicker'}, kicker),
+    el('div',{class:'cmp-overall__line'}, line),
+    el('div',{class:'cmp-overall__open'}, action),
+  ]);
+}
+
 function renderCompassSection(section){
   const me = state.user;
   const def = COMPASS_DEFS[section];

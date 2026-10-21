@@ -2837,6 +2837,30 @@ input.is-err, textarea.is-err { border-color: var(--danger); box-shadow: 0 0 0 3
 .cmp-overall--card:focus-visible { outline: 2px solid var(--neon); outline-offset: 3px; }
 .cmp-overall__thumb { width: 74px; flex: none; border-radius: 8px; overflow: hidden; pointer-events: none; }
 .cmp-overall__thumb .rc9__pop { display: none; }
+/* ===================== Precision round ===================== */
+.prec-banner { padding: 12px 16px; margin: 0 0 22px; border-radius: var(--radius); border: 1px dashed var(--neon-line); cursor: pointer; }
+.prec-banner:hover { background: var(--neon-soft); }
+.prec-banner:focus-visible { outline: 2px solid var(--neon); outline-offset: 3px; }
+.prec-areas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.prec-area { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--neon); border: 1px solid var(--neon-line); border-radius: 99px; padding: 2px 9px; }
+.prec-match { border-color: var(--neon-line); }
+.prec-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: var(--neon); }
+.prec-name { font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin: 6px 0 12px; overflow-wrap: anywhere; }
+.prec-fit { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.prec-fit__bar { flex: 1; max-width: 280px; height: 8px; border-radius: 8px; background: var(--surface-3); overflow: hidden; }
+.prec-fit__fill { height: 100%; background: var(--neon); border-radius: 8px; }
+.prec-blurb { font-size: 15px; color: var(--text); margin: 0 0 10px; }
+.prec-why { font-size: 14px; color: var(--muted); line-height: 1.55; margin: 0; }
+.prec-h { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin: 26px 0 10px; }
+.prec-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.prec-item { margin: 0; }
+.prec-item__q { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.prec-item__a { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.prec-item__top { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.prec-item__fit { color: var(--neon); font-weight: 700; flex: none; }
+.prec-item__blurb { font-size: 13.5px; margin-bottom: 4px; }
+.prec-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+
 /* Narrow screens: the tappable copy at the top replaces the big card that sat below all three maps. */
 @media (max-width: 1100px) { .compass-aside { display: none; } }
 
