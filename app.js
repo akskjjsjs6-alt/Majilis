@@ -7175,9 +7175,9 @@ function compassOverall(){
     [el('div',{class:'cmp-overall__thumb', 'aria-hidden':'true'}, card), body]);
 }
 /* ================= PRECISION ROUND =================
-   After the test, 40 more questions narrow you down to one specific ideology. The AI writes them in four rounds
-   of 10: each round is written in one go, from everything you have answered so far, to split the ideologies still
-   in the running; then it names your closest match. Kept on this device until your results change. */
+   After the test, 40 more questions narrow you down to one specific ideology. The AI writes all 40 at once, broad to
+   fine, to split the ideologies in the running (any you skip are made up at the end); then it names your closest
+   match. Kept on this device until your results change. */
 const PRECISION_TOTAL = 40;
 const precisionKey = () => 'majlis-precision-' + (state.user && state.user.id || 'guest');
 const precisionUi = { loading: null, error: null, preparing: false };   // loading: 'round' or 'final' while the AI is writing; preparing: the test just submitted is being scored
@@ -7246,9 +7246,8 @@ async function loadPrecision(kind, fn){
   catch(e){ precisionUi.error = String(e && e.message || e).slice(0, 160); }
   finally { precisionUi.loading = null; stopThink('precision-' + kind); render(); }
 }
-// The next round is written in the background while you answer the last few questions of the current one (and
-// round 1 while the intro is showing), so it is usually ready the moment you need it. It is written from the answers
-// given so far; the last few of the round still count towards the rounds after it and the final match.
+// All 40 questions are written at once. If some are still owed at the end (skipped, or the AI wrote fewer), they are
+// written in the background while you answer the last few, so they are usually ready the moment you need them.
 const PREFETCH_FROM_END = 4;
 let precisionAhead = null;   // { sig, round, promise, data }
 function prefetchPrecisionRound(){
@@ -7259,7 +7258,7 @@ function prefetchPrecisionRound(){
   const round = p.round + 1;
   if(precisionAhead && precisionAhead.sig === p.sig && precisionAhead.round === round) return;
   const ahead = { sig: p.sig, round, data: null };
-  ahead.promise = callPrecision({ step: 'round', round, want: Math.min(10, owedAfter) });
+  ahead.promise = callPrecision({ step: 'round', round, want: owedAfter });
   ahead.promise.then(d => { ahead.data = d; }, () => { if(precisionAhead === ahead) precisionAhead = null; });   // a failed early start is asked again when needed
   precisionAhead = ahead;
 }
@@ -7290,7 +7289,7 @@ function loadPrecisionRound(){
     let data = null;
     if(ahead){ try { data = await ahead.promise; } catch(e){ data = null; } }
     try { if(data){ applyPrecisionRound(p, data); return; } } catch(e){ /* write it again */ }
-    applyPrecisionRound(p, await callPrecision({ step: 'round', round, want: Math.min(10, PRECISION_TOTAL - p.asked.length) }));
+    applyPrecisionRound(p, await callPrecision({ step: 'round', round, want: PRECISION_TOTAL - p.asked.length }));
   });
 }
 function loadPrecisionFinal(){
@@ -7354,10 +7353,10 @@ document.addEventListener('keydown', (e) => {
 function precisionRoundLoader(p){
   const first = !p || !p.asked.length;
   return {
-    kicker: 'PRECISION ROUND · ROUND ' + ((p ? p.round : 0) + 1) + ' OF ' + Math.max(4, (p ? p.round : 0) + 1),
-    title: first ? 'Writing your first 10 questions' : 'Narrowing it down',
+    kicker: 'PRECISION ROUND · 40 QUESTIONS',
+    title: first ? 'Writing your 40 questions' : 'Writing your last few questions',
     steps: first ? ['Scoring your test', 'Picking the ideologies in the running', 'Writing questions to tell them apart']
-      : ['Reading your answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
+      : ['Reading your answers', 'Ruling out what no longer fits', 'Writing the last questions'],
   };
 }
 // Names for the loading screen: yours first (the ideologies still in the running, or your card's), then a wide mix
@@ -7392,13 +7391,12 @@ function precisionLoader(p, cfg){
   const list = plNames(p);
   const take = () => { const n = list.names[list.next % list.names.length]; list.next += 1; return n; };
   const names = PL_SPOTS.map(([x, y], i) => el('span',{class:'pl-name' + (x < 20 || x > 80 ? ' pl-name--edge' : x === 50 ? ' pl-name--mid' : x < 50 ? ' pl-name--l' : ' pl-name--r'), style:'left:' + x + '%;top:' + y + '%;--i:' + i}, take()));
-  const round = cfg.final ? 5 : Math.min(4, (p ? p.round : 0) + 1);
   const node = el('div',{class:'pl' + (cfg.final ? ' pl--final' : ''), role:'status', 'aria-live':'polite'},[
     el('div',{class:'pl-stage', 'aria-hidden':'true'}, [el('div',{class:'pl-lens'}), ...names]),
     el('div',{class:'pl-kicker'}, cfg.kicker),
     el('div',{class:'pl-title'}, cfg.title),
     el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{style:'--s:' + i}, t + '…'))),
-    el('div',{class:'pl-rounds', 'aria-hidden':'true'}, [1, 2, 3, 4].map(r => el('i',{class: r < round ? 'is-done' : r === round ? 'is-now' : ''}))),
+    el('div',{class:'pl-bar', 'aria-hidden':'true'}, el('i')),
   ]);
   const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!plTimer && !still) plTimer = setInterval(() => plTick(take), 1000);
@@ -7484,7 +7482,7 @@ function renderPrecision(){
   }
   if(!p || !p.batch.length){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'Your test placed you on three maps. This round finds the one specific ideology closest to you. The AI writes 40 more questions in four rounds of 10. Each question mixes politics, economics, society and religion, and each round is written from your answers so far to tell apart the ideologies still in the running.'));
+      'Your test placed you on three maps. This round finds the one specific ideology closest to you. The AI writes 40 more questions for you, mixing politics, economics, society and religion, starting broad and getting finer, to tell apart the ideologies closest to you.'));
     wrap.appendChild(el('div',{class:'card'},[
       el('h3',{},'40 questions, written for you'),
       el('p',{class:'field-caption'},'About 10 minutes. There are no right answers: pick the one closest to what you really think.'),
@@ -7499,8 +7497,7 @@ function renderPrecision(){
   if(!item){ setTimeout(() => p.asked.length >= PRECISION_TOTAL ? loadPrecisionFinal() : loadPrecisionRound(), 0); return wrap; }
   const at = p.asked.length + 1;
   if(p.batch.length - p.idx <= PREFETCH_FROM_END) setTimeout(prefetchPrecisionRound, 0);
-  wrap.appendChild(el('p',{class:'section-sub'}, 'Question ' + at + ' of ' + PRECISION_TOTAL + ' · Round ' + p.round + ' of ' + Math.max(4, p.round) +
-    (p.candidates.length ? ' · ' + p.candidates.length + ' ideologies still in the running' : '')));
+  wrap.appendChild(el('p',{class:'section-sub'}, 'Question ' + at + ' of ' + PRECISION_TOTAL + ' · Precision round'));
   if(p.idx) wrap.appendChild(el('button',{class:'linkbtn quiz-back', onclick: precisionBack}, '← Back'));
   const track = el('div',{class:'progress-track'});
   track.appendChild(el('div',{class:'progress-fill', style:'width:' + Math.round(at / PRECISION_TOTAL * 100) + '%'}));
@@ -7513,7 +7510,7 @@ function renderPrecision(){
   wrap.appendChild(card);
   wrap.appendChild(el('button',{class:'linkbtn prec-skip', onclick: skipPrecision}, 'This question doesn\'t make sense: skip it'));
   if(p.afterTest) wrap.appendChild(el('button',{class:'linkbtn prec-skip', style:'margin-left:18px;', onclick: finishPrecisionFlow}, 'Stop here and see my results'));
-  wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:10px;'}, 'Tip: press 1 to ' + item.opts.length + ' to answer. Back goes as far as the start of this round. Your answers are saved on this device.'));
+  wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:10px;'}, 'Tip: press 1 to ' + item.opts.length + ' to answer, Backspace to go back. Your answers are saved on this device.'));
   return wrap;
 }
 

@@ -4,7 +4,7 @@
 // mode "card" (the result card and the Compass page): from the person's test answers and scores, the AI proposes leaders
 // (modern and historical, from any country), nations and named ideologies with their honest positions on the three maps;
 // closeness is then computed here, so the nearest really are the nearest.
-// mode "precision": the 40-question round after the test, written by the AI in rounds of 10, ending in one specific match.
+// mode "precision": the 40-question round after the test, all written by the AI at once, ending in one specific match.
 // mode "own_answers": answers people wrote themselves on the test, each matched to the closest listed answer.
 // Photos and flags are fetched here on the server and sent as embedded images, so the page does not depend on the
 // visitor's browser reaching Wikipedia. If a photo cannot be embedded, its link is still sent.
@@ -375,10 +375,10 @@ async function cardMode(b: any) {
 }
 
 // ---------- mode "precision" ----------
-// After the test, 40 more questions in rounds of 10 narrow the person down to one specific ideology. Each round is
-// written in one go (step "round"): the AI reads everything so far, keeps the specific ideologies still in the
-// running, and writes questions that mix politics, economics, society and religion so that each answer splits those
-// candidates. Once all are answered, step "final" names the one closest match and the runners-up.
+// After the test, 40 more questions narrow the person down to one specific ideology. They are all written at once
+// (step "round"): the AI picks the specific ideologies in the running and writes questions, broad to fine, whose answers
+// split them; a later call only makes up any that were skipped. Once all are answered, step "final" names the one
+// closest match and the runners-up.
 const PRECISION_AREAS = ['political', 'economic', 'social', 'religious', 'philosophical'];
 type Asked = { q: string; choice: string; round: number };
 function readAsked(b: any): Asked[] {
@@ -397,16 +397,18 @@ function precisionText(inp: CardInput, b: any, asked: Asked[]): string {
 async function precisionRound(inp: CardInput, b: any) {
   const asked = readAsked(b);
   const round = Math.max(1, Math.min(9, Number(b.round) || 1));
-  const want = Math.max(1, Math.min(10, Number(b.want) || 10));
-  const lastRound = round >= 4;
-  const keep = round === 1 ? '8 to 10' : round === 2 ? '6 to 8' : round === 3 ? '4 to 6' : '3 or 4';
-  const prompt = `A person finished a long political test (their scores and chosen answers are below). They are now in a PRECISION ROUND: 40 extra questions, asked in rounds of 10, to narrow them down to ONE very specific ideology or school of thought. This is round ${round} of ${Math.max(4, round)}.\n\n` +
-    `1. "candidates": the ${keep} specific, real ideologies or schools of thought still in the running for this person, most likely first, judged from EVERYTHING below, including the answers already given in this precision round (<precision_answers>). Be precise rather than generic: e.g. "Ordoliberalism", "Christian democracy", "Georgism", "Distributism", "Kemalism", "Market socialism", "Paleoconservatism", "Libertarian socialism", "Social liberalism", "Eco-socialism", "Islamic democracy", "Christian anarchism", "Neo-Confucianism", "Minarchism". <first_shortlist> is where the test first placed them; use it as a starting point, not a limit, and drop candidates the answers have ruled out. "name": the usual English name (its Wikipedia article title). "blurb": ONE plain sentence, at most 16 words.\n` +
-    `2. "questions": exactly ${want} NEW multiple-choice questions whose answers best SPLIT those candidates from each other${lastRound ? ' (this is the last round: aim squarely at the two or three closest candidates)' : ''}.\n` +
+  const want = Math.max(1, Math.min(40, Number(b.want) || 40));
+  const first = !asked.length;   // the full set of 40; later calls only make up a few that were skipped or came back short
+  const keep = first ? '8 to 10' : '3 to 5';
+  const rules = (n: number, focus: string) =>
+    `A person finished a long political test (their scores and chosen answers are below). They now get a PRECISION ROUND: 40 extra questions, all written at once, to narrow them down to ONE very specific ideology or school of thought.${first ? '' : ' They have already answered some of them (<precision_answers>); write the last few.'}\n\n` +
+    `1. "candidates": the ${keep} specific, real ideologies or schools of thought in the running for this person, most likely first, judged from EVERYTHING below. Be precise rather than generic: e.g. "Ordoliberalism", "Christian democracy", "Georgism", "Distributism", "Kemalism", "Market socialism", "Paleoconservatism", "Libertarian socialism", "Social liberalism", "Eco-socialism", "Islamic democracy", "Christian anarchism", "Neo-Confucianism", "Minarchism". <first_shortlist> is where the test first placed them; use it as a starting point, not a limit. "name": the usual English name (its Wikipedia article title). "blurb": ONE plain sentence, at most 16 words.\n` +
+    `2. "questions": exactly ${n} NEW multiple-choice questions whose answers best SPLIT those candidates from each other. Order them from broad to fine: the first ones split the whole field, the last ones separate the two or three closest candidates.${focus ? ` These ${n} lean mainly on ${focus} issues (another set covers the rest), though each may still touch other areas.` : ''}\n` +
     `Rules for the questions (an ordinary 15-year-old must understand every one on first reading):\n` +
     `- "q" asks ONE clear, direct question about ONE real, recognisable issue (welfare, taxes, wages, housing, immigration, policing, free speech, protest, war, the family, marriage, abortion, schools, religion in public life, the environment, trade, who should hold power...). It may open with one short sentence of concrete situation, and it must end with a question mark. At most 30 words. No made-up societies, no abstract philosophy, no jargon, no double questions.\n` +
     `- Each of the 4 answers must be a direct, complete reply to that exact question: read the question, then the answer, and it must make sense as a reply. Start them the way people answer that question (e.g. "Yes, ...", "No, ...", "The government should...", "Parents should..."). At most 20 words each, all reasonable, clearly different from each other, each one a position some candidate really holds. No "it depends", no "none of these", no joke answers, no answer that only makes sense alongside another.\n` +
-    `- Choose issues where the candidates genuinely DISAGREE, so the answer tells them apart. Where it is natural, pick an issue that touches more than one area (e.g. religious schools getting public money touches religious, economic and social), but never force a link: a clear question about one area beats a muddled one about three. List the areas it touches in "areas" (from: political, economic, social, religious, philosophical). Across the round cover every area, including religion even for non-religious people (as religion and conscience in public life).\n` +
+    `- Choose issues where the candidates genuinely DISAGREE, so the answer tells them apart. Where it is natural, pick an issue that touches more than one area (e.g. religious schools getting public money touches religious, economic and social), but never force a link: a clear question about one area beats a muddled one about three. List the areas it touches in "areas" (from: political, economic, social, religious, philosophical).${focus ? '' : ' Across the set cover every area, including religion even for non-religious people (as religion and conscience in public life).'}\n` +
+    `- Every question must be on a different issue; never two on the same one.\n` +
     `- Never name an ideology, party or thinker in a question or answer, so the answers are not swayed by labels.\n` +
     `- Never repeat or closely rephrase a question already in <answers> or <precision_answers>, nor anything like the questions in <skipped>, which the person skipped because they were unclear.\n` +
     `- "splits": at most 12 words on which candidates the question separates (only the page's records see this, the person does not).\n` +
@@ -422,28 +424,43 @@ async function precisionRound(inp: CardInput, b: any) {
     }, required: ['q', 'opts', 'areas'] } },
   }, required: ['candidates', 'questions'] };
 
+  // A big set is written as two halves at the same time (about half the wait), one leaning on economics and politics,
+  // the other on society, religion and philosophy, then interleaved so the broad questions come first.
+  const parts = want > 12
+    ? [{ n: Math.ceil(want / 2), focus: 'economic and political' }, { n: Math.floor(want / 2), focus: 'social, religious and philosophical' }]
+    : [{ n: want, focus: '' }];
   const seen = new Set(asked.map((a) => a.q.toLowerCase()));
-  let questions: any[] = [], candidates: any[] = [], lastErr = '';
-  // Only a round with no usable questions gets a second try; any shortfall is made up in the page's next round.
-  for (let attempt = 0; attempt < 2 && !questions.length; attempt++) {
-    const r = await gemini(prompt, schema, 0.4, true);
-    if ('error' in r) { lastErr = r.error; continue; }
-    const cands = (r.data.candidates ?? []).map((c: any) => ({ name: clip(c?.name, 60), blurb: clip(c?.blurb, 160) })).filter((c: any) => c.name);
-    if (cands.length) candidates = cands.slice(0, 10);
-    for (const q of (r.data.questions ?? [])) {
+  const readQs = (data: any) => {
+    const out: any[] = [];
+    for (const q of (data?.questions ?? [])) {
       const text = clip(q?.q, 300).trim();
       const opts = ((q?.opts ?? []) as any[]).map((o) => clip(o, 200).trim()).filter(Boolean);
       const areas = ((q?.areas ?? []) as any[]).filter((a) => PRECISION_AREAS.includes(a));
-      // A question has to be a question, with short answers that are all different.
+      // A question has to be a question, with short answers that are all different, and not one already asked.
       if (!text || !text.includes('?') || text.split(/\s+/).length > 45 || seen.has(text.toLowerCase()) || opts.length < 3
         || opts.some((o) => o.split(/\s+/).length > 30) || new Set(opts.map((o) => o.toLowerCase())).size !== opts.length) continue;
       seen.add(text.toLowerCase());
-      questions.push({ q: text, opts: opts.slice(0, 4), areas: [...new Set(areas)], splits: clip(q?.splits, 120) });
-      if (questions.length >= want) break;
+      out.push({ q: text, opts: opts.slice(0, 4), areas: [...new Set(areas)], splits: clip(q?.splits, 120) });
     }
+    return out;
+  };
+  let questions: any[] = [], candidates: any[] = [], lastErr = '';
+  // Only a set with no usable questions gets a second try; any shortfall is made up in the page's next call.
+  for (let attempt = 0; attempt < 2 && !questions.length; attempt++) {
+    const results = await Promise.all(parts.map((part) => gemini(rules(part.n, part.focus), schema, 0.4, true)));
+    const sets: any[][] = [];
+    for (const r of results) {
+      if ('error' in r) { lastErr = r.error; sets.push([]); continue; }
+      const cands = (r.data.candidates ?? []).map((c: any) => ({ name: clip(c?.name, 60), blurb: clip(c?.blurb, 160) })).filter((c: any) => c.name);
+      for (const c of cands) if (!candidates.some((x) => x.name.toLowerCase() === c.name.toLowerCase())) candidates.push(c);
+      sets.push(readQs(r.data));
+    }
+    const longest = Math.max(0, ...sets.map((x) => x.length));
+    for (let i = 0; i < longest; i++) for (const set of sets) if (set[i]) questions.push(set[i]);
+    questions = questions.slice(0, want);
   }
   if (!questions.length) return json({ error: lastErr || 'The AI did not write any questions' });
-  return json({ round, candidates, questions });
+  return json({ round, candidates: candidates.slice(0, 10), questions });
 }
 
 async function precisionFinal(inp: CardInput, b: any) {
