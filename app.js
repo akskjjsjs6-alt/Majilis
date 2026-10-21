@@ -7360,25 +7360,70 @@ function precisionRoundLoader(p){
       : ['Reading your answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
   };
 }
-function precisionLoader(p, cfg){
+// Names for the loading screen: yours first (the ideologies still in the running, or your card's), then a wide mix
+// of real ideologies, shuffled. Each name swaps for the next one every time it leaves the top of the funnel, so the
+// same few don't keep repeating; where you are in the list carries over when the screen is redrawn.
+const PL_POOL = ['Social democracy', 'Christian democracy', 'Classical liberalism', 'Social liberalism', 'Libertarianism', 'Conservatism',
+  'Democratic socialism', 'Market socialism', 'Distributism', 'Ordoliberalism', 'Communitarianism', 'Civic republicanism', 'Georgism',
+  'Eco-socialism', 'Green politics', 'Neoliberalism', 'Paleoconservatism', 'Neoconservatism', 'Minarchism', 'Anarcho-syndicalism',
+  'Libertarian socialism', 'Mutualism', 'Agrarianism', 'Progressivism', 'Technocracy', 'Constitutional monarchism', 'Traditionalism',
+  'National conservatism', 'One-nation conservatism', 'Third Way', 'Kemalism', 'Gaullism', 'Islamic democracy', 'Christian socialism',
+  'Fabianism', 'Liberal conservatism', 'Localism', 'Cosmopolitanism', 'Federalism', 'Pacifism', 'Objectivism', 'Anarcho-capitalism',
+  'Syndicalism', 'Corporatism', 'Developmentalism', 'Red Toryism', 'Populism', 'Left-libertarianism', 'Christian anarchism',
+  'Liberal internationalism', 'Social market economy', 'Confucian meritocracy', 'Municipalism', 'Guild socialism'];
+const plList = { key: '', names: [], next: 0 };
+const plShuffle = (a) => { a = a.slice(); for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function plNames(p){
   const m = savedCardMatches();
-  let names = (p && p.candidates && p.candidates.length ? p.candidates.map(c => c.name) : (m ? m.ideologies.map(i => i.name) : []));
-  if(names.length < 4) names = names.concat(['Social democracy', 'Conservatism', 'Liberalism', 'Socialism', 'Libertarianism', 'Christian democracy']);
-  names = [...new Set(names)].slice(0, cfg.final ? 4 : 7);
-  const spread = [-150, 120, -60, 170, -190, 40, -100];
-  // Negative delays start each name part-way down, so the funnel is full from the first frame (one cycle is 3.2 s).
-  const chips = names.map((n, i) => el('span',{class:'pl-chip', style:'--from:' + spread[i % spread.length] + 'px;--d:' + (-(i * 3.2 / names.length)).toFixed(2) + 's'}, n));
-  return el('div',{class:'pl' + (cfg.final ? ' pl--final' : ''), role:'status', 'aria-live':'polite'},[
-    el('div',{class:'pl-stage', 'aria-hidden':'true'},[
-      el('div',{class:'pl-chips'}, chips),
-      el('div',{class:'pl-funnel', html:'<svg viewBox="0 0 300 150" preserveAspectRatio="none"><path d="M10 10 C 110 30, 130 90, 138 145 M290 10 C 190 30, 170 90, 162 145"/></svg>'}),
-      el('div',{class:'pl-glow'}),
-    ]),
+  const yours = (p && p.candidates && p.candidates.length ? p.candidates.map(c => c.name) : (m ? m.ideologies.map(i => i.name) : []));
+  const key = yours.join('|');
+  if(plList.key !== key || !plList.names.length){
+    plList.key = key; plList.next = 0;
+    plList.names = [...new Set(plShuffle(yours).concat(plShuffle(PL_POOL.filter(n => !yours.includes(n)))))];
+  }
+  return plList;
+}
+// The loading screen itself: a cloud of ideology names, and a glowing selector that moves from name to name. Each
+// name it lands on is either kept (it stays lit) or ruled out (struck through and faded, then replaced by a new name),
+// so the screen keeps changing while the AI works. Four markers below show which round you're on.
+const PL_SPOTS = [[13, 14], [37, 14], [63, 14], [87, 14], [25, 38], [50, 38], [75, 38], [13, 62], [37, 62], [63, 62], [87, 62], [25, 86], [50, 86], [75, 86]];
+let plTimer = null;
+function precisionLoader(p, cfg){
+  const list = plNames(p);
+  const take = () => { const n = list.names[list.next % list.names.length]; list.next += 1; return n; };
+  const names = PL_SPOTS.map(([x, y], i) => el('span',{class:'pl-name' + (x < 20 || x > 80 ? ' pl-name--edge' : x === 50 ? ' pl-name--mid' : x < 50 ? ' pl-name--l' : ' pl-name--r'), style:'left:' + x + '%;top:' + y + '%;--i:' + i}, take()));
+  const round = cfg.final ? 5 : Math.min(4, (p ? p.round : 0) + 1);
+  const node = el('div',{class:'pl' + (cfg.final ? ' pl--final' : ''), role:'status', 'aria-live':'polite'},[
+    el('div',{class:'pl-stage', 'aria-hidden':'true'}, [el('div',{class:'pl-lens'}), ...names]),
     el('div',{class:'pl-kicker'}, cfg.kicker),
     el('div',{class:'pl-title'}, cfg.title),
     el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{style:'--s:' + i}, t + '…'))),
-    el('div',{class:'pl-bar'}, el('i')),
+    el('div',{class:'pl-rounds', 'aria-hidden':'true'}, [1, 2, 3, 4].map(r => el('i',{class: r < round ? 'is-done' : r === round ? 'is-now' : ''}))),
   ]);
+  const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!plTimer && !still) plTimer = setInterval(() => plTick(take), 1000);
+  return node;
+}
+// One step of the selector: move to a name that is showing and not busy, then keep it or rule it out.
+function plTick(take){
+  const stage = document.querySelector('.pl-stage');
+  if(!stage){ clearInterval(plTimer); plTimer = null; return; }
+  const lens = stage.querySelector('.pl-lens');
+  const free = [...stage.querySelectorAll('.pl-name')].filter(n => n.offsetParent && !n.classList.contains('is-lit') && !n.classList.contains('is-out') && !n.classList.contains('is-in'));
+  if(!free.length || !lens) return;
+  const n = free[Math.floor(Math.random() * free.length)];
+  lens.style.left = n.offsetLeft + 'px'; lens.style.top = n.offsetTop + 'px';
+  lens.style.width = (n.offsetWidth + 26) + 'px'; lens.style.height = (n.offsetHeight + 18) + 'px';
+  lens.classList.add('is-on');
+  n.classList.add('is-lit');   // reserved now, lit once the selector has arrived
+  setTimeout(() => { n.classList.remove('is-kept'); n.classList.add('is-seen'); }, 300);
+  setTimeout(() => {
+    n.classList.remove('is-lit', 'is-seen');
+    if(Math.random() < 0.6){
+      n.classList.add('is-out');   // ruled out: struck through and faded, then a new name takes its place
+      setTimeout(() => { n.textContent = take(); n.classList.remove('is-out'); n.classList.add('is-in'); setTimeout(() => n.classList.remove('is-in'), 600); }, 800);
+    } else n.classList.add('is-kept');
+  }, 880);
 }
 const AREA_LABEL = { political: 'Politics', economic: 'Economics', social: 'Society', religious: 'Religion', philosophical: 'Philosophy' };
 function renderPrecision(){
