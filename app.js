@@ -3564,6 +3564,23 @@ function rvIdeologyScene(m){
   return rvTopScene('Ideologies closest to you', [{ key: 'all' }], () => rvPodium(ideos,
     (i) => el('span',{class:'rv-emb-spin'}, ideologyEmblem(i.name, i.symbol)), (i) => rvSide(i) ? rvSide(i) + ' economically' : null, (i) => i.blurb));
 }
+// Your exact match from the precision round: the ideology, how well it fits, why, and what came close.
+function rvPrecisionScene(){
+  const p = savedPrecision(), r = p && p.result;
+  if(!r || !r.match || !r.match.name) return null;
+  const fit = Math.max(0, Math.min(100, Math.round(r.match.fit || 0)));
+  const runners = (r.runnersUp || []).filter(x => x && x.name).slice(0, 3);
+  return { title: 'Your exact match', ms: rvD(4200), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in rv-prec'},[
+    el('div',rvIn(0, 'rv-kicker'), 'THE PRECISION ROUND · ' + p.asked.length + ' ANSWERS'),
+    el('h2',{class:'rv-title rv-title--c'}, rvWords('Your exact match', 100, 90)),
+    el('div',rvIn(700, 'rv-prec__name', 'zoom'), r.match.name),
+    el('div',rvIn(1100, 'rv-prec__fit'),[el('i',{class:'rv-mbar__track'}, el('b',{style:'--w:' + fit + '%;--d:' + rvD(1200) + 'ms'})), el('span',{}, rvCount(fit, '% fit', 1200))]),
+    r.match.blurb ? el('p',rvIn(1600, 'rv-prec__blurb'), r.match.blurb) : null,
+    r.match.why ? el('p',rvIn(2100, 'rv-find__p rv-prec__why'), r.match.why) : null,
+    runners.length ? el('div',rvIn(2700, 'rv-prec__runners'),[el('span',{class:'rv-kicker'}, 'CLOSE BEHIND'),
+      el('div',{}, runners.map(x => el('span',{class:'rv-prec__chip'}, x.name + (x.fit ? ' · ' + x.fit + '%' : ''))))]) : null,
+  ])]) };
+}
 // Conviction: how far from the middle you sit, on average, across every axis of the test (0 = dead centre on
 // everything, 100 = at an end on everything), on a dial, with your three strongest positions.
 function rvConvictionScene(){
@@ -3776,7 +3793,7 @@ function startResultsReveal(){
   if(!m || !state.user || !state.user.compass) return openCard();
   // Each scene is built once here (empty ones are left out) and built again only when you go back to it.
   rvWorld();   // the map outlines start loading now, so they're ready by their scene
-  const parts = [rvIntroScene, rvConvictionScene, rvApartScene, rvMapsScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
+  const parts = [rvIntroScene, rvConvictionScene, rvApartScene, rvMapsScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvPrecisionScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
   if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
   const titles = parts.map(x => x.s.title);
   let ch = -1, scene = null, ended = false, readyTimer = null;
@@ -4258,10 +4275,23 @@ function renderAssessment(){
         first.focus({ preventScroll: true });
         return;
       }
-      state.quiz.analysing = true;
+      // Signed in, the test hands straight over to the precision round: its animation shows while your answers are
+      // scored and its first questions are written. Guests see the test's own analysis screen.
+      const signedIn = !state.user.isGuest && state.user.id;
+      if(signedIn){ precisionUi.preparing = true; precisionUi.error = null; state.tab = 'precision'; }
+      else state.quiz.analysing = true;
       render();
-      try { await finishAssessment(position, viewText); }
-      finally { state.quiz.analysing = false; stopThink('assessment'); render(); }
+      let ok = false;
+      try { ok = await finishAssessment(position, viewText); }
+      finally {
+        state.quiz.analysing = false; stopThink('assessment');
+        if(signedIn){
+          precisionUi.preparing = false;
+          if(ok) loadPrecisionRound();
+          else state.tab = 'assessment';   // something went wrong: back to your written case
+        }
+        render();
+      }
     }}, 'Submit & get ranked');
     card.appendChild(submitBtn);
     wrap.appendChild(card);
@@ -4601,6 +4631,7 @@ async function finishAssessment(position, viewText){
   // Signed in, the test carries straight on into the precision round, and the results reveal follows it.
   if(signedIn) queuePrecisionAfterTest();
   else state.tab = 'assessment';
+  return true;
 }
 
 function otherParticipant(debate){ return debate.participants.find(u=>u!==state.currentUser); }
@@ -7149,7 +7180,7 @@ function compassOverall(){
    in the running; then it names your closest match. Kept on this device until your results change. */
 const PRECISION_TOTAL = 40;
 const precisionKey = () => 'majlis-precision-' + (state.user && state.user.id || 'guest');
-const precisionUi = { loading: null, error: null };   // loading: 'round' or 'final' while the AI is writing
+const precisionUi = { loading: null, error: null, preparing: false };   // loading: 'round' or 'final' while the AI is writing; preparing: the test just submitted is being scored
 let precisionMemory = null;   // kept here too, in case the device can't store it
 function savedPrecision(){
   const c = state.user && state.user.compass;
@@ -7271,6 +7302,11 @@ function loadPrecisionFinal(){
     if(!cur) return;
     cur.result = { match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] };
     savePrecision(cur);
+    // Straight after the test, the round ends in the end results; the animation stays until your card is ready.
+    if(cur.afterTest){
+      if(cardMatchesPending) await cardMatchesPending;
+      finishPrecisionFlow();
+    }
   });
 }
 function answerPrecision(opt){
@@ -7315,6 +7351,15 @@ document.addEventListener('keydown', (e) => {
 
 // The precision round's loading screen: the ideologies still in the running drift down a funnel and fade, and the
 // one that fits glows at the bottom. Its own look, so it doesn't feel like the test's radar.
+function precisionRoundLoader(p){
+  const first = !p || !p.asked.length;
+  return {
+    kicker: 'PRECISION ROUND · ROUND ' + ((p ? p.round : 0) + 1) + ' OF ' + Math.max(4, (p ? p.round : 0) + 1),
+    title: first ? 'Writing your first 10 questions' : 'Narrowing it down',
+    steps: first ? ['Scoring your test', 'Picking the ideologies in the running', 'Writing questions to tell them apart']
+      : ['Reading your answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
+  };
+}
 function precisionLoader(p, cfg){
   const m = savedCardMatches();
   let names = (p && p.candidates && p.candidates.length ? p.candidates.map(c => c.name) : (m ? m.ideologies.map(i => i.name) : []));
@@ -7344,7 +7389,7 @@ function renderPrecision(){
     wrap.appendChild(el('div',{class:'card'},[el('p',{},'Sign in to take the precision round: the AI writes its questions for you.')]));
     return wrap;
   }
-  if(!u.placementTaken || !u.compass){
+  if((!u.placementTaken || !u.compass) && !precisionUi.preparing){
     wrap.appendChild(el('div',{class:'card'},[
       el('p',{},'Take the placement assessment first. The precision round builds on your results.'),
       el('button',{class:'btn', onclick:()=>navigateWithLoading('assessment')},'Go to Assessment'),
@@ -7353,14 +7398,13 @@ function renderPrecision(){
   }
   const p = savedPrecision();
 
+  // Just after the test: its answers are scored and the first questions written behind the precision round's animation.
+  if(precisionUi.preparing){
+    wrap.appendChild(precisionLoader(null, precisionRoundLoader(null)));
+    return wrap;
+  }
   if(precisionUi.loading === 'round'){
-    const first = !p || !p.asked.length;
-    wrap.appendChild(precisionLoader(p, {
-      kicker: 'PRECISION ROUND · ROUND ' + ((p ? p.round : 0) + 1) + ' OF ' + Math.max(4, (p ? p.round : 0) + 1),
-      title: first ? 'Writing your first 10 questions' : 'Narrowing it down',
-      steps: first ? ['Reading your test results', 'Picking the ideologies in the running', 'Writing questions to tell them apart']
-        : ['Reading your answers', 'Ruling out what no longer fits', 'Writing sharper questions'],
-    }));
+    wrap.appendChild(precisionLoader(p, precisionRoundLoader(p)));
     return wrap;
   }
   if(precisionUi.loading === 'final'){
@@ -7387,17 +7431,10 @@ function renderPrecision(){
     return wrap;
   }
 
+  // After the test there's no intro: the first questions are written straight away, behind the animation.
   if(p && !p.batch.length && p.afterTest){
-    setTimeout(prefetchPrecisionRound, 0);   // round 1 is written while you read this
-    wrap.appendChild(el('p',{class:'section-sub'},
-      'Your test is done and your three maps are ready. One last part: 40 questions, written for you by the AI, to find the one specific ideology closest to you. They come in four rounds of 10, each written from your answers so far.'));
-    wrap.appendChild(el('div',{class:'card'},[
-      el('h3',{},'Last part: the precision round'),
-      el('p',{class:'field-caption'},'About 10 minutes. Then you get your exact match and the full reveal of your results.'),
-      el('div',{style:'height:10px'}),
-      el('button',{class:'btn', onclick: loadPrecisionRound}, 'Start the precision round'),
-      el('button',{class:'linkbtn', style:'margin-left:14px;', onclick: finishPrecisionFlow}, 'Skip it and see my results'),
-    ]));
+    setTimeout(loadPrecisionRound, 0);
+    wrap.appendChild(precisionLoader(p, precisionRoundLoader(p)));
     return wrap;
   }
   if(!p || !p.batch.length){
@@ -7430,6 +7467,7 @@ function renderPrecision(){
   card.appendChild(el('div',{class:'quiz-opts'}, item.opts.map(opt => el('button',{class:'quiz-opt', onclick:()=>answerPrecision(opt)}, opt))));
   wrap.appendChild(card);
   wrap.appendChild(el('button',{class:'linkbtn prec-skip', onclick: skipPrecision}, 'This question doesn\'t make sense: skip it'));
+  if(p.afterTest) wrap.appendChild(el('button',{class:'linkbtn prec-skip', style:'margin-left:18px;', onclick: finishPrecisionFlow}, 'Stop here and see my results'));
   wrap.appendChild(el('p',{class:'field-caption', style:'margin-top:10px;'}, 'Tip: press 1 to ' + item.opts.length + ' to answer. Back goes as far as the start of this round. Your answers are saved on this device.'));
   return wrap;
 }
