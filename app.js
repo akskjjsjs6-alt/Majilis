@@ -3729,19 +3729,28 @@ function rvWorldScene(m){
     if(!w){ box.innerHTML = ''; box.classList.add('is-none'); return; }
     const shown = list.filter(c => w.c[c.code]);
     const base = Object.keys(w.c).map(k => '<path d="' + w.c[k] + '"/>').join('');
-    const hot = shown.map((c, i) => '<path class="rv-world__hot" d="' + w.c[c.code] + '" style="--d:' + rvD(600 + i * 260) + 'ms;fill:color-mix(in srgb, var(--accent) ' + Math.round(35 + heat(c) * 65) + '%, var(--gold))"><title>' + c.name + ' · ' + c.pct + '%</title></path>').join('');
+    const hot = shown.map((c, i) => '<path class="rv-world__hot" data-c="' + c.code + '" d="' + w.c[c.code] + '" style="--d:' + rvD(600 + i * 260) + 'ms;fill:color-mix(in srgb, var(--accent) ' + Math.round(35 + heat(c) * 65) + '%, var(--gold))"><title>' + c.name + ' · ' + c.pct + '%</title></path>').join('');
     const pins = shown.slice(0, 3).map((c, i) => { const [x, y] = rvMiddle(w.c[c.code]);
       return '<g class="rv-world__pin" style="--d:' + rvD(1500 + i * 220) + 'ms;transform-origin:' + x.toFixed(0) + 'px ' + y.toFixed(0) + 'px"><circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="5"/>'
         + '<text x="' + x.toFixed(0) + '" y="' + (y - 11).toFixed(0) + '">' + c.name.replace(/[<&]/g, '') + ' ' + c.pct + '%</text></g>'; }).join('');
     box.innerHTML = '<svg viewBox="0 0 ' + w.w + ' ' + w.h + '" role="img" aria-label="World map of your closest nations"><g class="rv-world__base">' + base + '</g><g>' + hot + '</g>' + pins + '</svg>';
   });
+  // Tapping a country in the list lights it up on the map and dims the others; tapping it again shows them all.
+  let picked = null;
+  const pickCountry = (code, btn) => {
+    picked = picked === code ? null : code;
+    box.classList.toggle('has-pick', !!picked);
+    box.querySelectorAll('.rv-world__hot').forEach(p => p.classList.toggle('is-pick', p.dataset.c === picked));
+    btn.parentNode.querySelectorAll('.rv-world__item').forEach(b => { const on = b === btn && !!picked; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+  };
   return { title: 'World heat map', ms: rvD(3000), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
     el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your world heat map', 0, 90)),
       el('div',rvIn(300, 'rv-heatkey'),[el('span',{}, 'Less close'), el('i',{}), el('span',{}, 'Closer')])]),
     el('div',rvIn(200, 'rv-world', 'zoom'), box),
-    el('div',{class:'rv-world__list'}, list.map((c, i) => el('div',rvIn(1700 + i * 120, 'rv-world__item', 'pop'),[
+    el('div',{class:'rv-world__list'}, list.map((c, i) => el('button',Object.assign(rvIn(1700 + i * 120, 'rv-world__item', 'pop'), { type: 'button', 'aria-pressed': 'false',
+      onclick: (e) => pickCountry(c.code, e.currentTarget) }),[
       el('span',{class:'rv-flag rv-flag--dot'}, nationFlag(c)), el('b',{}, c.name), el('em',{}, c.pct + '%')]))),
-    el('p',rvIn(2200, 'rv-sub rv-sub--c'), 'Shaded: the ' + list.length + ' present-day nations the AI matched to you.'),
+    el('p',rvIn(2200, 'rv-sub rv-sub--c'), 'Shaded: the ' + list.length + ' present-day nations the AI matched to you. Tap one to find it on the map.'),
   ])]) };
 }
 
