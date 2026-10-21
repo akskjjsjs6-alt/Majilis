@@ -4215,8 +4215,6 @@ function renderAssessment(){
         { key: 'answers', label: 'Reading your answers', weight: 18, secs: 7 },
         { key: 'case', label: 'Grading your written case', weight: 14, secs: 7 },
         { key: 'save', label: 'Saving your compass', weight: 6, secs: 2 },
-        { key: 'leaders', label: 'Finding your closest leaders', note: 'the longest step, up to a minute', weight: 50, secs: 26 },
-        { key: 'card', label: 'Building your result card', weight: 12, secs: 3 },
       ],
     }));
     return wrap;
@@ -4592,15 +4590,12 @@ async function finishAssessment(position, viewText){
   // The loading screen stays up until the card is complete: the AI finds your closest leaders, nations and
   // ideologies, and the leader's portrait for the background has loaded.
   thinkItem('assessment', 'save', 'done');
+  // Your closest leaders, nations and ideologies (the slowest AI step) are found in the background while you do the
+  // precision round; the results reveal at the end of it waits for them.
   if(signedIn){
     state.cardMatches = { loading: false, error: null };
-    thinkItem('assessment', 'leaders', 'active');
-    await fetchCardMatches();
-    thinkItem('assessment', 'leaders', 'done');
-    thinkItem('assessment', 'card', 'active');
-    await preloadCardPortrait();
+    cardMatchesPending = fetchCardMatches().then(() => preloadCardPortrait()).catch(() => {}).finally(() => { cardMatchesPending = null; });
   }
-  thinkItem('assessment', 'leaders', 'done'); thinkItem('assessment', 'card', 'done');
   clearSavedQuiz();
   state.quiz.active = false;
   // Signed in, the test carries straight on into the precision round, and the results reveal follows it.
@@ -7177,12 +7172,17 @@ function queuePrecisionAfterTest(){
   state.tab = 'precision';
 }
 // Leaves the round for your results: the compass page, with the reveal playing over it.
+// Leaves the round for your results: the compass page, with the reveal playing over it. If your card is still being
+// made, the compass page shows that and the reveal starts as soon as the card is ready.
+let cardMatchesPending = null;   // the card's AI step, running in the background after the test
 function finishPrecisionFlow(){
   const p = savedPrecision();
   const reveal = p && p.afterTest;
   if(p && p.afterTest){ p.afterTest = false; savePrecision(p); }
   navigateWithLoading('compass');
-  if(reveal) startResultsReveal();
+  if(!reveal) return;
+  if(cardMatchesPending) cardMatchesPending.then(() => { if(state.tab === 'compass') startResultsReveal(); });
+  else startResultsReveal();
 }
 function startPrecision(){
   precisionAhead = null;
