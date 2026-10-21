@@ -3984,7 +3984,7 @@ function ownAnswerBox(item, onSubmit){
   if(!state.user || state.user.isGuest || !state.user.id) return null;
   if(ownAnswerOpen !== item.q){
     return el('button',{class:'linkbtn own-answer__open', onclick:()=>{ ownAnswerOpen = item.q; render(); setTimeout(() => { const t = document.querySelector('.own-answer textarea'); if(t) t.focus(); }, 0); }},
-      '✏️ None of these fit? Write your own answer');
+      '✏️ It\'s not that simple? Explain in your own words');
   }
   const box = el('textarea',{maxlength:'500', placeholder:'Say what you think in a sentence or two…'});
   const err = el('div',{class:'field-err', role:'alert'});
@@ -4057,7 +4057,7 @@ function renderAssessment(){
 
   if(!state.quiz.active){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'Read each question and pick the answer closest to your own view. It starts with philosophy, then politics, economics, society and morals. Next comes an optional section on faith. To finish, you write a short case for a view you hold. That last part sets your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
+      'Read each statement and say how strongly you agree or disagree with it. It starts with philosophy, then politics, economics, society and morals. Next comes an optional section on faith. To finish, you write a short case for a view you hold. That last part sets your starting rank (1–10): the AI grades how well you reason, not how much you write.'));
     { const r = resumeQuizButton(); if(r) wrap.appendChild(r); }
     wrap.appendChild(startQuizButtons(false));
     return wrap;
@@ -4103,8 +4103,8 @@ function renderAssessment(){
     const card = el('div',{class:'card'});
     card.appendChild(el('div',{class:'quiz-q'}, item.q));
     const optsWrap = el('div',{class:'quiz-opts'});
-    // The four positions run from one pole to the other in the bank, so they are shown in a fixed shuffle per question.
-    const shown = isCompass ? item.opts.slice().sort((a, b) => hashString(item.q + a) - hashString(item.q + b)) : item.opts;
+    // Statements are answered on the agreement scale, always shown in order from Strongly agree to Strongly disagree.
+    const shown = item.opts;
     // A picked answer, or (choice null) one written in your own words, read by the AI when the test ends.
     const answer = (choice, custom) => {
         state.quiz.answers.push(Object.assign({section: state.quiz.section, axis: null, q: item.q, choice}, custom ? { custom } : {}));
