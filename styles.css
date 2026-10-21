@@ -3163,6 +3163,46 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rv-flag--dot { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex: none; }
 .rv-flag--dot .rc-flag--code { font-size: 9px; }
 
+/* a ring that fills to a match percentage */
+.rv-ring { position: relative; flex: none; width: 132px; height: 132px; }
+.rv-ring__svg svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.rv-ring__track { fill: var(--bg-2); stroke: var(--line-2); stroke-width: 6; }
+.rv-ring__arc { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round; stroke-dashoffset: var(--off); animation: rvRing 1.4s cubic-bezier(.3,.8,.3,1) calc(var(--d, 0ms) + 200ms) both;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 60%, transparent)); }
+@keyframes rvRing { from { stroke-dashoffset: var(--c); } to { stroke-dashoffset: var(--off); } }
+.rv-ring__in { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rv-ring__in b { font-size: 32px; font-weight: 800; color: var(--accent); line-height: 1; letter-spacing: -.02em; }
+.rv-ring__in small { font-size: 11px; letter-spacing: .2em; font-weight: 700; color: var(--muted); margin-top: 4px; }
+
+/* fingerprints: yours and your closest leader's draw themselves, then slide together so the ridges overlap */
+.rv-sub--head { margin: 0; flex-basis: 100%; }
+.rv-prints { position: relative; display: flex; justify-content: center; align-items: flex-start; gap: 150px; margin-top: 10px; }
+.rv-prints__side { width: 270px; display: flex; flex-direction: column; align-items: center; }
+.rv-prints__side.is-l .rv-prints__print { animation: rvMergeL 1.3s cubic-bezier(.6,0,.2,1) var(--m) both; }
+.rv-prints__side.is-r .rv-prints__print { animation: rvMergeR 1.3s cubic-bezier(.6,0,.2,1) var(--m) both; }
+.rv-prints__side.is-r .rv-prints__print { z-index: 1; }
+@keyframes rvMergeL { from { transform: translateX(-60px); } to { transform: translateX(95px); } }
+@keyframes rvMergeR { from { transform: translateX(60px); } to { transform: translateX(-95px); } }
+.rv-prints__print { position: relative; width: 100%; aspect-ratio: 290 / 380; }
+.rv-fp { position: absolute; inset: 0; clip-path: circle(0% at 50% 48%); animation: rvFpGrow 2.2s cubic-bezier(.45,0,.2,1) both; }
+.rv-prints__side.is-l .rv-fp { animation-delay: .25s; } .rv-prints__side.is-r .rv-fp { animation-delay: .5s; }
+@keyframes rvFpGrow { to { clip-path: circle(75% at 50% 48%); } }
+.rv-fp svg { width: 100%; height: 100%; display: block; }
+.rv-fp--you svg { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--neon) 45%, transparent)); }
+.rv-fp--them { opacity: .88; } .rv-fp--them svg { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--gold) 40%, transparent)); }
+.rv-prints__scan { position: absolute; left: -6%; right: -6%; top: 0; height: 3px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--neon), transparent);
+  box-shadow: 0 0 14px var(--neon); opacity: 0; animation: rvScan 1.3s ease-in-out var(--d, 0ms) both; }
+@keyframes rvScan { 0% { top: 0; opacity: 0; } 15%, 85% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+.rv-prints__who { display: flex; align-items: center; gap: 10px; margin-top: 12px; text-align: left; }
+.rv-prints__who .match-photo { width: 44px; height: 44px; font-size: 13px; border-width: 2px; box-shadow: none; }
+.rv-prints__you { background: var(--neon); color: var(--neon-ink); border-color: transparent; }
+.rv-prints__who b { display: block; font-size: 16px; line-height: 1.2; }
+.rv-prints__who small { color: var(--muted); font-size: 12.5px; }
+.rv-prints__code { margin-top: 6px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; color: var(--accent); }
+.rv-prints__mid { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 200px; text-align: center; }
+.rv-prints__mid .rv-ring { border-radius: 50%; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.rv-prints__mid small { font-size: 12.5px; color: var(--text); font-weight: 600; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 70%, transparent); }
+
 /* closing: the card spins up and a light runs across it */
 .rv-scene--card .rv-scene__in { display: flex; flex-direction: column; align-items: center; }
 .rv-cardfly { position: relative; width: min(340px, 72vw, calc((100vh - 220px) * 9 / 16)); animation: rvCardIn 1.5s .25s cubic-bezier(.2,.9,.25,1) both; transform-style: preserve-3d; }
@@ -3215,6 +3255,16 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
   .rv-tug__end { flex-direction: row; gap: 10px; justify-content: center; }
   .rv-tug__face { width: 52px; height: 52px; margin: 0; }
   .rv-world { padding: 8px; }
+  .rv-prints { gap: 24px; }
+  .rv-prints__side { width: 155px; }
+  @keyframes rvMergeL { from { transform: translateX(-10px); } to { transform: translateX(45px); } }
+  @keyframes rvMergeR { from { transform: translateX(10px); } to { transform: translateX(-45px); } }
+  .rv-prints__who { flex-direction: column; text-align: center; gap: 6px; }
+  .rv-prints__who b { font-size: 14px; }
+  .rv-prints__mid { top: 16%; width: 140px; }
+  .rv-prints__mid .rv-ring { width: 92px; height: 92px; } .rv-prints__mid .rv-ring__in b { font-size: 22px; }
+  .rv-prints__mid small { font-size: 11px; }
+  .rv-prints__code { font-size: 10.5px; letter-spacing: .08em; }
   .rv-world__pin text { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {
