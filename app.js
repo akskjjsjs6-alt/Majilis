@@ -3281,13 +3281,13 @@ function renderResultOverlay(){
 }
 
 /* ================= THE RESULTS REVEAL (after the test, before the card) =================
-   A short animation through your results that plays by itself: the Majlis M draws itself, then what sets you
-   apart, the nations, the leaders and the ideologies closest to you, and finally the card spins up and hands over to
-   the card window. It sits outside the page, so the page redrawing underneath never restarts it. Everything it
+   A short animation through your results (about 30 seconds): the Majlis M draws itself, then your conviction
+   score, what sets you apart, where you sit on the three maps, a world heat map of your closest nations, podiums of
+   your three closest nations, leaders (modern and historical) and ideologies, your era, and finally the card spins
+   up and hands over to the card window. It sits outside the page, so the page redrawing underneath never restarts it. Everything it
    shows comes from the AI's matches: the leaders, nations and ideologies it placed on the three maps are the crowd
    you're compared with. */
 const RV_MAPS = ['political', 'social', 'economic'];
-const RV_DIM = { political: 'POLITICALLY', social: 'SOCIALLY', economic: 'ECONOMICALLY' };
 const RV_MAP_NAME = { political: 'Political', social: 'Social', economic: 'Economic' };
 // The six map axes, each with both ends (0 = the first end).
 const rvAxes = () => RV_MAPS.flatMap(k => [['x', COMPASS_DEFS[k].xLabels], ['y', COMPASS_DEFS[k].yLabels]].map(([c, l]) => ({ map: k, c, lo: l[0], hi: l[1] })));
@@ -3323,23 +3323,10 @@ function rvApart(m){
   }));
   return { pool, crowd: rvCrowdName(pool), unusual, typical, tension };
 }
-// The ones closest to you on each map alone, leaving out the overall match and naming no one twice (so fewer than three when the list is short).
-function rvByDimension(list, top){
-  const me = state.user.compass, rest = list.filter(i => i !== top && okPos(i.pos)), used = new Set();
-  if(!rest.length) return [];
-  return RV_MAPS.map(k => {
-    const ranked = rest.map(i => ({ i, d: Math.hypot(i.pos[k].x - me[k].x, i.pos[k].y - me[k].y) })).sort((a, b) => a.d - b.d);
-    const pick = ranked.find(r => !used.has(r.i));
-    if(!pick) return null;
-    used.add(pick.i);
-    return { dim: k, item: pick.i, pct: Math.max(0, Math.round(100 - pick.d / 1.414)) };
-  }).filter(Boolean);
-}
-
 // Small pieces: words that rise in one by one, a number that counts up, a ring that fills, a bar with you (and the
 // crowd's middle) on it. Delays are written in ms from the moment the scene comes on, and all go through rvD, which
-// sets the pace of the whole reveal (about 25 seconds of animation from start to card).
-const RV_PACE = 0.8;
+// sets the pace of the whole reveal (about 30 seconds of animation from start to card).
+const RV_PACE = 0.72;
 const rvD = (ms) => Math.round((ms || 0) * RV_PACE);
 function rvWords(text, delay, step, cls){
   return el('span',{class:'rv-words' + (cls ? ' ' + cls : '')}, String(text).split(' ').map((w, i) =>
@@ -3405,109 +3392,159 @@ function rvIntroScene(){
   ])]) };
 }
 
-// What sets you apart.
+// What sets you apart: three numbered findings, one under another.
 function rvApartScene(m){
   const a = rvApart(m);
   if(!a) return null;
   const { unusual: u, typical: t, tension } = a, n = a.pool.length;
   const near = Math.abs(t.v - t.med);
   const tags = tension ? tension.names.slice(0, 3) : [];
-  return { title: 'What sets you apart', ms: rvD(8900), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
+  const row = (k, d, label, body, side) => el('div',rvIn(d, 'rv-find', k % 2 ? 'right' : 'left'),[
+    el('div',{class:'rv-find__n'}, '0' + k),
+    el('div',{class:'rv-find__body'},[el('div',{class:'rv-kicker'}, label), ...body]),
+    side ? el('div',{class:'rv-find__side'}, side) : null,
+  ]);
+  return { title: 'What sets you apart', ms: rvD(6400), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
     el('div',{class:'rv-head'},[
       el('h2',{class:'rv-title'}, rvWords('What sets you apart', 0, 90)),
       el('div',rvIn(400, 'rv-legend'),[el('span',{},[el('i',{class:'rv-legend__med'}), 'Their median']), el('span',{},[el('i',{class:'rv-legend__you'}), 'You'])]),
     ]),
-    el('div',{class:'rv-apart'},[
-      el('div',rvIn(500, 'rv-box rv-box--hi', 'zoom'),[
-        el('div',{class:'rv-box__top'},[el('span',{class:'rv-pill'}, 'Your most unusual position'), el('b',{class:'rv-box__axis'}, RV_MAP_NAME[u.map] + ': ' + u.lo + ' – ' + u.hi)]),
-        el('div',{class:'rv-stat'},[el('div',rvIn(900, 'rv-stat__big', 'punch'), rvCount(u.share, '%', 1000)),
-          el('p',rvIn(1300), 'of the ' + n + ' ' + a.crowd + ' the AI placed around you lean less toward ' + u.pole.toLowerCase() + ' than you do.')]),
-        rvSlider(u, 1500),
-      ]),
-      el('div',rvIn(3600, 'rv-box', 'right'),[
-        el('span',{class:'rv-pill rv-pill--soft'}, 'Your most typical position'),
-        el('b',{class:'rv-box__axis rv-box__axis--own'}, RV_MAP_NAME[t.map] + ': ' + t.lo + ' – ' + t.hi),
-        el('div',{class:'rv-box__big'}, rvWords(near <= 4 ? 'At the median' : near <= 10 ? 'Near the median' : 'Closest to the crowd', 3900, 90)),
-        el('p',{class:'rv-box__p'}, near <= 10 ? 'This is common ground. You lean no further toward ' + t.lo.toLowerCase() + ' or ' + t.hi.toLowerCase() + ' than most of them do.'
-          : 'Even here you stand out a little, but this is where you sit closest to most of them.'),
-        rvSlider(t, 4300),
-      ]),
-      tension ? el('div',rvIn(6600, 'rv-box rv-box--wide', 'rise'),[
-        el('div',{class:'rv-tension'},[
-          el('span',{class:'rv-pill'}, 'Your internal tension'),
-          el('div',{class:'rv-tension__pair'},[el('b',rvIn(7000, 'rv-chip rv-chip--a', 'from-left'), tension.a.pole), el('span',rvIn(7450, '', 'pop'), '+'), el('b',rvIn(7000, 'rv-chip rv-chip--b', 'from-right'), tension.b.pole)]),
-        ]),
-        el('div',{class:'rv-tension__who'},[
-          el('b',rvIn(7700), tension.names.length ? 'Only ' + tension.names.length + ' of ' + n + ' hold both of these positions.' : 'None of the ' + n + ' hold both of these positions.'),
-          tags.length ? el('div',{class:'rv-tags'},[...tags.map((x, i) => el('span',rvIn(8100 + i * 160, 'rv-tag', 'pop'), x)),
-            tension.names.length > 3 ? el('span',rvIn(8100 + tags.length * 160, 'rv-tag', 'pop'), '+' + (tension.names.length - 3)) : null]) : null,
-        ]),
-      ]) : null,
+    el('p',rvIn(300, 'rv-sub'), 'Compared with the ' + n + ' ' + a.crowd + ' the AI placed around you.'),
+    el('div',{class:'rv-finds'},[
+      row(1, 600, 'YOUR RAREST LEAN · ' + RV_MAP_NAME[u.map].toUpperCase(), [
+        el('div',{class:'rv-find__big'},[el('span',rvIn(800, 'rv-find__pct', 'punch'), rvCount(u.share, '%', 900)), ' lean less toward ' + u.pole.toLowerCase() + ' than you']),
+      ], rvSlider(u, 1200)),
+      row(2, 2600, 'WHERE YOU BLEND IN · ' + RV_MAP_NAME[t.map].toUpperCase(), [
+        el('div',{class:'rv-find__big'}, near <= 4 ? 'Right at the median' : near <= 10 ? 'Near the median' : 'Closest to the crowd'),
+        el('p',{class:'rv-find__p'}, near <= 10 ? 'Common ground: no further toward ' + t.lo.toLowerCase() + ' or ' + t.hi.toLowerCase() + ' than most.' : 'You still stand out a little, but least of all here.'),
+      ], rvSlider(t, 3000)),
+      tension ? row(3, 4600, 'YOUR INNER TENSION', [
+        el('div',{class:'rv-tension__pair'},[el('b',rvIn(4900, 'rv-chip rv-chip--a', 'from-left'), tension.a.pole), el('span',rvIn(5300, 'rv-plus', 'pop'), '+'), el('b',rvIn(4900, 'rv-chip rv-chip--b', 'from-right'), tension.b.pole)]),
+        el('p',rvIn(5500, 'rv-find__p'), tension.names.length ? 'Only ' + tension.names.length + ' of ' + n + ' hold both.' : 'None of the ' + n + ' hold both.'),
+      ], tags.length ? el('div',{class:'rv-tags'},[...tags.map((x, i) => el('span',rvIn(5800 + i * 160, 'rv-tag', 'pop'), x)),
+          tension.names.length > 3 ? el('span',rvIn(5800 + tags.length * 160, 'rv-tag', 'pop'), '+' + (tension.names.length - 3)) : null]) : null) : null,
     ]),
   ])]) };
 }
 
-// The big match at the top of the nations, leaders and ideologies scenes, and the boxes dealt out under it.
-function rvHero(pic, name, sub, pct, about, kicker){
-  return el('div',rvIn(200, 'rv-hero', 'zoom'),[
-    el('div',{class:'rv-hero__main'},[
-      el('div',rvIn(300, 'rv-hero__pic', 'pic'), pic),
-      el('div',{class:'rv-hero__txt'},[kicker ? el('div',rvIn(500, 'rv-kicker'), kicker) : null,
-        el('h3',{}, rvWords(name, 550, 80)), sub ? el('p',rvIn(900), sub) : null]),
-      rvRing(pct, 800),
+// How close something is to you on one map alone (null if the AI didn't place it).
+function rvMapPct(item, k){
+  const me = state.user.compass[k];
+  return okPos(item && item.pos) ? Math.max(0, Math.round(100 - Math.hypot(item.pos[k].x - me.x, item.pos[k].y - me.y) / 1.414)) : null;
+}
+const rvNearestOn = (list, k) => (list || []).filter(i => okPos(i.pos)).map(i => ({ i, p: rvMapPct(i, k) })).sort((a, b) => b.p - a.p)[0];
+
+// Where you sit: you and your nearest nation, leader and ideology plotted on each of the three maps.
+function rvMapsScene(m){
+  if(!RV_MAPS.every(k => state.user.compass[k])) return null;
+  const me = state.user.compass;
+  const dot = (cls, pos, d, inner, label) => el('div',{class:'rv-map__dot ' + cls, style:'left:' + pos.x + '%;top:' + (100 - pos.y) + '%;--d:' + rvD(d) + 'ms', title: label || ''}, inner);
+  const maps = RV_MAPS.map((k, j) => {
+    const def = COMPASS_DEFS[k], base = 500 + j * 450;
+    const near = [['nation', rvNearestOn(m.countries, k)], ['leader', rvNearestOn((m.leaders || []).filter(l => l.era === 'modern'), k)], ['ideology', rvNearestOn(m.ideologies, k)]].filter(x => x[1]);
+    const lines = near.map(([kind, r]) => '<line x1="' + me[k].x + '" y1="' + (100 - me[k].y) + '" x2="' + r.i.pos[k].x + '" y2="' + (100 - r.i.pos[k].y) + '" class="rv-map__line rv-map__line--' + kind + '" style="--d:' + rvD(base + 700) + 'ms" pathLength="1"/>').join('');
+    return el('div',rvIn(base, 'rv-map', 'zoom'),[
+      el('div',{class:'rv-map__name'}, def.title.replace(' Compass', '')),
+      el('div',{class:'rv-map__box'},[
+        el('i',{class:'rv-map__h'}), el('i',{class:'rv-map__v'}),
+        el('span',{class:'rv-map__ax rv-map__ax--l'}, def.xLabels[0]), el('span',{class:'rv-map__ax rv-map__ax--r'}, def.xLabels[1]),
+        el('span',{class:'rv-map__ax rv-map__ax--t'}, def.yLabels[1]), el('span',{class:'rv-map__ax rv-map__ax--b'}, def.yLabels[0]),
+        el('span',{class:'rv-map__svg', html:'<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + lines + '</svg>'}),
+        ...near.map(([kind, r], i) => dot('rv-map__dot--' + kind, r.i.pos[k], base + 900 + i * 150,
+          kind === 'nation' ? nationFlag(r.i) : kind === 'leader' ? portraitNode(r.i.name, r.i.photo) : el('b',{}, initialsOf(r.i.name)), r.i.name + ' · ' + r.p + '%')),
+        dot('rv-map__dot--you', me[k], base + 300, el('b',{}, 'You')),
+      ]),
+      el('div',{class:'rv-map__label'}, ideologyLabel(state.user, k)),
+    ]);
+  });
+  return { title: 'Where you sit', ms: rvD(3400), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
+    el('div',{class:'rv-head'},[
+      el('h2',{class:'rv-title'}, rvWords('Where you sit', 0, 90)),
+      el('div',rvIn(300, 'rv-legend rv-legend--map'),[el('span',{},[el('i',{class:'rv-key rv-key--you'}), 'You']), el('span',{},[el('i',{class:'rv-key rv-key--nation'}), 'Nation']),
+        el('span',{},[el('i',{class:'rv-key rv-key--leader'}), 'Leader']), el('span',{},[el('i',{class:'rv-key rv-key--ideology'}), 'Ideology'])]),
     ]),
-    about ? el('div',rvIn(1500, 'rv-hero__about'), about) : null,
-  ]);
+    el('div',{class:'rv-maps'}, maps),
+    el('p',rvIn(2300, 'rv-sub rv-sub--c'), 'Hover or tap a dot for its name. Each line joins you to your nearest match on that map.'),
+  ])]) };
 }
-function rvAlso(rows, picFor){
-  if(!rows.length) return null;
-  return el('div',{class:'rv-also'},[
-    el('div',rvIn(1900, 'rv-kicker'), 'ALSO CLOSE, BY DIMENSION'),
-    el('div',{class:'rv-also__row'}, rows.map((r, i) => el('div',rvIn(2100 + i * 220, 'rv-also__box', 'deal'),[
-      el('div',{class:'rv-also__pic'}, picFor(r.item)),
-      el('div',{class:'rv-also__dim'}, RV_DIM[r.dim]),
-      el('div',{class:'rv-also__foot'},[el('b',{}, r.item.name), el('span',{}, rvCount(r.pct, '%', 2300 + i * 220))]),
-    ]))),
+
+// A podium of your top three: third and second rise first, then the winner. Tap one (or press 1, 2, 3) to see
+// how close it is on each map, and why.
+function rvPodium(items, picFor, subFor, whyFor){
+  const top = items.slice(0, 3);
+  const detail = el('div',{class:'rv-detail'});
+  const slots = [];
+  const select = (r, quiet) => {
+    if(!top[r]) return;
+    slots.forEach((s, k) => { s.classList.toggle('is-sel', k === r); s.setAttribute('aria-pressed', String(k === r)); });
+    const it = top[r], why = whyFor && whyFor(it), sub = subFor && subFor(it);
+    const bars = RV_MAPS.map(k => [k, rvMapPct(it, k)]).filter(x => x[1] != null);
+    const pane = el('div',{class:'rv-detail__in' + (quiet ? '' : ' is-new')},[
+      el('div',{class:'rv-detail__head'},[el('span',{class:'rv-detail__rank'}, '#' + (r + 1)), el('b',{}, it.name), el('span',{class:'rv-detail__pct'}, it.pct + '% overall')]),
+      sub ? el('div',{class:'rv-detail__sub'}, sub) : null,
+      why ? el('p',{class:'rv-detail__why'}, why) : null,
+      bars.length ? el('div',{class:'rv-detail__bars'}, bars.map(([k, p], i) => el('div',{class:'rv-mbar'},[
+        el('span',{}, RV_MAP_NAME[k]),
+        el('i',{class:'rv-mbar__track'}, el('b',{style:'--w:' + p + '%;--d:' + (quiet ? rvD(2600) : 0) + 'ms'})),
+        el('em',{}, p + '%'),
+      ]))) : null,
+    ]);
+    detail.innerHTML = '';
+    detail.appendChild(pane);
+  };
+  // Shown left to right as second, first, third; they come in third, second, first.
+  const place = [1, 0, 2];
+  const enter = [900, 450, 0];
+  top.forEach((it, r) => {
+    slots[r] = el('button',{type:'button', class:'rv-pod rv-pod--' + (r + 1), style:'order:' + place[r] + ';--d:' + rvD(enter[r] + 200) + 'ms', 'aria-label': '#' + (r + 1) + ' ' + it.name + ', ' + it.pct + '%', onclick:()=>select(r)},[
+      el('span',{class:'rv-pod__pic'}, picFor(it)),
+      el('span',{class:'rv-pod__name'}, it.name),
+      el('span',{class:'rv-pod__pct'}, rvCount(it.pct, '%', enter[r] + 600)),
+      el('span',{class:'rv-pod__block'}, el('b',{}, String(r + 1))),
+    ]);
+  });
+  const wrap = el('div',{class:'rv-podwrap'},[
+    el('div',{class:'rv-podium rv-podium--' + top.length}, slots),
+    el('div',rvIn(2300, 'rv-podhint'), 'Tap a match to see why'),
+    el('div',rvIn(2400), detail),
   ]);
+  wrap._select = select;
+  select(0, true);
+  return wrap;
 }
-// Nations and leaders share their shape: the era switches, the closest match, then the closest on each map.
-function rvEraScene(title, tabs, paintEra){
+// Nations, leaders and ideologies share their shape: the era switches (if any), then the podium.
+let rvActivePodium = null;
+function rvTopScene(title, tabs, build){
   const body = el('div',{class:'rv-era-body'});
   const paint = (key, turn) => {
-    const pane = el('div',{class:'rv-era-pane' + (turn ? ' is-turn' : '')}, paintEra(key));
+    const pod = build(key);
+    rvActivePodium = pod;
     body.innerHTML = '';
-    body.appendChild(pane);
+    body.appendChild(el('div',{class:'rv-era-pane' + (turn ? ' is-turn' : '')}, pod));
   };
-  const sw = rvEraTabs(tabs, paint);
+  const sw = tabs.length > 1 ? rvEraTabs(tabs, paint) : null;
   const node = el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
     el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords(title, 0, 90)),
-      tabs.length > 1 ? el('div',rvIn(300, 'rv-tabs-wrap', 'pop'),[sw, el('small',{class:'rv-tabs__hint'}, 'Tap to switch')]) : null]),
+      sw ? el('div',rvIn(300, 'rv-tabs-wrap', 'pop'),[sw, el('small',{class:'rv-tabs__hint'}, 'Tap to switch')]) : null]),
     body,
   ])]);
-  sw._pick(tabs[0].key);
-  return { title, ms: rvD(3300), node };
+  if(sw) sw._pick(tabs[0].key); else paint(tabs[0].key, false);
+  return { title, ms: rvD(3000), node, podium: () => rvActivePodium };
 }
+const rvEraNote = (era) => era === 'modern' ? '1900 – today' : 'before 1900';
 function rvNationScene(m){
   const eras = [{ key: 'modern', label: 'Present-day', list: m.countries || [] }, { key: 'historical', label: 'Historical', list: m.oldCountries || [] }].filter(e => e.list.length);
   if(!eras.length) return null;
-  return rvEraScene('Nations closest to you', eras, (key) => {
-    const list = eras.find(e => e.key === key).list, top = list[0];
-    return [
-      rvHero(el('span',{class:'rv-flag'}, nationFlag(top)), top.name, key === 'modern' ? 'Closest nation today' : 'Closest historical state · before 1900', top.pct),
-      rvAlso(rvByDimension(list, top), (c) => el('span',{class:'rv-flag rv-flag--sm'}, nationFlag(c))),
-    ];
-  });
+  return rvTopScene('Nations closest to you', eras, (key) => rvPodium(eras.find(e => e.key === key).list,
+    (c) => el('span',{class:'rv-flag'}, nationFlag(c)), () => key === 'modern' ? 'Nation today' : 'Historical state · ' + rvEraNote(key)));
 }
 function rvFigureScene(m){
-  const eras = [{ key: 'modern', label: 'Modern' }, { key: 'historical', label: 'Historical' }].filter(e => leaderFor(m, e.key));
+  const eras = [{ key: 'modern', label: 'Modern' }, { key: 'historical', label: 'Historical' }].map(e => Object.assign(e, { list: (m.leaders || []).filter(l => l.era === e.key) })).filter(e => e.list.length);
   if(!eras.length) return null;
-  return rvEraScene('Figures closest to you', eras, (key) => {
-    const top = leaderFor(m, key), list = m.leaders.filter(l => l.era === key);
-    return [
-      rvHero(portraitNode(top.name, top.photo), top.name, [top.label, key === 'modern' ? '1900 – today' : 'before 1900'].filter(Boolean).join(' · '), top.pct, top.why),
-      rvAlso(rvByDimension(list, top), (l) => portraitNode(l.name, l.photo)),
-    ];
-  });
+  // The card's leader (the closest with a photo) goes first, as on the card.
+  eras.forEach(e => { const lead = leaderFor(m, e.key); if(lead) e.list = [lead, ...e.list.filter(l => l !== lead)]; });
+  return rvTopScene('Figures closest to you', eras, (key) => rvPodium(eras.find(e => e.key === key).list,
+    (l) => portraitNode(l.name, l.photo), (l) => [l.label, rvEraNote(key)].filter(Boolean).join(' · '), (l) => l.why));
 }
 // Where an ideology sits economically, as a plain tag.
 function rvSide(i){
@@ -3518,20 +3555,108 @@ function rvSide(i){
 function rvIdeologyScene(m){
   const ideos = m.ideologies || [];
   if(!ideos.length) return null;
-  const top = ideos[0], side = (i) => { const s = rvSide(i); return s ? el('span',{class:'rv-side rv-side--' + s.toLowerCase().replace('far-', 'far')}, s) : null; };
-  return { title: 'Your ideologies', ms: rvD(3700), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
-    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your ideologies', 0, 90))]),
-    rvHero(el('span',{class:'rv-emb-spin'}, ideologyEmblem(top.name, top.symbol)), top.name, top.blurb, top.pct, null, 'CLOSEST IDEOLOGY'),
-    ideos.length > 1 ? el('div',{class:'rv-also'},[
-      el('div',rvIn(1900, 'rv-kicker'), 'OTHER IDEOLOGIES'),
-      el('div',{class:'rv-ideos'}, ideos.slice(1, 4).map((i, k) => el('div',rvIn(2100 + k * 260, 'rv-ideo' + (rvSide(i) === 'Center' ? ' rv-ideo--mid' : ''), 'deal'),[
-        el('div',{class:'rv-ideo__top'},[side(i), el('b',{}, rvCount(i.pct, '%', 2300 + k * 260))]),
-        el('h4',{}, i.name),
-        i.blurb ? el('p',{}, i.blurb) : null,
-      ]))),
-    ]) : null,
+  return rvTopScene('Ideologies closest to you', [{ key: 'all' }], () => rvPodium(ideos,
+    (i) => el('span',{class:'rv-emb-spin'}, ideologyEmblem(i.name, i.symbol)), (i) => rvSide(i) ? rvSide(i) + ' economically' : null, (i) => i.blurb));
+}
+// Conviction: how far from the middle you sit, on average, across every axis of the test (0 = dead centre on
+// everything, 100 = at an end on everything), on a dial, with your three strongest positions.
+function rvConvictionScene(){
+  const rows = allAxes(state.user);
+  if(rows.length < 4) return null;
+  const score = Math.round(rows.reduce((n, r) => n + Math.abs(r.v - 50), 0) / rows.length * 2);
+  const word = score < 20 ? 'Open-minded moderate' : score < 40 ? 'Measured' : score < 60 ? 'Firm' : score < 80 ? 'Strong-willed' : 'Uncompromising';
+  const strongest = rows.slice().sort((a, b) => Math.abs(b.v - 50) - Math.abs(a.v - 50)).slice(0, 3);
+  const arc = Math.PI * 80;   // half a circle of radius 80
+  return { title: 'Conviction score', ms: rvD(3400), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in rv-conv'},[
+    el('h2',{class:'rv-title'}, rvWords('Your conviction score', 0, 90)),
+    el('div',{class:'rv-conv__grid'},[
+      el('div',rvIn(300, 'rv-gauge', 'zoom'),[
+        el('span',{class:'rv-gauge__svg', html:'<svg viewBox="0 0 200 116" aria-hidden="true"><path class="rv-gauge__track" d="M20 100a80 80 0 0 1 160 0"/>'
+          + '<path class="rv-gauge__arc" d="M20 100a80 80 0 0 1 160 0" style="stroke-dasharray:' + arc.toFixed(1) + ';--c:' + arc.toFixed(1) + ';--off:' + (arc * (1 - score / 100)).toFixed(1) + ';--d:' + rvD(600) + 'ms"/>'
+          + '<g class="rv-gauge__needle" style="--a:' + (score * 1.8 - 90) + 'deg;--d:' + rvD(600) + 'ms"><path d="M100 100L100 44"/><circle cx="100" cy="100" r="7"/></g></svg>'}),
+        el('div',{class:'rv-gauge__num'}, rvCount(score, '', 700)),
+        el('div',rvIn(1500, 'rv-gauge__word', 'pop'), word),
+      ]),
+      el('div',{class:'rv-conv__list'},[
+        el('div',rvIn(1200, 'rv-kicker'), 'YOUR STRONGEST CONVICTIONS'),
+        ...strongest.map((r, i) => {
+          const hi = r.v >= 50, p = hi ? r.v : 100 - r.v;
+          return el('div',rvIn(1400 + i * 250, 'rv-conv__row', 'right'),[
+            el('div',{class:'rv-conv__top'},[el('b',{}, hi ? r.hi : r.lo), el('span',{}, rvCount(p, '%', 1500 + i * 250))]),
+            el('i',{class:'rv-mbar__track'}, el('b',{style:'--w:' + p + '%;--d:' + rvD(1500 + i * 250) + 'ms'})),
+            el('small',{}, 'over ' + (hi ? r.lo : r.hi).toLowerCase()),
+          ]);
+        }),
+        el('p',rvIn(2400, 'rv-find__p'), 'The average lean across all ' + rows.length + ' axes of the test.'),
+      ]),
+    ]),
   ])]) };
 }
+
+// Your era: are your closest modern matches (1900 to today) or historical ones (before 1900) nearer to you?
+// The average of the top three leaders and the top three nations of each era decides it.
+function rvEraFitScene(m){
+  const avg = (list) => { const t = list.slice(0, 3); return t.length ? t.reduce((n, x) => n + (x.pct || 0), 0) / t.length : null; };
+  const both = (a, b) => a != null && b != null ? (a + b) / 2 : a != null ? a : b;
+  const lead = (era) => (m.leaders || []).filter(l => l.era === era);
+  const mod = both(avg(lead('modern')), avg(m.countries || [])), his = both(avg(lead('historical')), avg(m.oldCountries || []));
+  if(mod == null || his == null) return null;
+  const diff = mod - his;
+  const verdict = diff >= 3 ? ['A child of the modern age', 'Your views sit closer to today\'s leaders and nations than to history\'s.']
+    : diff <= -3 ? ['Born in the wrong century', 'Your views sit closer to history\'s leaders and states than to today\'s.']
+    : ['Timeless', 'You\'re as close to history\'s leaders and states as to today\'s.'];
+  const lean = Math.max(-1, Math.min(1, diff / 12));   // where the marker settles, -1 (history) to 1 (modern)
+  const face = (era) => { const l = leaderFor(m, era); return l ? portraitNode(l.name, l.photo) : el('div',{class:'match-photo'}, era === 'modern' ? 'M' : 'H'); };
+  const marker = el('i',{class:'rv-tug__mark', style:'left:50%'});
+  setTimeout(() => { marker.style.left = (50 + lean * 40) + '%'; }, rvD(1300));
+  return { title: 'Your era', ms: rvD(3000), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in rv-erafit'},[
+    el('div',rvIn(0, 'rv-kicker rv-kicker--c'), 'YOUR ERA'),
+    el('h2',{class:'rv-title rv-title--c'}, rvWords(verdict[0], 100, 110)),
+    el('p',rvIn(700, 'rv-sub rv-sub--c rv-sub--big'), verdict[1]),
+    el('div',rvIn(900, 'rv-tug', 'zoom'),[
+      el('div',{class:'rv-tug__end'},[el('span',{class:'rv-tug__face'}, face('historical')), el('b',{}, 'Historical'), el('small',{}, 'before 1900'), el('em',{}, rvCount(Math.round(his), '%', 1200))]),
+      el('div',{class:'rv-tug__rope'},[el('i',{class:'rv-tug__mid'}), marker]),
+      el('div',{class:'rv-tug__end'},[el('span',{class:'rv-tug__face'}, face('modern')), el('b',{}, 'Modern'), el('small',{}, '1900 – today'), el('em',{}, rvCount(Math.round(mod), '%', 1200))]),
+    ]),
+  ])]) };
+}
+
+// World heat map: the countries the AI matched to you, shaded by how close each is, the closest glowing first.
+// The outlines (card/world.json, from Natural Earth via world-atlas) are fetched once, when the reveal opens.
+let rvWorldP = null;
+const rvWorld = () => rvWorldP || (rvWorldP = fetch('card/world.json?v=1').then(r => r.ok ? r.json() : null).catch(() => { rvWorldP = null; return null; }));
+// The middle of a country's biggest outline, for its label.
+function rvMiddle(d){
+  const rings = d.split('M').filter(Boolean).map(r => r.replace(/Z$/, '').split('L').map(p => p.split(' ').map(Number)));
+  const big = rings.sort((a, b) => b.length - a.length)[0] || [[0, 0]];
+  return big.reduce((s, p) => [s[0] + p[0] / big.length, s[1] + p[1] / big.length], [0, 0]);
+}
+function rvWorldScene(m){
+  const list = (m.countries || []).filter(c => c.code).slice(0, 6);
+  if(!list.length) return null;
+  const lo = Math.min(...list.map(c => c.pct)), hi = Math.max(...list.map(c => c.pct));
+  const heat = (c) => hi === lo ? 1 : (c.pct - lo) / (hi - lo);   // 0 = the least close of them, 1 = the closest
+  const box = el('div',{class:'rv-world__map'}, el('div',{class:'rv-world__wait'}, 'Loading the map…'));
+  rvWorld().then(w => {
+    if(!w){ box.innerHTML = ''; box.classList.add('is-none'); return; }
+    const shown = list.filter(c => w.c[c.code]);
+    const base = Object.keys(w.c).map(k => '<path d="' + w.c[k] + '"/>').join('');
+    const hot = shown.map((c, i) => '<path class="rv-world__hot" d="' + w.c[c.code] + '" style="--d:' + rvD(600 + i * 260) + 'ms;fill:color-mix(in srgb, var(--accent) ' + Math.round(35 + heat(c) * 65) + '%, var(--gold))"><title>' + c.name + ' · ' + c.pct + '%</title></path>').join('');
+    const pins = shown.slice(0, 3).map((c, i) => { const [x, y] = rvMiddle(w.c[c.code]);
+      return '<g class="rv-world__pin" style="--d:' + rvD(1500 + i * 220) + 'ms;transform-origin:' + x.toFixed(0) + 'px ' + y.toFixed(0) + 'px"><circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="5"/>'
+        + '<text x="' + x.toFixed(0) + '" y="' + (y - 11).toFixed(0) + '">' + c.name.replace(/[<&]/g, '') + ' ' + c.pct + '%</text></g>'; }).join('');
+    box.innerHTML = '<svg viewBox="0 0 ' + w.w + ' ' + w.h + '" role="img" aria-label="World map of your closest nations"><g class="rv-world__base">' + base + '</g><g>' + hot + '</g>' + pins + '</svg>';
+  });
+  return { title: 'World heat map', ms: rvD(3000), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
+    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your world heat map', 0, 90)),
+      el('div',rvIn(300, 'rv-heatkey'),[el('span',{}, 'Less close'), el('i',{}), el('span',{}, 'Closer')])]),
+    el('div',rvIn(200, 'rv-world', 'zoom'), box),
+    el('div',{class:'rv-world__list'}, list.map((c, i) => el('div',rvIn(1700 + i * 120, 'rv-world__item', 'pop'),[
+      el('span',{class:'rv-flag rv-flag--dot'}, nationFlag(c)), el('b',{}, c.name), el('em',{}, c.pct + '%')]))),
+    el('p',rvIn(2200, 'rv-sub rv-sub--c'), 'Shaded: the ' + list.length + ' present-day nations the AI matched to you.'),
+  ])]) };
+}
+
 // Closing: your card spins up out of the scene, a light sweeps across it, and it hands over to the card window.
 function rvCardScene(){
   const card = buildResultCard();
@@ -3553,13 +3678,15 @@ function startResultsReveal(){
   const openCard = () => { state.showCard = true; render(); };
   if(!m || !state.user || !state.user.compass) return openCard();
   // Each scene is built once here (empty ones are left out) and built again only when you go back to it.
-  const parts = [rvIntroScene, rvApartScene, rvNationScene, rvFigureScene, rvIdeologyScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
+  rvWorld();   // the map outlines start loading now, so they're ready by their scene
+  const parts = [rvIntroScene, rvConvictionScene, rvApartScene, rvMapsScene, rvWorldScene, rvNationScene, rvFigureScene, rvEraFitScene, rvIdeologyScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
   if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
   const titles = parts.map(x => x.s.title);
   let ch = -1, scene = null, ended = false, readyTimer = null;
 
   const dots = el('div',{class:'rv-dots', role:'group', 'aria-label':'Parts of the reveal'}, parts.map((x, k) => x.s.auto ? null :
     el('button',{type:'button', class:'rv-dot', 'aria-label': titles[k], title: titles[k], onclick:()=>show(k)})));
+  const count = el('span',{class:'rv-count', 'aria-hidden':'true'});
   const backBtn = el('button',{type:'button', class:'rv-back', 'aria-label':'Back', onclick:()=>back()}, '‹');
   const nextBtn = el('button',{type:'button', class:'rv-next', onclick:()=>show(ch + 1)}, 'Next ›');
   const stage = el('div',{class:'rv-stage', 'aria-live':'polite'});
@@ -3567,7 +3694,7 @@ function startResultsReveal(){
     el('div',{class:'rv-bg', 'aria-hidden':'true'},[el('i',{class:'rv-blob rv-blob--a'}), el('i',{class:'rv-blob rv-blob--b'}), el('i',{class:'rv-blob rv-blob--c'}), el('i',{class:'rv-gridbg'})]),
     el('div',{class:'rv-top'},[el('button',{type:'button', class:'rv-skip', onclick:()=>finish()}, 'Skip to card ›')]),
     stage,
-    el('div',{class:'rv-ctrl'},[backBtn, dots, nextBtn]),
+    el('div',{class:'rv-ctrl'},[backBtn, dots, count, nextBtn]),
   ]);
   // Back stops at the first results scene: the opening only plays once.
   function back(){ const k = ch - 1; if(k >= 0 && parts[k].f !== rvIntroScene) show(k); }
@@ -3587,7 +3714,10 @@ function startResultsReveal(){
     [...dots.children].forEach(d => d.classList.toggle('is-on', d.title === titles[k]));
     backBtn.disabled = !(k > 0 && parts[k - 1].f !== rvIntroScene);
     const after = titles[k + 1] || '';
-    nextBtn.textContent = !after || after === 'Your card' ? 'See your card ›' : 'Next: ' + after.replace(/ closest to you$/, '') + ' ›';
+    nextBtn.innerHTML = '';
+    if(!after || after === 'Your card') nextBtn.textContent = 'See your card ›';
+    else nextBtn.append('Next', el('span',{class:'rv-next__to'}, ': ' + after.replace(/ closest to you$/, '')), ' ›');   // phones show just "Next ›"
+    count.textContent = ([...dots.children].findIndex(d => d.title === titles[k]) + 1) + ' / ' + dots.children.length;
     nextBtn.classList.remove('is-ready');
     // The opening and the card move on by themselves; every other scene waits for you once it has played.
     readyTimer = setTimeout(() => {
@@ -3597,7 +3727,9 @@ function startResultsReveal(){
     }, next.ms);
   }
   const keys = (e) => {
-    const act = { ArrowRight: () => show(ch + 1), ArrowLeft: back, Escape: finish }[e.key];
+    const pod = scene && scene.podium && scene.podium();
+    const act = { ArrowRight: () => show(ch + 1), ArrowLeft: back, Escape: finish,
+      1: pod && (() => pod._select(0)), 2: pod && (() => pod._select(1)), 3: pod && (() => pod._select(2)) }[e.key];
     if(!act) return;
     e.preventDefault(); e.stopPropagation();
     act();
