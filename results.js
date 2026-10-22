@@ -331,6 +331,11 @@ function rxCubePoints(m){
   return pts;
 }
 function rxCubeSection(m){
+  return rxSection('cube', 'IN THREE DIMENSIONS', 'Your political cube', 'Economics runs left to right, authority to liberty runs up, and tradition to progress runs front to back. Zoomed in around you, so the differences show; hollow rings sit further out.',
+    rxCubeBody(m));
+}
+// The cube with its legend, zoom switch and caption; it redraws itself in place, so it also works inside the reveal.
+function rxCubeBody(m){
   const pts = rxCubePoints(m);
   const box = el('div',{class:'rx-cube'});
   const svg = rxSvg('svg', { viewBox: '-1.85 -1.75 3.7 3.5', class: 'rx-cube__svg', role: 'img', 'aria-label': 'A 3D cube with you and your matches. Drag to turn it.' });
@@ -416,9 +421,9 @@ function rxCubeSection(m){
     if(!step) return;
     e.preventDefault(); rx.cube.a += step[0]; rx.cube.b = rxClamp(rx.cube.b + step[1], -1.2, 1.2); rx.cube.idleFrom = Date.now(); paint();
   });
-  let mounted = false, last = 0;
+  let mounted = false, last = 0, born = Date.now();
   const tick = (t) => {
-    if(svg.isConnected) mounted = true; else if(mounted) return;
+    if(svg.isConnected) mounted = true; else if(mounted || Date.now() - born > 120000) return;   // gone, or never shown (a skipped reveal scene)
     // Turns by itself only while it's on screen and left alone.
     const r = mounted && svg.getBoundingClientRect(), seen = r && r.bottom > 0 && r.top < window.innerHeight;
     if(seen && !rxReduced() && !rx.cube.drag && Date.now() - (rx.cube.idleFrom || 0) > 2500){ rx.cube.a += Math.min(50, t - (last || t)) / 6000; paint(); }
@@ -428,9 +433,9 @@ function rxCubeSection(m){
   paint(); showInfo(); requestAnimationFrame(tick);
   const legend = el('div',{class:'rx-legend'}, ['you', 'leader', 'nation', 'ideology', 'party', 'member'].filter(k => pts.some(p => p.kind === k))
     .map(k => el('span',{},[el('i',{class:'rx-k rx-k--' + k}), k === 'you' ? 'You' : RX_KINDS[k]])));
-  const zoomBtn = el('button',{type:'button', class:'rx-chip rx-cube__zoom', 'aria-pressed': String(zoom), onclick:()=>{ rx.cube.zoom = !zoom; render(); }}, zoom ? 'Show the whole map' : 'Zoom in around you');
-  return rxSection('cube', 'IN THREE DIMENSIONS', 'Your political cube', 'Economics runs left to right, authority to liberty runs up, and tradition to progress runs front to back.'
-    + (zoom ? ' Zoomed in around you, so the differences show; hollow rings sit further out than the cube.' : ''), el('div',{},[el('div',{class:'rx-cube__top'},[legend, zoomBtn]), box, info]));
+  const zoomBtn = el('button',{type:'button', class:'rx-chip rx-cube__zoom', 'aria-pressed': String(zoom), onclick:()=>{ rx.cube.zoom = !zoom; body.replaceWith(rxCubeBody(m)); }}, zoom ? 'Show the whole map' : 'Zoom in around you');
+  const body = el('div',{class:'rx-cube-body'},[el('div',{class:'rx-cube__top'},[legend, zoomBtn]), box, info]);
+  return body;
 }
 
 /* ================= 3. THE CONSTELLATION ================= */
@@ -462,6 +467,11 @@ function rxStars(m){
 }
 function rxConstellationSection(m){
   if(!m) return rxSection('stars', 'YOUR CONSTELLATION', 'Everyone around you', null, rxMoreGate());
+  const body = rxSkyBody(m);
+  return body ? rxSection('stars', 'YOUR CONSTELLATION', 'Everyone around you', 'The closer a star, the closer its views to yours. Tap one to see who it is.', body) : null;
+}
+// The sky with its legend and the card for the picked star; picking a star redraws it in place (page or reveal).
+function rxSkyBody(m){
   const stars = rxStars(m);
   if(!stars.length) return null;
   const sky = el('div',{class:'rx-sky'});
@@ -479,7 +489,7 @@ function rxConstellationSection(m){
   const sel = stars.find(s => s.name === rx.star) || stars[0];
   stars.forEach((s, i) => sky.appendChild(el('button',{type:'button', class:'rx-star rx-k--' + s.kind + (s === sel ? ' is-on' : '') + (i < 6 ? ' is-named' : ''),
     style:'left:' + s.x.toFixed(1) + '%;top:' + s.y.toFixed(1) + '%;--z:' + (0.7 + s.pct / 140).toFixed(2) + ';animation-delay:' + (i * 0.07).toFixed(2) + 's',
-    'aria-label': s.name + ', ' + s.sub + ', ' + s.pct + '% match', onclick:()=>{ rx.star = s.name; render(); }},
+    'aria-label': s.name + ', ' + s.sub + ', ' + s.pct + '% match', onclick:()=>{ rx.star = s.name; body.replaceWith(rxSkyBody(m)); }},
     [el('i',{class:'rx-star__dot'}), el('span',{class:'rx-star__name'}, s.name)])));
   sky.appendChild(el('div',{class:'rx-sky__you'}, el('b',{}, 'You')));
   const pic = sel.kind === 'leader' ? portraitNode(sel.name, sel.photo) : sel.kind === 'nation' ? (sel.code ? rxFlag(sel.code, sel.name) : sel.flag ? el('img',{class:'rx-flag', src: sel.flag, alt:''}) : rxFlag('', sel.name))
@@ -490,7 +500,8 @@ function rxConstellationSection(m){
     el('div',{class:'rx-starcard__pct'}, sel.pct + '%'),
   ]);
   const legend = el('div',{class:'rx-legend'}, ['leader', 'nation', 'ideology', 'party'].filter(k => stars.some(s => s.kind === k)).map(k => el('span',{},[el('i',{class:'rx-k rx-k--' + k}), RX_KINDS[k]])));
-  return rxSection('stars', 'YOUR CONSTELLATION', 'Everyone around you', 'The closer a star, the closer its views to yours. Tap one to see who it is.', el('div',{},[legend, sky, card]));
+  const body = el('div',{class:'rx-sky-body'},[legend, sky, card]);
+  return body;
 }
 
 /* ================= 4. TIMELINE BY ERA ================= */
@@ -758,6 +769,47 @@ function rxSections(){
     el('div',{class:'rx__head'},[el('div',{class:'kicker'}, 'EXPLORE YOUR RESULTS'), el('h2',{class:'section-title'}, 'Everything else your answers say')]),
     nav, ...parts.map(p => p.node),
   ]);
+}
+
+// At the top of the Compass page, so the sections below the maps are one tap away.
+const RX_JUMPS = [['cube', '3D cube'], ['stars', 'Constellation'], ['axes', 'All axes'], ['timeline', 'Timeline'], ['parties', 'Parties'], ['books', 'Books'], ['compare', 'Compare'], ['dive', 'Deep dives']];
+function rxJump(id){
+  const n = document.getElementById('rx-' + id) || document.querySelector('.rx');
+  if(n) n.scrollIntoView({ behavior: rxReduced() ? 'auto' : 'smooth', block: 'start' });
+}
+function rxJumpBar(){
+  if(!state.user || !state.user.compass) return null;
+  return el('div',{class:'rx-jump'},[
+    el('div',{class:'rx-jump__text'},[el('b',{}, 'Explore your results'), el('span',{}, 'The 3D cube, your constellation, timeline, parties, books and more are below the maps.')]),
+    el('div',{class:'rx-jump__chips'}, RX_JUMPS.map(([id, label]) => el('button',{type:'button', class:'rx-chip' + (id === 'cube' || id === 'stars' ? ' is-hot' : ''), onclick:()=>rxJump(id)}, label))),
+  ]);
+}
+// Opens the Compass page (if needed) and scrolls to a section once it's drawn.
+function rxOpenSection(id){
+  state.showCard = false;
+  if(state.tab !== 'compass'){ state.tab = 'compass'; }
+  render();
+  setTimeout(() => rxJump(id), 120);
+}
+
+/* ================= THE CUBE AND THE CONSTELLATION IN THE RESULTS REVEAL ================= */
+function rvCubeScene(m){
+  if(!state.user || !state.user.compass) return null;
+  return { title: 'Your political cube', ms: 2600, node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in rx rx--rv'},[
+    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your political cube', 0, 90)),
+      el('p',{class:'rv-sub rv-sub--head rv-in', style:'--d:300ms'}, 'Economics across, authority to liberty up, tradition to progress in depth. Drag to turn it.')]),
+    el('div',{class:'rv-in rv-in--zoom', style:'--d:400ms'}, rxCubeBody(m)),
+  ])]) };
+}
+function rvSkyScene(m){
+  if(!m) return null;
+  const body = rxSkyBody(m);
+  if(!body) return null;
+  return { title: 'Your constellation', ms: 2600, node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in rx rx--rv'},[
+    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your constellation', 0, 90)),
+      el('p',{class:'rv-sub rv-sub--head rv-in', style:'--d:300ms'}, 'Everyone the AI placed around you. The closer a star, the closer its views. Tap one.')]),
+    el('div',{class:'rv-in rv-in--zoom', style:'--d:400ms'}, body),
+  ])]) };
 }
 
 /* ================= IDEOLOGY TAGS BESIDE NAMES ================= */
