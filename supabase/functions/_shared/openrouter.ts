@@ -6,10 +6,10 @@
 
 const KEY = Deno.env.get('NVIDIA_API') ?? Deno.env.get('OPENROUTER_API_KEY');
 const URL = 'https://openrouter.ai/api/v1/chat/completions';
-// Text jobs: NVIDIA Nemotron 3 Super (free) first, then fast, inexpensive paid backups (also used whenever the free
-// model hits OpenRouter's rate limit); if one is busy, fails or answers in the
-// wrong shape, the next is tried.
-const MODELS = ['nvidia/nemotron-3-super-120b-a12b:free', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-lightning'];
+// Text jobs: NVIDIA Nemotron 3 Ultra (free) first, then Nemotron 3 Super (free), then fast, inexpensive paid backups
+// (used whenever the free models hit OpenRouter's rate limit); if one is busy, fails or answers in the wrong shape,
+// the next is tried.
+const MODELS = ['nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3-super-120b-a12b:free', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-lightning'];
 // For jobs that look at pictures (choosing a leader's portrait or an ideology's symbol, which is then kept for
 // everyone): Gemini first, the model these were tuned on and very good at judging pictures, then other image models.
 const VISION_MODELS = ['google/gemini-3.8-flash', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-super-vl'];
@@ -17,6 +17,7 @@ const VISION_MODELS = ['google/gemini-3.8-flash', 'deepseek/deepseek-v4.1-flash'
 // Extra for a request: pictures to look at, each with a line of text before it.
 export type AiExtra = { images?: { text: string; mime: string; data: string }[] };
 const busyUntil: Record<string, number> = {};   // a model that said it's overloaded is skipped for a minute
+const formatFor: Record<string, 'schema' | 'json' | 'plain'> = {};   // the request format each model last accepted
 
 // Gemini schema ({ type: 'OBJECT', ... }) to JSON Schema ({ type: 'object', ... }).
 function toJsonSchema(s: any): any {
@@ -107,6 +108,7 @@ async function ask(model: string, prompt: string, schema: unknown, temperature: 
     err.fatal = status === 401 || status === 402;   // a bad key or no credit: no other model will do better
     throw err;
   }
+  formatFor[model] = format;   // next time, start with the format this model took
   const text = data?.choices?.[0]?.message?.content;
   if (!text) throw new Error(`OpenRouter ${model}: empty answer (${data?.choices?.[0]?.finish_reason ?? 'no choices'})`);
   const out = readJson(text);
@@ -128,7 +130,7 @@ export async function aiJson(prompt: string, schema: unknown, temperature = 0.3,
       const left = start + budgetMs - Date.now();
       if (left < 4000) return null;
       try {
-        const out = await ask(model, prompt, schema, temperature, Math.min(30_000, left), 'schema', extra);
+        const out = await ask(model, prompt, schema, temperature, Math.min(30_000, left), formatFor[model] ?? 'schema', extra);
         console.log(`ai: openrouter ${model} ${Date.now() - start}ms ${label}${attempt ? ' (second try)' : ''}`);
         return out;
       } catch (e: any) {
