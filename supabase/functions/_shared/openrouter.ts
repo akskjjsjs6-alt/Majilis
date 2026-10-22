@@ -1,18 +1,18 @@
-// Majlis — the AI through OpenRouter (openrouter.ai), shared by the edge functions.
-// Every function asks OpenRouter first and falls back to its own Gemini code if OpenRouter isn't set up, is busy or
-// gives an unusable answer. The functions' schemas are in Gemini's format, so they are converted to JSON Schema here,
+// Majlis — the AI through OpenRouter (openrouter.ai), shared by the edge functions, using free models only.
+// Text jobs ask OpenRouter first and fall back to the function's own Gemini code if OpenRouter isn't set up, is busy,
+// rate-limited or gives an unusable answer. The functions' schemas are in Gemini's format, so they are converted to JSON Schema here,
 // sent as the answer format, and every answer is checked against them before it is used (not every model guarantees
 // the shape). The key is the NVIDIA_API secret (or OPENROUTER_API_KEY).
 
 const KEY = Deno.env.get('NVIDIA_API') ?? Deno.env.get('OPENROUTER_API_KEY');
 const URL = 'https://openrouter.ai/api/v1/chat/completions';
-// Text jobs: NVIDIA Nemotron 3 Ultra (free) first, then Nemotron 3 Super (free), then fast, inexpensive paid backups
-// (used whenever the free models hit OpenRouter's rate limit); if one is busy, fails or answers in the wrong shape,
-// the next is tried.
-const MODELS = ['nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3-super-120b-a12b:free', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-lightning'];
-// For jobs that look at pictures (choosing a leader's portrait or an ideology's symbol, which is then kept for
-// everyone): Gemini first, the model these were tuned on and very good at judging pictures, then other image models.
-const VISION_MODELS = ['google/gemini-3.8-flash', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-super-vl'];
+// Free models only (no OpenRouter credit is spent). Text jobs: NVIDIA Nemotron 3 Ultra, then Nemotron 3 Super, then
+// Nemotron 3.5 Lightning; if one is busy, rate-limited, fails or answers in the wrong shape, the next is tried, and
+// after them the function's own Gemini code.
+const MODELS = ['nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3-super-120b-a12b:free', 'nvidia/nemotron-3.5-lightning:free'];
+// Jobs that look at pictures (the portrait and symbol pickers ask Gemini first and come here when it's busy): free
+// image models.
+const VISION_MODELS = ['nvidia/nemotron-3.5-super-vl:free', 'google/gemma-4-31b-it:free'];
 
 // Extra for a request: pictures to look at, each with a line of text before it.
 export type AiExtra = { images?: { text: string; mime: string; data: string }[] };

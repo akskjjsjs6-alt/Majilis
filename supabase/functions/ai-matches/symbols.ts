@@ -127,12 +127,8 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
     parts.push({ text: `Picture ${i}: ${c.file}` });
     parts.push({ inline_data: { mime_type: 'image/png', data: images[i] } });
   });
-  // OpenRouter first (Gemini as the backup).
-  const viaOpenRouter = await aiJson(parts[0].text, JUDGE_SCHEMA, 0.1, 45_000, 'symbol ' + name,
-    { images: cands.map((c, i) => ({ text: `Picture ${i}: ${c.file}`, mime: 'image/png', data: images[i] })) });
-  if (viaOpenRouter) return { best: viaOpenRouter.kind === 'other' ? -1 : viaOpenRouter.best, reason: String(viaOpenRouter.reason ?? '').slice(0, 300) };
-  if (!GEMINI_API_KEY) return null;
-  for (const model of MODELS) {
+  // Gemini first (the symbol is kept for everyone), then OpenRouter's free image models when Gemini is busy.
+  for (const model of GEMINI_API_KEY ? MODELS : []) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST', headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
@@ -147,7 +143,9 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
       return { best: j.kind === 'other' ? -1 : j.best, reason: String(j.reason ?? '').slice(0, 300) };
     } catch (e) { console.warn('symbol judge', model, String(e).slice(0, 80)); }
   }
-  return null;
+  const viaOpenRouter = await aiJson(parts[0].text, JUDGE_SCHEMA, 0.1, 45_000, 'symbol ' + name,
+    { images: cands.map((c, i) => ({ text: `Picture ${i}: ${c.file}`, mime: 'image/png', data: images[i] })) });
+  return viaOpenRouter ? { best: viaOpenRouter.kind === 'other' ? -1 : viaOpenRouter.best, reason: String(viaOpenRouter.reason ?? '').slice(0, 300) } : null;
 }
 
 // Finds and saves the symbol for one ideology. Safe to call more than once: the row is claimed first.
