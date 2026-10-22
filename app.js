@@ -7219,7 +7219,7 @@ function bankRefill(p){
   p.candidates = pbTop(post, 8).map(t => ({ name: t.name, blurb: '' }));
   if(!bankLeft(p)) return;
   const exclude = new Set([...p.asked.map(a => a.id), ...(p.skipIds || [])].filter(Boolean));
-  const recent = p.asked.slice(-2).reverse().map(a => a.id && PB_BY_ID[a.id] ? PB_BY_ID[a.id][1][0] : '');
+  const recent = p.asked.filter(a => a.id && PB_BY_ID[a.id]).reverse().map(a => PB_BY_ID[a.id][1][0]);
   const q = pbNext(post, exclude, recent);
   if(q) p.batch.push(pbItem(q));
 }
