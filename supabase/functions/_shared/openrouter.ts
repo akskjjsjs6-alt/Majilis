@@ -7,7 +7,7 @@
 const KEY = Deno.env.get('NVIDIA_API') ?? Deno.env.get('OPENROUTER_API_KEY');
 const URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Fast, inexpensive models, best first; if one is busy, fails or answers in the wrong shape, the next is tried.
-const MODELS = ['deepseek/deepseek-v4.1-flash', 'z-ai/glm-5.3-flash', 'nvidia/nemotron-3.5-lightning'];
+const MODELS = ['deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-lightning', 'qwen/qwen3.5-flash-02-23'];
 // For jobs that look at pictures (choosing a leader's portrait or an ideology's symbol, which is then kept for
 // everyone): Gemini first, the model these were tuned on and very good at judging pictures, then other image models.
 const VISION_MODELS = ['google/gemini-3.8-flash', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-super-vl'];
@@ -33,20 +33,33 @@ function toJsonSchema(s: any): any {
   return out;
 }
 
-// Does the answer have the shape the schema asks for? Numbers are accepted for integers (the callers round them).
-function fits(v: any, s: any): boolean {
-  if (!s || !s.type) return true;
+// Where the answer departs from the shape the schema asks for ('' if it fits), for the logs. Numbers are accepted for
+// integers (the callers round them).
+function misfit(v: any, s: any, at = 'answer'): string {
+  if (!s || !s.type) return '';
+  const show = (x: any) => JSON.stringify(x)?.slice(0, 40);
   switch (String(s.type).toUpperCase()) {
-    case 'OBJECT':
-      if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
-      for (const k of (s.required ?? [])) if (!(k in v) || v[k] === null) return false;
-      for (const k of Object.keys(s.properties ?? {})) if (k in v && v[k] !== null && !fits(v[k], s.properties[k])) return false;
-      return true;
-    case 'ARRAY': return Array.isArray(v) && v.every((x) => fits(x, s.items));
-    case 'STRING': return typeof v === 'string' && (!s.enum || s.enum.includes(v));
-    case 'INTEGER': case 'NUMBER': return typeof v === 'number' && Number.isFinite(v);
-    case 'BOOLEAN': return typeof v === 'boolean';
-    default: return true;
+    case 'OBJECT': {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return `${at} is not an object`;
+      for (const k of (s.required ?? [])) if (!(k in v) || v[k] === null) return `${at}.${k} is missing`;
+      for (const k of Object.keys(s.properties ?? {})) {
+        if (!(k in v) || v[k] === null) continue;
+        const m = misfit(v[k], s.properties[k], `${at}.${k}`);
+        if (m) return m;
+      }
+      return '';
+    }
+    case 'ARRAY': {
+      if (!Array.isArray(v)) return `${at} is not a list`;
+      for (let i = 0; i < v.length; i++) { const m = misfit(v[i], s.items, `${at}[${i}]`); if (m) return m; }
+      return '';
+    }
+    case 'STRING':
+      if (typeof v !== 'string') return `${at} is not text (${show(v)})`;
+      return s.enum && !s.enum.includes(v) ? `${at} = ${show(v)}, not one of the allowed values` : '';
+    case 'INTEGER': case 'NUMBER': return typeof v === 'number' && Number.isFinite(v) ? '' : `${at} is not a number (${show(v)})`;
+    case 'BOOLEAN': return typeof v === 'boolean' ? '' : `${at} is not true/false (${show(v)})`;
+    default: return '';
   }
 }
 
@@ -95,7 +108,8 @@ async function ask(model: string, prompt: string, schema: unknown, temperature: 
   const text = data?.choices?.[0]?.message?.content;
   if (!text) throw new Error(`OpenRouter ${model}: empty answer (${data?.choices?.[0]?.finish_reason ?? 'no choices'})`);
   const out = readJson(text);
-  if (!fits(out, schema)) throw new Error(`OpenRouter ${model}: answer doesn't match the schema`);
+  const wrong = misfit(out, schema);
+  if (wrong) { const err: any = new Error(`OpenRouter ${model}: wrong shape (${wrong})`); err.shape = true; throw err; }
   return out;
 }
 
@@ -107,16 +121,20 @@ export async function aiJson(prompt: string, schema: unknown, temperature = 0.3,
   const list = extra.images?.length ? VISION_MODELS : MODELS;
   const order = [...list.filter((m) => !(busyUntil[m] > start)), ...list.filter((m) => busyUntil[m] > start)];
   for (const model of order) {
-    const left = start + budgetMs - Date.now();
-    if (left < 4000) break;
-    try {
-      const out = await ask(model, prompt, schema, temperature, Math.min(40_000, left), 'schema', extra);
-      console.log(`ai: openrouter ${model} ${Date.now() - start}ms ${label}`);
-      return out;
-    } catch (e: any) {
-      if (e?.name === 'TimeoutError' || e?.busy) busyUntil[model] = Date.now() + 60_000;
-      console.warn(`ai: openrouter ${model} failed ${label}: ${String(e?.message ?? e).slice(0, 180)}`);
-      if (e?.fatal) break;
+    // A wrong-shaped answer is usually a one-off: the same model is asked once more before moving on.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const left = start + budgetMs - Date.now();
+      if (left < 4000) return null;
+      try {
+        const out = await ask(model, prompt, schema, temperature, Math.min(30_000, left), 'schema', extra);
+        console.log(`ai: openrouter ${model} ${Date.now() - start}ms ${label}${attempt ? ' (second try)' : ''}`);
+        return out;
+      } catch (e: any) {
+        if (e?.name === 'TimeoutError' || e?.busy) busyUntil[model] = Date.now() + 60_000;
+        console.warn(`ai: openrouter ${model} failed ${label}: ${String(e?.message ?? e).slice(0, 220)}`);
+        if (e?.fatal) return null;
+        if (!e?.shape) break;
+      }
     }
   }
   return null;
