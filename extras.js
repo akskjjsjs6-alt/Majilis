@@ -300,13 +300,21 @@ function renderGuide(){
     ]));
   } else hero.appendChild(el('div',{class:'guide-done-banner'}, 'You finished all 30 days. Your Graduate badge is on your profile.'));
   wrap.appendChild(hero);
+  // From your test results: the lessons that push hardest against your firmest views.
+  const picks = window.rxGuidePicks ? rxGuidePicks() : [];
+  if(picks.length) wrap.appendChild(el('section',{class:'guide-foryou'},[
+    el('div',{class:'kicker'}, 'Picked for you'),
+    el('p',{class:'guide-foryou__sub'}, 'From your test results: the lessons that challenge your firmest views. Each lesson also has a note on where you stand.'),
+    el('div',{class:'guide-foryou__list'}, picks.map(n => { const d = guideDays()[n - 1], note = rxGuideNote(n);
+      return el('button',{class:'guide-foryou__item', onclick:()=>openGuideDay(n)},[el('span',{class:'guide-day__n'}, String(n)), el('span',{},[el('b',{}, d.title), note ? el('small',{}, note.text) : null])]); })),
+  ]));
   ['Philosophy', 'Politics', 'Theology'].forEach((track, ti) => {
     const sec = el('section',{class:'guide-track'});
     sec.appendChild(el('div',{class:'guide-track__head'},[el('span',{class:'guide-track__num'}, 'Part ' + (ti + 1)), el('h3',{}, track), el('span',{class:'guide-track__days'}, 'Days ' + (ti * 10 + 1) + '–' + (ti * 10 + 10))]));
     const grid = el('div',{class:'guide-grid'});
     guideDays().filter(d => d.track === track).forEach(d => {
       const st = guideStatus(d.day);
-      grid.appendChild(el('button',{class:'guide-day is-' + st, onclick:()=>openGuideDay(d.day)},[
+      grid.appendChild(el('button',{class:'guide-day is-' + st + (picks.includes(d.day) ? ' is-foryou' : ''), onclick:()=>openGuideDay(d.day)},[
         el('span',{class:'guide-day__n'}, st === 'done' ? '✓' : String(d.day)),
         el('span',{class:'guide-day__title'}, d.title),
         el('span',{class:'guide-day__state'}, st === 'done' ? 'Done · ' + guide.done[d.day].score + '/3' : st === 'open' ? 'Today' : st === 'tomorrow' ? 'Tomorrow' : 'Locked'),
@@ -332,6 +340,8 @@ function renderGuideLesson(d){
     el('span',{}, 'Day ' + d.day + ' of 30 · ' + (mode === 'watch' ? vidMin + '-minute video' : 'about 20 minutes'))]));
   wrap.appendChild(el('h2',{class:'section-title'}, d.title));
   wrap.appendChild(el('p',{class:'guide-lesson__hook'}, d.hook));
+  { const note = window.rxGuideNote ? rxGuideNote(d.day) : null;
+    if(note) wrap.appendChild(el('div',{class:'guide-box guide-you is-' + note.side},[el('div',{class:'eyebrow'}, 'Where you stand'), el('p',{}, note.text)])); }
   if(st === 'locked' || guestLocked){
     wrap.appendChild(el('div',{class:'card guide-lock'},[
       el('p',{}, guestLocked ? 'Create an account to unlock the rest of the guide and save your progress.' : 'Finish Day ' + (d.day - 1) + ' first — one new lesson unlocks each day.'),

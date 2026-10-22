@@ -79,6 +79,7 @@ function applyProfileRow(p){
   }
   u.religion = p.religion || null;
   u.denomination = p.denomination || null;
+  u.topIdeology = typeof p.top_ideology === 'string' && p.top_ideology.trim() ? p.top_ideology.trim().slice(0, 50) : null;
   // The card's detail and philosophy axes, kept with the account (older results may only be on the device that took the test).
   const scores = (o) => o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length ? o : null;
   u.extrasOnServer = !!scores(p.extra_scores);
@@ -2437,6 +2438,7 @@ function renderReading(){
   grid.appendChild(statCard('Pages read', state.user.pagesRead.toLocaleString()));
   grid.appendChild(statCard('Reading Diversity', diversityScore()+'%'));
   wrap.appendChild(grid);
+  { const toRead = rxReadingListCard(); if(toRead){ wrap.appendChild(el('div',{class:'divider'})); wrap.appendChild(toRead); } }
 
   wrap.appendChild(el('div',{class:'divider'}));
 
@@ -3204,6 +3206,9 @@ function buildResultCard(){
   // The theme's flavour: its own badges, captions and stickers, drawn over the panels.
   const flavor = window.cardFlavorSVG && cardFlavorSVG(theme, { ideology: ideos[0] && ideos[0].name, pct: ideos[0] && ideos[0].pct, hasFaith: !!faith });
   if(flavor) card.appendChild(el('div',{class:'rc9__flavor', 'aria-hidden':'true', html: flavor}));
+  // Your fingerprint and its MJ code, beside "Your axes": drawn from where you sit on the three maps, so it's yours alone.
+  const fp = rvFingerprint(rvFpValues(u.compass), ['var(--rc-pct)', 'var(--rc-ink)'], 'rc9-fp__print', true);
+  card.appendChild(el('div',{class:'rc9-fp', 'aria-label':'Your fingerprint ' + fp.code},[fp.node, el('code',{class:'rc9-fp__code'}, fp.code)]));
   card.appendChild(el('div',{class:'rc9__foot'}, 'FIND WHERE YOU STAND · MAJLIS'));
   return outer;
 }
@@ -3627,7 +3632,16 @@ function rvFpRead(v){
   const conviction = Math.round(v.reduce((n, x) => n + Math.abs(x - 50), 0) / v.length * 2);
   return { core: lean[0].pole, conviction, type: conviction >= 50 ? 'Whorl' : conviction >= 28 ? 'Loop' : 'Arch', side: v[0] < 50 ? -1 : 1 };
 }
+const rvFpMemo = new Map();
 function rvFpPath(v, d){
+  const key = v.join(',') + (d.coarse ? ':c' : '');
+  if(rvFpMemo.has(key)) return rvFpMemo.get(key);
+  const path = rvFpDraw(v, d);
+  if(rvFpMemo.size > 40) rvFpMemo.clear();
+  rvFpMemo.set(key, path);
+  return path;
+}
+function rvFpDraw(v, d){
   const waves = v.map((x, k) => ({ a: (x - 50) / 50, f: 1.5 + k * .7, p: k * 2.1 }));
   const F = (x, y) => {
     let wx = x, wy = y;
@@ -3645,7 +3659,7 @@ function rvFpPath(v, d){
   const ends = Array.from({ length: 18 }, () => [rnd() * 1.6 - .8, rnd() * 2 - 1, .012 + rnd() * .012]);   // where ridges stop, as on a real fingertip
   const N = 150, xs = (i) => -1 + 2 * i / N, val = [];
   for(let j = 0; j <= N; j++){ val[j] = []; for(let i = 0; i <= N; i++) val[j][i] = F(xs(i), xs(j) * 1.3); }
-  const step = .056 - d.conviction / 100 * .012, px = (x, y) => ((x + 1) * 145).toFixed(1) + ' ' + ((y / 1.3 + 1) * 190).toFixed(1);
+  const step = (.056 - d.conviction / 100 * .012) * (d.coarse ? 2.3 : 1), px = (x, y) => ((x + 1) * 145).toFixed(1) + ' ' + ((y / 1.3 + 1) * 190).toFixed(1);
   const parts = [];
   for(let j = 0; j < N; j++) for(let i = 0; i < N; i++){
     const x0 = xs(i), y0 = xs(j) * 1.3, x1 = xs(i + 1), y1 = xs(j + 1) * 1.3;
@@ -3665,13 +3679,14 @@ function rvFpPath(v, d){
   return parts.join('');
 }
 let rvFpN = 0;
-function rvFingerprint(v, colors, cls){
-  const d = rvFpRead(v), id = 'rvfp' + (++rvFpN);
+// coarse: fewer, thicker ridges, for small prints (the result card), where fine ones would run together.
+function rvFingerprint(v, colors, cls, coarse){
+  const d = Object.assign(rvFpRead(v), { coarse: !!coarse }), id = 'rvfp' + (++rvFpN);
   const svg = '<svg viewBox="0 0 290 380" aria-hidden="true"><defs>'
     + '<linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:' + colors[0] + '"/><stop offset="1" style="stop-color:' + colors[1] + '"/></linearGradient>'
     + '<radialGradient id="' + id + 'f" cx=".5" cy=".48" r=".55"><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
     + '<mask id="' + id + 'm"><rect width="290" height="380" fill="url(#' + id + 'f)"/></mask></defs>'
-    + '<g mask="url(#' + id + 'm)"><path d="' + rvFpPath(v, d) + '" fill="none" stroke="url(#' + id + ')" stroke-width="2.1" stroke-linecap="round"/></g></svg>';
+    + '<g mask="url(#' + id + 'm)"><path d="' + rvFpPath(v, d) + '" fill="none" stroke="url(#' + id + ')" stroke-width="' + (coarse ? 5 : 2.1) + '" stroke-linecap="round"/></g></svg>';
   const code = 'MJ-' + v.reduce((h, x) => Math.imul(h ^ x, 16777619) >>> 0, 2166136261).toString(16).toUpperCase().padStart(8, '0').replace(/(.{4})/, '$1-');
   return { node: el('div',{class:'rv-fp ' + (cls || ''), html: svg}), read: d, code };
 }
@@ -7130,6 +7145,7 @@ function renderCompass(){
   // On narrow screens the card is the small copy at the top instead, so it isn't built twice (phones are short on memory).
   if(window.matchMedia && window.matchMedia('(max-width: 1100px)').matches){
     wrap.appendChild(el('div',{class:'cmp-layout'},[maps]));
+    wrap.appendChild(rxSections());
     return wrap;
   }
   const card = buildResultCard();
@@ -7140,6 +7156,7 @@ function renderCompass(){
     el('p',{class:'field-caption', style:'text-align:center;margin:10px 0 0;'}, 'Tap the card to open it full size and save it as an image.'),
   ]);
   wrap.appendChild(el('div',{class:'cmp-layout'},[maps, aside]));
+  wrap.appendChild(rxSections());
   return wrap;
 }
 
@@ -7646,9 +7663,14 @@ function connectionsList(usernames, emptyText, opts={}){
 // [Founder] (the owner's account only, cyan), [Admin] (red) and [Moderator] (purple) next to a name.
 const FOUNDER_USERNAMES = ['safeplace2359'];
 const COFOUNDER_USERNAMES = ['adnanmohammad'];   // same colour as the Founder tag, still a moderator in the database
-function roleTag(who){
+// The role tag (founder, admin, moderator), then the coloured ideology tag; full shows both ideology tags (profiles).
+function roleTag(who, full){
   const u = typeof who === 'string' ? state.users[who] : who;
   if(!u) return null;
+  const ideo = ideologyTags(u, full), role = roleOnlyTag(u);
+  return role || ideo ? [role, ...(Array.isArray(ideo) ? ideo : [ideo])] : null;
+}
+function roleOnlyTag(u){
   const uname = String(u.username || '').toLowerCase();
   let kind = null, text = null;
   if(FOUNDER_USERNAMES.includes(uname)){ kind = 'founder'; text = '[FOUNDER]'; }
@@ -7665,7 +7687,7 @@ function renderOwnProfile(){
   wrap.appendChild(el('div',{class:'profile-header-row'},[
     avatarNode(u, 76),
     el('div',{},[
-      el('h2',{class:'section-title', style:'margin:0;'}, [u.name + (u.isGuest ? ' (guest)' : ''), roleTag(u)]),
+      el('h2',{class:'section-title', style:'margin:0;'}, [u.name + (u.isGuest ? ' (guest)' : ''), roleTag(u, true)]),
     ]),
   ]));
   wrap.appendChild(el('p',{class:'section-sub'}, u.isGuest
@@ -7774,7 +7796,7 @@ function renderOtherProfile(username){
   const titleRow = el('div',{class:'profile-header-row'},[
     avatarNode(person, 76),
     el('div',{class:'name-with-avatar'},[
-      el('h2',{class:'section-title', style:'margin:0;'}, [person.name, roleTag(person)]),
+      el('h2',{class:'section-title', style:'margin:0;'}, [person.name, roleTag(person, true)]),
       areFriends(state.currentUser, username) ? el('span',{class:'friend-badge'},'Friends') : null,
     ]),
   ]);
