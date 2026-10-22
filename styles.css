@@ -3601,3 +3601,18 @@ h2 .ideo-tag { font-size: 0.42em; }
 @media (prefers-reduced-motion: reduce){
   .rx-sky__bg, .rx-star, .rx-wait.is-loading::before { animation: none; }
 }
+
+/* The way into the results sections: a bar at the top of the Compass page */
+.rx-jump { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; margin: 4px 0 22px; padding: 14px 16px; border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--neon) 40%, var(--line)); background: color-mix(in srgb, var(--neon) 7%, var(--surface)); }
+.rx-jump__text { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rx-jump__text b { font-size: 15px; } .rx-jump__text span { font-size: 12.5px; color: var(--muted); }
+.rx-jump__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rx-chip.is-hot { color: var(--neon-ink, #000); background: var(--neon); border-color: var(--neon); }
+.acct__tag { display: block; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct__tag .ideo-tag { margin-left: 0; font-size: 10.5px; }
+/* the cube and the constellation inside the results reveal */
+.rx--rv { margin-top: 0; }
+.rx--rv .rx-cube { max-width: min(520px, 58vh); }
+.rx--rv .rx-sky { max-width: min(560px, 56vh); }
+.rx--rv .rx-starcard { margin-top: 10px; }

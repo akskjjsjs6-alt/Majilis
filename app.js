@@ -1839,6 +1839,7 @@ function buildMobileNav(){
       avatarNode(u, 36),
       el('span',{class:'acct__who'},[
         el('span',{class:'acct__name'}, u.name),
+        ideologyTags(u) ? el('span',{class:'acct__tag'}, ideologyTags(u)) : null,
         el('span',{class:'acct__sub'}, [el('span',{}, (u.debateRank ? 'Rank '+u.debateRank : 'Unranked')), el('span',{}, 'Elo ' + (u.readingElo || 0)), streakChip()]),
       ]),
     ]));
@@ -2958,6 +2959,7 @@ async function confirmCardPhotos(m){
 // The AI's results for the card, asking for them the first time they're needed.
 function cardMatches(){
   const m = savedCardMatches();
+  if(m) rxSyncTopIdeology(m);
   if(m && !m.art) setTimeout(refreshCardArt, 0);
   if(!m && !state.cardMatches.loading && !state.cardMatches.error && state.user && !state.user.isGuest) setTimeout(fetchCardMatches, 0);
   return m;
@@ -3283,6 +3285,7 @@ function renderResultOverlay(){
       el('button',{class:'btn', onclick: () => saveCardImage(card)}, 'Save image'),
       el('button',{class:'btn secondary', onclick: close}, 'Done'),
       el('button',{class:'btn secondary', onclick:()=>{ state.showCard = false; state.tab = 'compass'; render(); }}, 'Open my compass'),
+      el('button',{class:'btn secondary', onclick:()=>rxOpenSection('cube')}, 'Explore all my results ›'),
     ]),
     savedCardMatches() ? el('button',{class:'rc-replay', onclick:()=>{ state.showCard = false; render(); startResultsReveal(); }}, '▶ Watch your results reveal again') : null,
     el('p',{class:'field-caption', style:'text-align:center;margin:8px 0 0;'}, 'Save the image to share it. You can open this card again from your Compass page.'),
@@ -3808,7 +3811,7 @@ function startResultsReveal(){
   if(!m || !state.user || !state.user.compass) return openCard();
   // Each scene is built once here (empty ones are left out) and built again only when you go back to it.
   rvWorld();   // the map outlines start loading now, so they're ready by their scene
-  const parts = [rvIntroScene, rvConvictionScene, rvApartScene, rvMapsScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvPrecisionScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
+  const parts = [rvIntroScene, rvConvictionScene, rvApartScene, rvMapsScene, rvCubeScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvSkyScene, rvPrecisionScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
   if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
   const titles = parts.map(x => x.s.title);
   let ch = -1, scene = null, ended = false, readyTimer = null;
@@ -7164,6 +7167,7 @@ function renderCompass(){
 
   const overall = compassOverall();
   if(overall) wrap.appendChild(overall);
+  { const jump = rxJumpBar(); if(jump) wrap.appendChild(jump); }
   { const b = precisionBanner(); if(b) wrap.appendChild(b); }
   // The three maps on the left; your result card stays beside them.
   const maps = el('div',{class:'compass-maps'});
