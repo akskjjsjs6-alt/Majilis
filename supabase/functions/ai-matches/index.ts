@@ -13,6 +13,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { pickPortrait, savedPortraits, keyOf } from './portraits.ts';
 import { pickSymbol, savedSymbols, symbolKey } from './symbols.ts';
+import { aiJson } from '../_shared/openrouter.ts';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 // Same fallback order as secure-actions: if the first model is busy, try the next.
@@ -108,6 +109,10 @@ async function gemini(prompt: string, schema: unknown, temperature: number, quic
     responseMimeType: 'application/json', responseSchema: schema, temperature, ...(q ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) } });
   let lastErr = 'unknown';
   const deadline = Date.now() + 95000;
+  // OpenRouter first (45 seconds at most); Gemini only if it can't answer.
+  const viaOpenRouter = await aiJson(prompt, schema, temperature, 45000, 'ai-matches');
+  if (viaOpenRouter) return { data: viaOpenRouter };
+  if (!GEMINI_API_KEY) return { error: 'The AI is busy or unavailable (OpenRouter failed)' };
   for (const model of GEMINI_MODELS) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const left = deadline - Date.now();
@@ -631,7 +636,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: authHeader } } });
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return json({ error: 'Not authenticated' });
-    if (!GEMINI_API_KEY) return json({ error: 'AI key missing on the server' });
+    if (!GEMINI_API_KEY && !Deno.env.get('NVIDIA_API') && !Deno.env.get('OPENROUTER_API_KEY')) return json({ error: 'AI key missing on the server' });
 
     const b = await req.json();
     if (b?.mode === 'card') return await cardMode(b);

@@ -4450,6 +4450,18 @@ function archetypeReasoningFor(answers){
 const pendingFaithKey = () => 'majlis-faith-pending-' + (state.user && state.user.id ? state.user.id : 'guest');
 function savePendingFaith(p){ try { localStorage.setItem(pendingFaithKey(), JSON.stringify(p)); } catch(e){} }
 let faithRetrying = false;
+const FAITH_WAIT_MS = 6000;
+// The tradition from an AI answer that came in after your results were shown.
+async function saveLateFaith(religion, data){
+  const u = state.user;
+  if(!u || u.isGuest || !u.id || u.religion !== religion || u.denomination) return;
+  const { error } = await sb.rpc('save_denomination', { p_denomination: data.denomination });
+  if(error) return;   // the saved request is tried again next visit
+  u.denomination = data.denomination;
+  u.denominationReasoning = data.denominationReasoning || '';
+  try { localStorage.removeItem(pendingFaithKey()); } catch(e){}
+  render();
+}
 async function retryPendingFaith(){
   const u = state.user;
   if(faithRetrying || !u || u.isGuest || !u.id || !u.religion || u.denomination) return;
@@ -4498,7 +4510,15 @@ async function aiAnalyzeAssessment(answers){
     religionAnswers: bySection('religion-detail'),
   };
   try {
-    const { data, error } = await sb.functions.invoke('ai-assist', { body: payload, region: FN_REGION });
+    // Only the religious tradition needs the AI (everything else is scored from the answers), so a busy AI never holds
+    // up your results: after a few seconds they carry on without it, and the tradition is saved whenever it arrives.
+    const call = sb.functions.invoke('ai-assist', { body: payload, region: FN_REGION });
+    const res = await Promise.race([call, new Promise(r => setTimeout(() => r(null), FAITH_WAIT_MS))]);
+    if(!res){
+      call.then(({ data }) => { if(data && data.denomination && !data.error) saveLateFaith(payload.religion, data); }).catch(() => {});
+      throw new Error('AI analysis still running');
+    }
+    const { data, error } = res;
     if(error || !data || data.error) throw new Error((data && data.error) || 'AI analysis unavailable');
     try { localStorage.removeItem(pendingFaithKey()); } catch(e){}
     // The compass numbers and names come from the answers themselves (the same every time, like other online tests).
@@ -4576,7 +4596,9 @@ async function finishAssessment(position, viewText){
   const signedIn = !state.user.isGuest && state.user.id;
   // The AI compass analysis and the AI grading of your written case run at the same time.
   thinkItem('assessment', 'answers', 'active'); thinkItem('assessment', 'case', 'active');
-  if(signedIn) await resolveOwnAnswers(state.quiz.answers);
+  // Answers people wrote themselves are matched by the AI; a busy AI gets 10 seconds, after which any still unmatched
+  // are left out of the scores rather than holding everything up.
+  if(signedIn) await Promise.race([resolveOwnAnswers(state.quiz.answers), new Promise(r => setTimeout(r, 10000))]);
   const [analysis, placement] = await Promise.all([
     aiAnalyzeAssessment(state.quiz.answers).then(r => { thinkItem('assessment', 'answers', 'done'); return r; }),
     (signedIn ? callSecure('submit_placement', { position, case: viewText }) : Promise.resolve(null)).then(r => { thinkItem('assessment', 'case', 'done'); return r; }),
@@ -7203,7 +7225,9 @@ function compassOverall(){
    closest match. Kept on this device until your results change. */
 const PRECISION_TOTAL = 40;
 const PRECISION_BANK = 20;   // how many come from the built-in bank; the AI writes the rest
-const PRECISION_PREFETCH = 8;   // the AI starts writing when this many bank questions are left
+const PRECISION_PREFETCH = 10;   // the AI starts writing when this many bank questions are left
+// If the AI's questions aren't ready when the bank's 20 are done, the bank carries on (one more at a time) until they
+// are, so no one waits in the middle of the round; the AI's questions then fill whatever is left of the 40.
 const precisionKey = () => 'majlis-precision-' + (state.user && state.user.id || 'guest');
 const precisionUi = { loading: null, error: null, preparing: false };   // loading: 'round' or 'final' while the AI is writing; preparing: the test just submitted is being scored
 let precisionMemory = null;   // kept here too, in case the device can't store it
@@ -7229,7 +7253,7 @@ function precisionVec(compass, extras){
 }
 // Round 1 is the bank: one question waiting at a time, the next picked after each answer from everything so far.
 const bankAnswers = (p) => p.asked.filter(a => a.id).map(a => ({ id: a.id, opt: PB_BY_ID[a.id] ? PB_BY_ID[a.id][3].findIndex(o => o[0] === a.choice) : -1 }));
-const bankLeft = (p) => p.round === 1 ? Math.max(0, PRECISION_BANK - p.asked.filter(a => a.id).length) : 0;
+const bankLeft = (p) => p.round === 1 ? Math.max(0, (p.bankTarget || PRECISION_BANK) - p.asked.filter(a => a.id).length) : 0;
 function bankRefill(p){
   p.batch.length = p.idx;   // after going back and answering differently, what came next no longer applies
   const post = pbPosterior(p.vec || {}, p.religion, bankAnswers(p));
@@ -7319,6 +7343,7 @@ async function loadPrecision(kind, fn){
 // Whatever is still owed after the questions in hand (the finer rest after the first set, or any skipped or missing at
 // the end) is written in the background as soon as a question shows, so it is usually ready the moment you need it.
 let precisionAhead = null;   // { sig, round, promise, data }
+let precisionAheadFailedAt = 0;
 function prefetchPrecisionRound(){
   const p = savedPrecision();
   if(!p || p.early || p.result || !state.user || state.user.isGuest) return;
@@ -7328,9 +7353,10 @@ function prefetchPrecisionRound(){
   if(owedAfter <= 0) return;   // what comes next is the final match, which needs every answer
   const round = p.round + 1;
   if(precisionAhead && precisionAhead.sig === p.sig && precisionAhead.round === round) return;
+  if(Date.now() - precisionAheadFailedAt < 20000) return;   // the AI just failed: give it a moment before asking again
   const ahead = { sig: p.sig, round, data: null };
   ahead.promise = callPrecision({ step: 'round', round, want: owedAfter });
-  ahead.promise.then(d => { ahead.data = d; }, () => { if(precisionAhead === ahead) precisionAhead = null; });   // a failed early start is asked again when needed
+  ahead.promise.then(d => { ahead.data = d; }, () => { if(precisionAhead === ahead){ precisionAhead = null; precisionAheadFailedAt = Date.now(); } });   // a failed early start is asked again when needed
   precisionAhead = ahead;
 }
 // Turns a written round into the questions you answer next.
@@ -7352,6 +7378,15 @@ function loadPrecisionRound(){
   if(!p || precisionUi.loading) return;
   const round = p.round + 1;
   const ahead = precisionAhead && precisionAhead.sig === p.sig && precisionAhead.round === round ? precisionAhead : null;
+  // The AI's questions aren't ready yet (or came back unusable): another bank question instead of a wait.
+  const ready = ahead && ahead.data && Array.isArray(ahead.data.questions) && ahead.data.questions.length;
+  if(ahead && ahead.data && !ready && precisionAhead === ahead){ precisionAhead = null; precisionAheadFailedAt = Date.now(); }   // ask again later
+  if(!ready && p.round === 1 && !p.early && p.asked.length < PRECISION_TOTAL){
+    p.bankTarget = (p.bankTarget || PRECISION_BANK) + 1;
+    bankRefill(p);
+    savePrecision(p);
+    if(p.batch[p.idx]){ prefetchPrecisionRound(); render(); return; }
+  }
   precisionAhead = null;
   if(ahead && ahead.data){
     try { applyPrecisionRound(p, ahead.data); precisionUi.error = null; render(); return; } catch(e){ /* write it again below */ }
@@ -7363,20 +7398,42 @@ function loadPrecisionRound(){
     applyPrecisionRound(p, await callPrecision({ step: 'round', round, want: PRECISION_TOTAL - p.asked.length }));
   });
 }
+// Your match from the built-in scoring alone (your test and the bank's answers), for when the AI is too slow or busy.
+// The fit is how close your scores sit to the ideology's typical scores.
+function localPrecisionResult(p){
+  const post = pbPosterior(p.vec || {}, p.religion, bankAnswers(p));
+  const top = pbTop(post, 4);
+  const fitOf = (t) => { const d = pbDistance(p.vec || {}, PB_IDEOLOGIES[t.code][1], true); return d === null ? 0 : Math.max(0, Math.min(95, Math.round(100 - d))); };
+  const fit = fitOf(top[0]), n = bankAnswers(p).length;
+  return { local: true, match: { name: top[0].name, blurb: '', fit,
+      why: 'From your test and your answers to the first ' + n + ' questions, the built-in scoring puts you closest to ' + top[0].name + '. The AI was too busy to weigh every answer just now; this updates if it finishes while you are here.' },
+    runnersUp: top.slice(1).map(t => ({ name: t.name, blurb: '', fit: Math.min(fit, fitOf(t)), gap: '' })), deciding: [] };
+}
+const FINAL_WAIT_MS = 25000;
 function loadPrecisionFinal(){
   return loadPrecision('final', async () => {
-    const data = await callPrecision({ step: 'final' });
-    const r = data.result;
-    if(!r || !r.match || !r.match.name) throw new Error('no match came back');
+    const ask = callPrecision({ step: 'final' });
+    const data = await Promise.race([ask, new Promise(r => setTimeout(() => r(null), FINAL_WAIT_MS))]).catch(() => null);
+    const r = data && data.result;
     const cur = savedPrecision();
     if(!cur) return;
-    cur.result = { match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] };
-    savePrecision(cur);
-    // Straight after the test, the round ends in the end results; the animation stays until your card is ready.
-    if(cur.afterTest){
-      if(cardMatchesPending) await cardMatchesPending;
-      finishPrecisionFlow();
+    if(r && r.match && r.match.name) cur.result = { match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] };
+    else {
+      cur.result = localPrecisionResult(cur);
+      // The AI's answer, if it comes later, replaces the quick result.
+      const sig = cur.sig;
+      ask.then(d => {
+        const rr = d && d.result, now = savedPrecision();
+        if(!rr || !rr.match || !rr.match.name || !now || now.sig !== sig || !now.result || !now.result.local) return;
+        now.result = { match: rr.match, runnersUp: Array.isArray(rr.runnersUp) ? rr.runnersUp : [], deciding: Array.isArray(rr.deciding) ? rr.deciding : [] };
+        savePrecision(now);
+        if(state.tab === 'precision') render();
+      }).catch(() => {});
     }
+    savePrecision(cur);
+    // Straight after the test, the round ends in the end results (if your card is still being made, the compass page
+    // shows that and the reveal starts as soon as it's ready).
+    if(cur.afterTest) finishPrecisionFlow();
   });
 }
 function answerPrecision(opt){
@@ -7390,6 +7447,7 @@ function answerPrecision(opt){
   savePrecision(p);
   if(p.early) render();   // your results are still being scored; the round carries on once they're in
   else if(p.asked.length >= PRECISION_TOTAL) loadPrecisionFinal();
+  else if(p.round === 1 && bankLeft(p) && p.batch[p.idx]) render();
   else if(p.idx >= p.batch.length) loadPrecisionRound();
   else render();
 }
