@@ -4278,7 +4278,7 @@ function renderAssessment(){
       // Signed in, the test hands straight over to the precision round: its animation shows while your answers are
       // scored and its first questions are written. Guests see the test's own analysis screen.
       const signedIn = !state.user.isGuest && state.user.id;
-      if(signedIn){ precisionUi.preparing = true; precisionUi.error = null; state.tab = 'precision'; }
+      if(signedIn){ startEarlyPrecision(); precisionUi.preparing = true; precisionUi.error = null; state.tab = 'precision'; }
       else state.quiz.analysing = true;
       render();
       let ok = false;
@@ -4287,8 +4287,12 @@ function renderAssessment(){
         state.quiz.analysing = false; stopThink('assessment');
         if(signedIn){
           precisionUi.preparing = false;
-          if(ok) loadPrecisionRound();
-          else state.tab = 'assessment';   // something went wrong: back to your written case
+          if(ok){
+            adoptEarlyPrecision();
+            const p = savedPrecision();
+            if(p && p.idx >= p.batch.length) loadPrecisionRound();   // you finished the opening questions before scoring did
+          }
+          else { precisionEarly = null; state.tab = 'assessment'; }   // something went wrong: back to your written case
         }
         render();
       }
@@ -7175,14 +7179,43 @@ function compassOverall(){
     [el('div',{class:'cmp-overall__thumb', 'aria-hidden':'true'}, card), body]);
 }
 /* ================= PRECISION ROUND =================
-   After the test, 40 more questions narrow you down to one specific ideology. The AI writes all 40 at once, broad to
-   fine, to split the ideologies in the running (any you skip are made up at the end); then it names your closest
-   match. Kept on this device until your results change. */
+   After the test, 40 more questions narrow you down to one specific ideology. It opens with a set of broad questions
+   built into the site, so they show the moment you submit the test (even while it is still being scored); the AI writes
+   the finer rest for you in the background while you answer them (any you skip are made up at the end); then it names
+   your closest match. Kept on this device until your results change. */
 const PRECISION_TOTAL = 40;
+// The opening questions: broad splits of the whole field, on every area, the same for everyone.
+const PRECISION_OPENERS = [
+  { q: 'Should the government pay for everyone\'s healthcare out of taxes?', areas: ['economic', 'political'],
+    opts: ['Yes, fully, and private healthcare should be small or gone', 'Yes, but people should be free to pay for private care too', 'Only for the poor, the old and the sick; others should insure themselves', 'No. People should pay for their own care or rely on charity'] },
+  { q: 'A big company makes record profits while its workers struggle to pay rent. What should happen?', areas: ['economic'],
+    opts: ['The workers should own and run the company themselves', 'The government should raise the minimum wage and tax the profits', 'Unions should bargain with the owners for a fair share', 'Nothing. Wages are a deal between the company and its workers'] },
+  { q: 'Who should have the final say on the big decisions in a country?', areas: ['political'],
+    opts: ['Ordinary people, voting directly on as much as possible', 'Elected politicians, checked by courts and a free press', 'Experts and capable leaders, chosen for their skill rather than by votes', 'A strong leader or tradition that stands above party fighting'] },
+  { q: 'How many immigrants should a country like yours let in?', areas: ['social', 'political'],
+    opts: ['Many more. People should be free to move where they like', 'About as many as now, chosen for the skills the country needs', 'Fewer, so newcomers can fit in and wages are protected', 'Very few. A nation should keep its own people and culture first'] },
+  { q: 'Should religion play a part in a country\'s laws?', areas: ['religious', 'political'],
+    opts: ['Yes. Laws should follow the teachings of faith', 'Faith should shape the country\'s values, but laws should be made by voters', 'No. Religion and the state should be kept fully apart', 'Religion is a private matter the state should ignore completely'] },
+  { q: 'Should people be allowed to say things most others find deeply offensive?', areas: ['social', 'political'],
+    opts: ['Yes, any opinion at all, short of calling for violence', 'Mostly yes, but hate speech against groups should be banned', 'No. Speech that attacks faith, nation or family should be punished', 'Online platforms, not the government, should decide what is allowed'] },
+  { q: 'What should a country do about climate change, even if it costs jobs or money?', areas: ['economic', 'social'],
+    opts: ['Change the whole economy fast, with the state leading', 'Put a price on pollution and let businesses find the cheapest fixes', 'Act slowly, only where it doesn\'t hurt workers and industry', 'Very little. The costs are bigger than the danger'] },
+  { q: 'Should the state help keep marriage and the traditional family strong?', areas: ['social', 'religious'],
+    opts: ['Yes, with laws and money that favour married parents', 'It should support all families equally, whatever shape they take', 'No. How people live together is none of the state\'s business', 'Families should be backed by faith and community, not the state'] },
+  { q: 'Should the country\'s railways, water and power be owned by the public or by private companies?', areas: ['economic', 'political'],
+    opts: ['All by the public, run for people rather than profit', 'Key services public, everything else private', 'Private companies, with firm rules from the government', 'Fully private and competing, with as few rules as possible'] },
+  { q: 'When should a country go to war or send troops abroad?', areas: ['political', 'philosophical'],
+    opts: ['Never. War is always wrong', 'Only to defend itself if it is attacked', 'Also to stop genocide or protect allies, with other nations agreeing', 'Whenever its interests or values are seriously at stake'] },
+  { q: 'Should the government be bigger, with more services, or smaller, with lower taxes?', areas: ['economic', 'political'],
+    opts: ['Much bigger. It should plan the economy and guarantee everyone a good life', 'A bit bigger, with better public services paid for by higher taxes on the rich', 'Smaller, with lower taxes and fewer rules on business', 'As small as possible: police, courts and defence, and little else'] },
+  { q: 'What matters most in deciding what is right and wrong?', areas: ['philosophical', 'religious'],
+    opts: ['What God or faith teaches', 'What brings the most happiness to the most people', 'Each person\'s rights and freedom, which no one may take away', 'The traditions and customs that have held a people together'] },
+];
 const precisionKey = () => 'majlis-precision-' + (state.user && state.user.id || 'guest');
 const precisionUi = { loading: null, error: null, preparing: false };   // loading: 'round' or 'final' while the AI is writing; preparing: the test just submitted is being scored
 let precisionMemory = null;   // kept here too, in case the device can't store it
 function savedPrecision(){
+  if(precisionUi.preparing && precisionEarly) return precisionEarly;
   const c = state.user && state.user.compass;
   if(!c) return null;
   const sig = compassSig(c);
@@ -7190,12 +7223,26 @@ function savedPrecision(){
   try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); return p && p.v === 2 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
 }
 function savePrecision(p){
+  if(p.early) return;   // only kept in memory until your results are in
   p.at = Date.now();
   precisionMemory = p;
   try { localStorage.setItem(precisionKey(), JSON.stringify(p)); } catch(e){}
 }
 // afterTest: the round follows on from a test just finished, and ends in the results reveal.
-const freshPrecision = (afterTest) => ({ v: 2, sig: compassSig(state.user.compass), key: precisionKey(), round: 0, batch: [], idx: 0, asked: [], skipped: [], candidates: [], result: null, afterTest: !!afterTest });
+// It starts on the built-in opening questions (round 1), so no one waits for the AI to begin.
+const openingBatch = () => PRECISION_OPENERS.map(o => ({ q: o.q, opts: o.opts.slice(), areas: o.areas.slice() }));
+const freshPrecision = (afterTest) => ({ v: 2, sig: compassSig(state.user.compass), key: precisionKey(), round: 1, batch: openingBatch(), idx: 0, asked: [], skipped: [], candidates: [], result: null, afterTest: !!afterTest });
+// While the test you just submitted is being scored, the opening questions are answered here; the answers move into
+// the round once your results are in.
+let precisionEarly = null;
+function startEarlyPrecision(){ precisionEarly = { early: true, round: 1, batch: openingBatch(), idx: 0, asked: [], skipped: [], candidates: [], afterTest: false }; }
+function adoptEarlyPrecision(){
+  const e = precisionEarly, p = savedPrecision();
+  precisionEarly = null;
+  if(!e || !p) return;
+  p.asked = e.asked.slice(); p.skipped = e.skipped.slice(); p.batch = e.batch.slice(e.idx); p.idx = 0;
+  savePrecision(p);
+}
 function queuePrecisionAfterTest(){
   precisionAhead = null;   // anything written ahead for an earlier run doesn't apply
   savePrecision(freshPrecision(true));
@@ -7220,11 +7267,12 @@ function startPrecision(){
   savePrecision(freshPrecision(false));
   precisionUi.error = null;
   navigateWithLoading('precision');
-  loadPrecisionRound();
 }
 async function callPrecision(extra){
   const p = savedPrecision(), m = savedCardMatches();
-  const body = Object.assign({ mode: 'precision', asked: p.asked, skipped: p.skipped || [], shortlist: m ? m.ideologies.map(i => i.name) : [] }, aiPersonBody(state.user), extra);
+  // written: questions you have been given but not answered yet, so the AI doesn't write them again.
+  const body = Object.assign({ mode: 'precision', asked: p.asked, skipped: p.skipped || [], written: p.batch.slice(p.idx).map(q => q.q),
+    candidates: (p.candidates || []).map(c => c.name), shortlist: m ? m.ideologies.map(i => i.name) : [] }, aiPersonBody(state.user), extra);
   let lastErr = null;
   // A busy AI is the usual reason for a miss, so try twice before showing "Try again".
   for(let attempt = 0; attempt < 2; attempt++){
@@ -7246,13 +7294,12 @@ async function loadPrecision(kind, fn){
   catch(e){ precisionUi.error = String(e && e.message || e).slice(0, 160); }
   finally { precisionUi.loading = null; stopThink('precision-' + kind); render(); }
 }
-// All 40 questions are written at once. If some are still owed at the end (skipped, or the AI wrote fewer), they are
-// written in the background while you answer the last few, so they are usually ready the moment you need them.
-const PREFETCH_FROM_END = 4;
+// Whatever is still owed after the questions in hand (the finer rest after the first set, or any skipped or missing at
+// the end) is written in the background as soon as a question shows, so it is usually ready the moment you need it.
 let precisionAhead = null;   // { sig, round, promise, data }
 function prefetchPrecisionRound(){
   const p = savedPrecision();
-  if(!p || p.result || !state.user || state.user.isGuest) return;
+  if(!p || p.early || p.result || !state.user || state.user.isGuest) return;
   const owedAfter = PRECISION_TOTAL - p.asked.length - (p.batch.length - p.idx);
   if(owedAfter <= 0) return;   // what comes next is the final match, which needs every answer
   const round = p.round + 1;
@@ -7316,7 +7363,8 @@ function answerPrecision(opt){
   p.asked.push({ q: item.q, choice: opt, round: p.round });
   p.idx += 1;
   savePrecision(p);
-  if(p.asked.length >= PRECISION_TOTAL) loadPrecisionFinal();
+  if(p.early) render();   // your results are still being scored; the round carries on once they're in
+  else if(p.asked.length >= PRECISION_TOTAL) loadPrecisionFinal();
   else if(p.idx >= p.batch.length) loadPrecisionRound();
   else render();
 }
@@ -7328,7 +7376,7 @@ function skipPrecision(){
   (p.skipped = p.skipped || []).push(p.batch[p.idx].q);
   p.batch.splice(p.idx, 1);
   savePrecision(p);
-  if(p.idx >= p.batch.length) loadPrecisionRound();
+  if(p.idx >= p.batch.length && !p.early) loadPrecisionRound();
   else render();
 }
 // Back goes as far as the start of the current round (earlier rounds were written from those answers).
@@ -7354,7 +7402,7 @@ function precisionRoundLoader(p){
   const first = !p || !p.asked.length;
   return {
     kicker: 'PRECISION ROUND · 40 QUESTIONS',
-    title: first ? 'Writing your 40 questions' : 'Writing your last few questions',
+    title: first ? 'Scoring your test' : 'Writing your next questions',
     steps: first ? ['Scoring your test', 'Picking the ideologies in the running', 'Writing questions to tell them apart']
       : ['Reading your answers', 'Ruling out what no longer fits', 'Writing the last questions'],
   };
@@ -7441,8 +7489,9 @@ function renderPrecision(){
   }
   const p = savedPrecision();
 
-  // Just after the test: its answers are scored and the first questions written behind the precision round's animation.
-  if(precisionUi.preparing){
+  // Just after the test: you answer the opening questions while it is scored; if you finish them first, the animation
+  // shows until your results are in.
+  if(precisionUi.preparing && !(precisionEarly && precisionEarly.batch[precisionEarly.idx])){
     wrap.appendChild(precisionLoader(null, precisionRoundLoader(null)));
     return wrap;
   }
@@ -7482,7 +7531,7 @@ function renderPrecision(){
   }
   if(!p || !p.batch.length){
     wrap.appendChild(el('p',{class:'section-sub'},
-      'Your test placed you on three maps. This round finds the one specific ideology closest to you. The AI writes 40 more questions for you, mixing politics, economics, society and religion, starting broad and getting finer, to tell apart the ideologies closest to you.'));
+      'Your test placed you on three maps. This round finds the one specific ideology closest to you. It asks 40 more questions, mixing politics, economics, society and religion: a few broad ones first, then finer ones the AI writes for you, to tell apart the ideologies closest to you.'));
     wrap.appendChild(el('div',{class:'card'},[
       el('h3',{},'40 questions, written for you'),
       el('p',{class:'field-caption'},'About 10 minutes. There are no right answers: pick the one closest to what you really think.'),
@@ -7494,9 +7543,9 @@ function renderPrecision(){
 
   // A question.
   const item = p.batch[p.idx];
-  if(!item){ setTimeout(() => p.asked.length >= PRECISION_TOTAL ? loadPrecisionFinal() : loadPrecisionRound(), 0); return wrap; }
+  if(!item){ if(!p.early) setTimeout(() => p.asked.length >= PRECISION_TOTAL ? loadPrecisionFinal() : loadPrecisionRound(), 0); return wrap; }
   const at = p.asked.length + 1;
-  if(p.batch.length - p.idx <= PREFETCH_FROM_END) setTimeout(prefetchPrecisionRound, 0);
+  setTimeout(prefetchPrecisionRound, 0);
   wrap.appendChild(el('p',{class:'section-sub'}, 'Question ' + at + ' of ' + PRECISION_TOTAL + ' · Precision round'));
   if(p.idx) wrap.appendChild(el('button',{class:'linkbtn quiz-back', onclick: precisionBack}, '← Back'));
   const track = el('div',{class:'progress-track'});

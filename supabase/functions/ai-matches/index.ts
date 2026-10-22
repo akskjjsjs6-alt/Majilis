@@ -375,10 +375,10 @@ async function cardMode(b: any) {
 }
 
 // ---------- mode "precision" ----------
-// After the test, 40 more questions narrow the person down to one specific ideology. They are all written at once
-// (step "round"): the AI picks the specific ideologies in the running and writes questions, broad to fine, whose answers
-// split them; a later call only makes up any that were skipped. Once all are answered, step "final" names the one
-// closest match and the runners-up.
+// After the test, 40 more questions narrow the person down to one specific ideology (step "round"): the AI picks the
+// specific ideologies in the running and writes questions whose answers split them. The page asks for a short broad
+// set first, so the person can start at once, then the finer rest while they answer it; a later call only makes up any
+// that were skipped. Once all are answered, step "final" names the one closest match and the runners-up.
 const PRECISION_AREAS = ['political', 'economic', 'social', 'religious', 'philosophical'];
 type Asked = { q: string; choice: string; round: number };
 function readAsked(b: any): Asked[] {
@@ -388,29 +388,40 @@ function readAsked(b: any): Asked[] {
 const askedText = (asked: Asked[]) => asked.length
   ? asked.map((a, i) => `${i + 1}. (round ${a.round}) ${a.q} -> ${a.choice}`).join('\n')
   : '(none yet)';
+// Questions the person has been given but not answered yet: never written again.
+const readWritten = (b: any) => ((b.written ?? []) as any[]).slice(0, 40).map((q) => clip(q, 300)).filter(Boolean);
 function precisionText(inp: CardInput, b: any, asked: Asked[]): string {
   const shortlist = ((b.shortlist ?? []) as any[]).slice(0, 12).map((n) => clip(n, 60)).filter(Boolean);
   const skipped = ((b.skipped ?? []) as any[]).slice(-30).map((q) => clip(q, 300)).filter(Boolean);
-  return `${personText(inp)}\n<first_shortlist>\n${shortlist.join(', ') || '(none)'}\n</first_shortlist>\n<precision_answers>\n${askedText(asked)}\n</precision_answers>\n<skipped>\n${skipped.join('\n') || '(none)'}\n</skipped>`;
+  const written = readWritten(b);
+  return `${personText(inp)}\n<first_shortlist>\n${shortlist.join(', ') || '(none)'}\n</first_shortlist>\n<precision_answers>\n${askedText(asked)}\n</precision_answers>\n` +
+    (written.length ? `<already_written>\n${written.join('\n')}\n</already_written>\n` : '') + `<skipped>\n${skipped.join('\n') || '(none)'}\n</skipped>`;
 }
 
 async function precisionRound(inp: CardInput, b: any) {
   const asked = readAsked(b);
   const round = Math.max(1, Math.min(9, Number(b.round) || 1));
   const want = Math.max(1, Math.min(40, Number(b.want) || 40));
-  const first = !asked.length;   // the full set of 40; later calls only make up a few that were skipped or came back short
-  const keep = first ? '8 to 10' : '3 to 5';
+  const written = readWritten(b);
+  const first = !asked.length && !written.length;   // the broad opening set; later calls write the finer rest, or make up a few that were skipped
+  const keep = asked.length >= 20 ? '3 to 5' : asked.length >= 8 ? '5 to 8' : '8 to 10';
+  const cands = ((b.candidates ?? []) as any[]).slice(0, 10).map((n) => clip(n, 60)).filter(Boolean);
+  const order = first
+    ? 'These are the OPENING questions: keep them broad, each splitting the whole field.'
+    : (written.length || asked.length) && want > 10
+      ? 'The broad opening questions are already written or answered; these come after them, so go finer, ordered from fairly broad to the finest splits between the two or three closest candidates.'
+      : 'Order them from broad to fine: the first ones split the whole field, the last ones separate the two or three closest candidates.';
   const rules = (n: number, focus: string) =>
-    `A person finished a long political test (their scores and chosen answers are below). They now get a PRECISION ROUND: 40 extra questions, all written at once, to narrow them down to ONE very specific ideology or school of thought.${first ? '' : ' They have already answered some of them (<precision_answers>); write the last few.'}\n\n` +
-    `1. "candidates": the ${keep} specific, real ideologies or schools of thought in the running for this person, most likely first, judged from EVERYTHING below. Be precise rather than generic: e.g. "Ordoliberalism", "Christian democracy", "Georgism", "Distributism", "Kemalism", "Market socialism", "Paleoconservatism", "Libertarian socialism", "Social liberalism", "Eco-socialism", "Islamic democracy", "Christian anarchism", "Neo-Confucianism", "Minarchism". <first_shortlist> is where the test first placed them; use it as a starting point, not a limit. "name": the usual English name (its Wikipedia article title). "blurb": ONE plain sentence, at most 16 words.\n` +
-    `2. "questions": exactly ${n} NEW multiple-choice questions whose answers best SPLIT those candidates from each other. Order them from broad to fine: the first ones split the whole field, the last ones separate the two or three closest candidates.${focus ? ` These ${n} lean mainly on ${focus} issues (another set covers the rest), though each may still touch other areas.` : ''}\n` +
+    `A person finished a long political test (their scores and chosen answers are below). They now get a PRECISION ROUND: 40 extra questions to narrow them down to ONE very specific ideology or school of thought. This request writes ${n} of them.${asked.length ? ' They have already answered some (<precision_answers>).' : ''}${written.length ? ' Some are already written and waiting to be answered (<already_written>).' : ''}\n\n` +
+    `1. "candidates": the ${keep} specific, real ideologies or schools of thought in the running for this person, most likely first, judged from EVERYTHING below. Be precise rather than generic: e.g. "Ordoliberalism", "Christian democracy", "Georgism", "Distributism", "Kemalism", "Market socialism", "Paleoconservatism", "Libertarian socialism", "Social liberalism", "Eco-socialism", "Islamic democracy", "Christian anarchism", "Neo-Confucianism", "Minarchism". <first_shortlist> is where the test first placed them; use it as a starting point, not a limit.${cands.length && !asked.length ? ` The candidates already picked for this person are: ${cands.join(', ')}. Keep these unless the data clearly says otherwise.` : ''}${asked.length ? ' Weigh <precision_answers> heavily: drop candidates they rule out.' : ''} "name": the usual English name (its Wikipedia article title). "blurb": ONE plain sentence, at most 16 words.\n` +
+    `2. "questions": exactly ${n} NEW multiple-choice questions whose answers best SPLIT those candidates from each other. ${order}${focus ? ` These ${n} lean mainly on ${focus} issues (other sets cover the rest), though each may still touch other areas.` : ''}\n` +
     `Rules for the questions (an ordinary 15-year-old must understand every one on first reading):\n` +
     `- "q" asks ONE clear, direct question about ONE real, recognisable issue (welfare, taxes, wages, housing, immigration, policing, free speech, protest, war, the family, marriage, abortion, schools, religion in public life, the environment, trade, who should hold power...). It may open with one short sentence of concrete situation, and it must end with a question mark. At most 30 words. No made-up societies, no abstract philosophy, no jargon, no double questions.\n` +
     `- Each of the 4 answers must be a direct, complete reply to that exact question: read the question, then the answer, and it must make sense as a reply. Start them the way people answer that question (e.g. "Yes, ...", "No, ...", "The government should...", "Parents should..."). At most 20 words each, all reasonable, clearly different from each other, each one a position some candidate really holds. No "it depends", no "none of these", no joke answers, no answer that only makes sense alongside another.\n` +
     `- Choose issues where the candidates genuinely DISAGREE, so the answer tells them apart. Where it is natural, pick an issue that touches more than one area (e.g. religious schools getting public money touches religious, economic and social), but never force a link: a clear question about one area beats a muddled one about three. List the areas it touches in "areas" (from: political, economic, social, religious, philosophical).${focus ? '' : ' Across the set cover every area, including religion even for non-religious people (as religion and conscience in public life).'}\n` +
     `- Every question must be on a different issue; never two on the same one.\n` +
     `- Never name an ideology, party or thinker in a question or answer, so the answers are not swayed by labels.\n` +
-    `- Never repeat or closely rephrase a question already in <answers> or <precision_answers>, nor anything like the questions in <skipped>, which the person skipped because they were unclear.\n` +
+    `- Never repeat or closely rephrase a question already in <answers>, <precision_answers> or <already_written>, nor anything like the questions in <skipped>, which the person skipped because they were unclear.\n` +
     `- "splits": at most 12 words on which candidates the question separates (only the page's records see this, the person does not).\n` +
     `GOOD example: {"q": "A church runs the only food bank in a town. Should the council give it public money to keep it open?", "opts": ["Yes. Whoever helps the poor best should get the money", "Yes, but only if it drops any religious message", "No. The council should run its own food bank instead", "No. Charity should be paid for by donations, not taxes"], "areas": ["religious", "economic", "political"]}.\n` +
     `BAD examples, never write these: "Is the sacred bond of community a matter of economic reciprocity?" (vague, jargon); a question about taxes whose answers talk about family values (answers don't reply to the question); "Should the state act, and should faith guide it?" (two questions at once).\n` +
@@ -424,12 +435,17 @@ async function precisionRound(inp: CardInput, b: any) {
     }, required: ['q', 'opts', 'areas'] } },
   }, required: ['candidates', 'questions'] };
 
-  // A big set is written as two halves at the same time (about half the wait), one leaning on economics and politics,
-  // the other on society, religion and philosophy, then interleaved so the broad questions come first.
-  const parts = want > 12
-    ? [{ n: Math.ceil(want / 2), focus: 'economic and political' }, { n: Math.floor(want / 2), focus: 'social, religious and philosophical' }]
-    : [{ n: want, focus: '' }];
-  const seen = new Set(asked.map((a) => a.q.toLowerCase()));
+  // A big set is written as several smaller parts at the same time (a part of 8 takes a fraction of the wait for 32),
+  // each leaning on different areas, then interleaved so the broader questions come first.
+  const FOCUS: Record<number, string[]> = {
+    1: [''],
+    2: ['economic and political', 'social, religious and philosophical'],
+    3: ['economic', 'political', 'social, religious and philosophical'],
+    4: ['economic', 'political', 'social', 'religious and philosophical'],
+  };
+  const count = want > 10 ? Math.min(4, Math.ceil(want / 8)) : 1;
+  const parts = FOCUS[count].map((focus, i) => ({ n: Math.floor(want / count) + (i < want % count ? 1 : 0), focus }));
+  const seen = new Set([...asked.map((a) => a.q.toLowerCase()), ...written.map((q) => q.toLowerCase())]);
   const readQs = (data: any) => {
     const out: any[] = [];
     for (const q of (data?.questions ?? [])) {
