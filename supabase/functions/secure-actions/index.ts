@@ -17,6 +17,7 @@
 // Deploy:  supabase functions deploy secure-actions
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { aiJson } from '../_shared/openrouter.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -152,6 +153,10 @@ async function callGeminiModel(model: string, prompt: string, schema: unknown, t
 }
 
 async function callGemini(prompt: string, schema: unknown, temperature = 0.2, quick = false): Promise<any> {
+  // OpenRouter first; Gemini only if it can't answer.
+  const viaOpenRouter = await aiJson(prompt, schema, temperature, 30_000, 'secure-actions');
+  if (viaOpenRouter) return viaOpenRouter;
+  if (!GEMINI_API_KEY) throw new Error('The AI is busy or unavailable (OpenRouter failed)');
   const now = Date.now();
   const order = [...GEMINI_MODELS.filter((m) => !(geminiBusyUntil[m] > now)), ...GEMINI_MODELS.filter((m) => geminiBusyUntil[m] > now)];
   let lastErr: any = null;
@@ -498,7 +503,7 @@ async function verifyBookLinkDirect(title: string, author: string, url: string, 
 // Uses Gemini directly when the key is available to this function; otherwise goes through ai-assist.
 function makeAi(authHeader: string) {
   return async (payload: Record<string, any>) => {
-    if (GEMINI_API_KEY) {
+    if (GEMINI_API_KEY || Deno.env.get('NVIDIA_API') || Deno.env.get('OPENROUTER_API_KEY')) {
       if (payload.action === 'judge_debate') return judgeDirect(payload.topic, payload.participants, payload.chatLog, payload.sides);
       if (payload.action === 'score_book') return scoreBookDirect(payload.title, payload.author, payload.pages, payload.catalog);
       if (payload.action === 'label_debate') return callGemini(labelPrompt(payload.topic, payload.texts), LABEL_SCHEMA, 0.2, true);

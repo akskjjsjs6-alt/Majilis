@@ -13,6 +13,7 @@
 //  • When Gemini is busy (429/500/503) or times out, it tries again after a short pause, then the backup models.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { aiJson } from '../_shared/openrouter.ts';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const GEMINI_MODEL = 'gemini-3.8-flash';
@@ -63,7 +64,10 @@ async function callModel(model: string, prompt: string, schema: unknown, tempera
 
 // Busy or failing: the main model once more after 1.5 s, then each backup model.
 async function callGemini(prompt: string, schema: unknown, temperature = 0.2, quick = false): Promise<any> {
-  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set');
+  // OpenRouter first; Gemini only if it can't answer.
+  const viaOpenRouter = await aiJson(prompt, schema, temperature, 40_000, 'ai-assist');
+  if (viaOpenRouter) return viaOpenRouter;
+  if (!GEMINI_API_KEY) throw new Error('The AI is busy or unavailable (OpenRouter failed)');
   const tries = [GEMINI_MODELS[0], GEMINI_MODELS[0], ...GEMINI_MODELS.slice(1)];
   let last: unknown = null;
   for (let i = 0; i < tries.length; i++) {
