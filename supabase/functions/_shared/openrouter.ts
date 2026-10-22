@@ -8,6 +8,12 @@ const KEY = Deno.env.get('NVIDIA_API') ?? Deno.env.get('OPENROUTER_API_KEY');
 const URL = 'https://openrouter.ai/api/v1/chat/completions';
 // Fast, inexpensive models, best first; if one is busy, fails or answers in the wrong shape, the next is tried.
 const MODELS = ['deepseek/deepseek-v4.1-flash', 'z-ai/glm-5.3-flash', 'nvidia/nemotron-3.5-lightning'];
+// For jobs that look at pictures (choosing a leader's portrait or an ideology's symbol, which is then kept for
+// everyone): Gemini first, the model these were tuned on and very good at judging pictures, then other image models.
+const VISION_MODELS = ['google/gemini-3.8-flash', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-super-vl'];
+
+// Extra for a request: pictures to look at, each with a line of text before it.
+export type AiExtra = { images?: { text: string; mime: string; data: string }[] };
 const busyUntil: Record<string, number> = {};   // a model that said it's overloaded is skipped for a minute
 
 // Gemini schema ({ type: 'OBJECT', ... }) to JSON Schema ({ type: 'object', ... }).
@@ -54,8 +60,9 @@ function readJson(text: string): any {
 }
 
 // format: 'schema' sends the JSON Schema as the answer format; 'json' only asks for JSON (for a model that doesn't
-// take a schema); the schema is in the system message either way.
-async function ask(model: string, prompt: string, schema: unknown, temperature: number, timeoutMs: number, format: 'schema' | 'json'): Promise<any> {
+// take a schema); 'plain' leaves out every optional setting (for a model that turns one of them down). The schema is in
+// the system message every time.
+async function ask(model: string, prompt: string, schema: unknown, temperature: number, timeoutMs: number, format: 'schema' | 'json' | 'plain', extra: AiExtra = {}): Promise<any> {
   const js = toJsonSchema(schema);
   const system = 'You answer with ONE JSON object and nothing else: no explanation, no markdown. It must match this JSON Schema exactly ' +
     '(every required field present, every enum value spelled exactly):\n' + JSON.stringify(js);
@@ -64,17 +71,22 @@ async function ask(model: string, prompt: string, schema: unknown, temperature: 
     headers: { 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://akskjjsjs6-alt.github.io/Majilis/', 'X-Title': 'Majlis' },
     body: JSON.stringify({
       model, temperature, max_tokens: 8192, stream: false,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
-      response_format: format === 'schema' ? { type: 'json_schema', json_schema: { name: 'answer', strict: false, schema: js } } : { type: 'json_object' },
-      provider: { sort: 'throughput' },   // the fastest provider OpenRouter has for this model
-      reasoning: { enabled: false },   // answers straight away; these jobs don't need long thinking
+      messages: [{ role: 'system', content: system }, { role: 'user', content: extra.images?.length
+        ? [{ type: 'text', text: prompt }, ...extra.images.flatMap((im) => [
+            { type: 'text', text: im.text }, { type: 'image_url', image_url: { url: `data:${im.mime};base64,${im.data}` } }])]
+        : prompt }],
+      ...(format === 'plain' ? {} : {
+        response_format: format === 'schema' ? { type: 'json_schema', json_schema: { name: 'answer', strict: false, schema: js } } : { type: 'json_object' },
+        provider: { sort: 'throughput' },   // the fastest provider OpenRouter has for this model
+        reasoning: { enabled: false },   // answers straight away; these jobs don't need long thinking
+      }),
     }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok || data?.error) {
     const status = res.ok ? Number(data?.error?.code) || 500 : res.status;
-    if (format === 'schema' && status === 400) return ask(model, prompt, schema, temperature, timeoutMs, 'json');   // this model doesn't take a schema
+    if (status === 400 && format !== 'plain') return ask(model, prompt, schema, temperature, timeoutMs, format === 'schema' ? 'json' : 'plain', extra);   // a setting this model doesn't take
     const err: any = new Error(`OpenRouter ${status} (${model}): ${String(data?.error?.message ?? '').slice(0, 140)}`);
     err.busy = status === 429 || status >= 500;
     err.fatal = status === 401 || status === 402;   // a bad key or no credit: no other model will do better
@@ -89,15 +101,16 @@ async function ask(model: string, prompt: string, schema: unknown, temperature: 
 
 // The answer as an object, or null if OpenRouter isn't set up or every model failed within the time allowed (the
 // caller then uses Gemini). label names the job in the logs.
-export async function aiJson(prompt: string, schema: unknown, temperature = 0.3, budgetMs = 45_000, label = ''): Promise<any | null> {
+export async function aiJson(prompt: string, schema: unknown, temperature = 0.3, budgetMs = 45_000, label = '', extra: AiExtra = {}): Promise<any | null> {
   if (!KEY) return null;
   const start = Date.now();
-  const order = [...MODELS.filter((m) => !(busyUntil[m] > start)), ...MODELS.filter((m) => busyUntil[m] > start)];
+  const list = extra.images?.length ? VISION_MODELS : MODELS;
+  const order = [...list.filter((m) => !(busyUntil[m] > start)), ...list.filter((m) => busyUntil[m] > start)];
   for (const model of order) {
     const left = start + budgetMs - Date.now();
     if (left < 4000) break;
     try {
-      const out = await ask(model, prompt, schema, temperature, Math.min(40_000, left), 'schema');
+      const out = await ask(model, prompt, schema, temperature, Math.min(40_000, left), 'schema', extra);
       console.log(`ai: openrouter ${model} ${Date.now() - start}ms ${label}`);
       return out;
     } catch (e: any) {

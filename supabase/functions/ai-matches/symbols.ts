@@ -8,6 +8,7 @@
 //   3. the winner is copied as a 256px PNG into the public "portraits" bucket (under symbols/).
 // Each ideology is judged once; a failed attempt is retried a few times, a day apart.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { aiJson } from '../_shared/openrouter.ts';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
@@ -114,7 +115,6 @@ const JUDGE_SCHEMA = {
 };
 
 async function judge(name: string, cands: Cand[], images: string[]): Promise<{ best: number; reason: string } | null> {
-  if (!GEMINI_API_KEY) return null;
   const parts: any[] = [{ text: `The political ideology "${name}" needs one small round icon on a results card. These are pictures `
     + `found for it (numbered from 0, with file names). Pick the one that is most recognisably the symbol people associate with `
     + `"${name}": its flag or flag colour (Wikipedia marks each ideology with a colour flag, which counts), its emblem or symbol `
@@ -127,6 +127,11 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
     parts.push({ text: `Picture ${i}: ${c.file}` });
     parts.push({ inline_data: { mime_type: 'image/png', data: images[i] } });
   });
+  // OpenRouter first (Gemini as the backup).
+  const viaOpenRouter = await aiJson(parts[0].text, JUDGE_SCHEMA, 0.1, 45_000, 'symbol ' + name,
+    { images: cands.map((c, i) => ({ text: `Picture ${i}: ${c.file}`, mime: 'image/png', data: images[i] })) });
+  if (viaOpenRouter) return { best: viaOpenRouter.kind === 'other' ? -1 : viaOpenRouter.best, reason: String(viaOpenRouter.reason ?? '').slice(0, 300) };
+  if (!GEMINI_API_KEY) return null;
   for (const model of MODELS) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
