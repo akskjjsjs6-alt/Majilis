@@ -6,8 +6,9 @@
 
 const KEY = Deno.env.get('NVIDIA_API') ?? Deno.env.get('OPENROUTER_API_KEY');
 const URL = 'https://openrouter.ai/api/v1/chat/completions';
-// Fast, inexpensive models, best first; if one is busy, fails or answers in the wrong shape, the next is tried.
-const MODELS = ['deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-lightning', 'qwen/qwen3.5-flash-02-23'];
+// Text jobs: NVIDIA Nemotron 3 Super first, then fast, inexpensive backups; if one is busy, fails or answers in the
+// wrong shape, the next is tried.
+const MODELS = ['nvidia/nemotron-3-super-120b-a12b', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-lightning'];
 // For jobs that look at pictures (choosing a leader's portrait or an ideology's symbol, which is then kept for
 // everyone): Gemini first, the model these were tuned on and very good at judging pictures, then other image models.
 const VISION_MODELS = ['google/gemini-3.8-flash', 'deepseek/deepseek-v4.1-flash', 'nvidia/nemotron-3.5-super-vl'];
