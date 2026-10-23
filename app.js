@@ -2641,12 +2641,28 @@ function stopThink(id){
   if(t){ clearInterval(t.timer); delete thinkStages[id]; }
 }
 // Marks one item of a thinkStage with real progress ('active' or 'done'); unknown stages and keys are ignored.
+// An item shows as active for at least a third of its expected time before it ticks off, so a quick answer doesn't
+// skip it; one marked "after" starts once the items before it have ticked off.
 function thinkItem(id, key, st){
   const t = thinkStages[id], it = t && t.items && t.items.find(x => x.key === key);
-  if(!it || it.state === 'done') return;
-  if(st === 'active' && it.state === 'active') return;
-  it.state = st; if(st === 'active') it.since = Date.now();
+  if(!it || it.state === 'done' || it.finished) return;
+  if(st === 'done'){ if(it.state === 'wait') thinkItem(id, key, 'active'); it.finished = true; t.tick(); return; }
+  if(it.state === 'active') return;
+  it.state = 'active'; it.since = Date.now();
+  if(it.after) t.items.slice(0, t.items.indexOf(it)).forEach(x => { if(x.state !== 'done') it.since = Math.max(it.since, x.since + x.secs * 1000 / 3); });
   t.tick();
+}
+// Waits until the stage shows every finished item ticked off (straight away if it isn't up).
+function thinkHold(id){
+  return new Promise(done => {
+    const check = () => {
+      const t = thinkStages[id];
+      if(!t || !t.items) return done();
+      if(t.items.every(it => !it.finished || it.state === 'done')) return setTimeout(done, 400);   // a moment on "Done"
+      setTimeout(check, 200);
+    };
+    check();
+  });
 }
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
@@ -2697,11 +2713,13 @@ function thinkStage(id, cfg){
     const tick = () => {
       let done = 0;
       items.forEach(it => {
+        if(it.state === 'active' && it.finished && Date.now() - it.since >= it.secs * 1000 / 3) it.state = 'done';
+        const shown = it.state === 'active' && Date.now() < it.since ? 'wait' : it.state;
+        it.row.className = 'think-step is-' + shown;
         if(it.state === 'done') done += it.weight;
-        else if(it.state === 'active') done += it.weight * 0.92 * (1 - Math.exp(-(Date.now() - it.since) / 1000 / it.secs));
-        it.row.className = 'think-step is-' + it.state;
+        else if(shown === 'active') done += it.weight * 0.92 * (1 - Math.exp(-(Date.now() - it.since) / 1000 / it.secs));
       });
-      const now = items.find(it => it.state === 'active');
+      const now = items.find(it => it.state === 'active' && Date.now() >= it.since);
       node.querySelector('.judge-phase').textContent = now ? now.label + '…' : (items.every(it => it.state === 'done') ? 'Done' : items[0].label + '…');
       const p = Math.min(99, Math.round(100 * done / total));
       node.querySelector('.judge-bar__fill').style.width = p + '%';
@@ -4249,7 +4267,7 @@ function renderAssessment(){
       items: [
         { key: 'answers', label: 'Reading your answers', weight: 18, secs: 7 },
         { key: 'case', label: 'Grading your written case', weight: 14, secs: 7 },
-        { key: 'save', label: 'Saving your compass', weight: 6, secs: 2 },
+        { key: 'save', label: 'Saving your compass', weight: 6, secs: 3, after: true },
       ],
     }));
     return wrap;
@@ -4302,8 +4320,10 @@ function renderAssessment(){
       let ok = false;
       try { ok = await finishAssessment(position, viewText); }
       finally {
+        if(ok) await thinkHold('assessment');
         state.quiz.analysing = false; stopThink('assessment');
         if(signedIn){
+          if(ok) await plHold();   // the scoring screen, if you finished the opening questions first, plays through
           precisionUi.preparing = false;
           if(ok){
             adoptEarlyPrecision();
@@ -4789,6 +4809,8 @@ function subscribeToDebate(debateId){
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'debates', filter: 'id=eq.'+debateId }, (payload) => {
       const d = state.debates[debateId];
       if(!d) return;
+      // A verdict that comes back before the judging screen was ever shown still plays it first.
+      if(!d.verdict && payload.new.verdict && payload.new.end_request && payload.new.end_request.accepted && payload.new.end_request.kind === 'end') startJudgeAnim(d);
       d.verdict = payload.new.verdict;
       d.status = payload.new.status;
       if('end_request' in payload.new) d.endRequest = payload.new.end_request;
@@ -6510,7 +6532,8 @@ async function leaveDebate(debate){
 
 /* ---------- The AI judge at work ----------
    An animated screen while the verdict is worked out. It runs on its own clock (so re-renders
-   don't restart it) and speeds up once the verdict has arrived, so it never adds much waiting. */
+   don't restart it) at the same pace whether or not the verdict is back: a quick verdict waits for the
+   checklist to play through, and a slow one holds on the last step until it arrives. */
 const JUDGE_STEPS = [
   { label: n => 'Reading the transcript ('+n+' messages)', end: 1.2 },
   { label: () => 'Mapping each side\'s main arguments', end: 2.4 },
@@ -6603,7 +6626,7 @@ function tickJudgeAnim(debate){
   const dt = (now - a.last) / 1000; a.last = now;
   const d = state.debates[debate.id] || debate;
   const haveVerdict = !!d.verdict;
-  a.vt += dt * (haveVerdict ? 6 : 1);
+  a.vt += dt;
 
   const stepsEnd = JUDGE_STEPS[4].end;
   if(haveVerdict && a.vt >= stepsEnd && a.finishVt === null) a.finishVt = a.vt + 0.5;
@@ -7336,11 +7359,12 @@ async function callPrecision(extra){
   }
   throw lastErr;
 }
+// fn may hand back what to do once the loading screen has finished (it runs before the screen goes).
 async function loadPrecision(kind, fn){
   if(precisionUi.loading) return;
   precisionUi.loading = kind; precisionUi.error = null;
   render();
-  try { await fn(); }
+  try { const then = await fn(); await plHold(); if(then) await then(); }
   catch(e){ precisionUi.error = String(e && e.message || e).slice(0, 160); }
   finally { precisionUi.loading = null; stopThink('precision-' + kind); render(); }
 }
@@ -7435,9 +7459,9 @@ function loadPrecisionFinal(){
       }).catch(() => {});
     }
     savePrecision(cur);
-    // Straight after the test, the round ends in the end results (if your card is still being made, the compass page
-    // shows that and the reveal starts as soon as it's ready).
-    if(cur.afterTest) finishPrecisionFlow();
+    // Straight after the test, the round ends in the end results. This screen stays up until your card is made
+    // too, so the reveal follows it straight away.
+    if(cur.afterTest) return async () => { if(cardMatchesPending) await cardMatchesPending; finishPrecisionFlow(); };
   });
 }
 function answerPrecision(opt){
@@ -7523,6 +7547,30 @@ function plNames(p){
 // The loading screen itself: a cloud of ideology names, and a glowing selector that moves from name to name. Each
 // name it lands on is either kept (it stays lit) or ruled out (struck through and faded, then replaced by a new name),
 // so the screen keeps changing while the AI works. Four markers below show which round you're on.
+// The screen is built once and kept while it's up (a redraw would restart it), and its steps move on by the clock:
+// each shows for PL_STEP_MS and the last one holds until the AI is done. Whatever the AI is doing waits for plHold()
+// before the screen goes, so every step is seen even when the answer comes back in a second.
+const PL_STEP_MS = 2500;
+let plShow = null;   // { key, page, at, steps }
+function precisionLoaderPage(p, cfg){
+  const key = cfg.kicker + '|' + cfg.title;
+  if(plShow && plShow.key === key && plShow.page.isConnected) return plShow.page;
+  const page = el('div',{class:'prec-page'},[el('h2',{class:'section-title'},'Precision Round'), precisionLoader(p, cfg)]);
+  plShow = { key, page, at: Date.now(), steps: cfg.steps.length };
+  return page;
+}
+function plHold(){
+  const s = plShow;
+  const left = s && s.page.isConnected ? s.at + s.steps * PL_STEP_MS - Date.now() : 0;
+  return left > 0 ? new Promise(r => setTimeout(r, left)) : Promise.resolve();
+}
+let plStepTimer = null;
+function plStepTick(){
+  const s = plShow, box = s && s.page.isConnected && s.page.querySelector('.pl-steps');
+  if(!box){ clearInterval(plStepTimer); plStepTimer = null; return; }
+  const k = Math.min(s.steps - 1, Math.floor((Date.now() - s.at) / PL_STEP_MS));
+  [...box.children].forEach((n, i) => n.classList.toggle('is-on', i === k));
+}
 const PL_SPOTS = [[13, 14], [37, 14], [63, 14], [87, 14], [25, 38], [50, 38], [75, 38], [13, 62], [37, 62], [63, 62], [87, 62], [25, 86], [50, 86], [75, 86]];
 let plTimer = null;
 function precisionLoader(p, cfg){
@@ -7533,11 +7581,12 @@ function precisionLoader(p, cfg){
     el('div',{class:'pl-stage', 'aria-hidden':'true'}, [el('div',{class:'pl-lens'}), ...names]),
     el('div',{class:'pl-kicker'}, cfg.kicker),
     el('div',{class:'pl-title'}, cfg.title),
-    el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{style:'--s:' + i}, t + '…'))),
+    el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{class: i ? '' : 'is-on'}, t + '…'))),
     el('div',{class:'pl-bar', 'aria-hidden':'true'}, el('i')),
   ]);
   const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!plTimer && !still) plTimer = setInterval(() => plTick(take), 1000);
+  if(!plStepTimer) plStepTimer = setInterval(plStepTick, 250);
   return node;
 }
 // One step of the selector: move to a name that is showing and not busy, then keep it or rule it out.
@@ -7561,6 +7610,8 @@ function plTick(take){
     } else n.classList.add('is-kept');
   }, 880);
 }
+const PL_FINAL = { kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match', final: true,
+  steps: ['Weighing all 40 answers', 'Naming your match', 'Putting your results together'] };
 const AREA_LABEL = { political: 'Politics', economic: 'Economics', social: 'Society', religious: 'Religion', philosophical: 'Philosophy' };
 function renderPrecision(){
   const wrap = el('div',{class:'prec-page'});
@@ -7581,21 +7632,9 @@ function renderPrecision(){
 
   // Just after the test: you answer the opening questions while it is scored; if you finish them first, the animation
   // shows until your results are in.
-  if(precisionUi.preparing && !(precisionEarly && precisionEarly.batch[precisionEarly.idx])){
-    wrap.appendChild(precisionLoader(null, precisionRoundLoader(null)));
-    return wrap;
-  }
-  if(precisionUi.loading === 'round'){
-    wrap.appendChild(precisionLoader(p, precisionRoundLoader(p)));
-    return wrap;
-  }
-  if(precisionUi.loading === 'final'){
-    wrap.appendChild(precisionLoader(p, {
-      kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match', final: true,
-      steps: ['Weighing all 40 answers', 'Comparing the last few', 'Naming your match'],
-    }));
-    return wrap;
-  }
+  if(precisionUi.preparing && !(precisionEarly && precisionEarly.batch[precisionEarly.idx])) return precisionLoaderPage(null, precisionRoundLoader(null));
+  if(precisionUi.loading === 'round') return precisionLoaderPage(p, precisionRoundLoader(p));
+  if(precisionUi.loading === 'final') return precisionLoaderPage(p, PL_FINAL);
   if(precisionUi.error){
     const finalStep = p && p.asked.length >= PRECISION_TOTAL;
     wrap.appendChild(el('div',{class:'card'},[
@@ -7616,8 +7655,7 @@ function renderPrecision(){
   // After the test there's no intro: the first questions are written straight away, behind the animation.
   if(p && !p.batch.length && p.afterTest){
     setTimeout(loadPrecisionRound, 0);
-    wrap.appendChild(precisionLoader(p, precisionRoundLoader(p)));
-    return wrap;
+    return precisionLoaderPage(p, precisionRoundLoader(p));
   }
   if(!p || !p.batch.length){
     wrap.appendChild(el('p',{class:'section-sub'},

@@ -2890,8 +2890,8 @@ input.is-err, textarea.is-err { border-color: var(--danger); box-shadow: 0 0 0 3
 .pl-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; color: var(--neon); }
 .pl-title { font-size: 22px; font-weight: 700; margin: 6px 0 4px; }
 .pl-steps { position: relative; height: 20px; font-size: 13.5px; color: var(--muted); }
-.pl-steps span { position: absolute; left: 0; right: 0; opacity: 0; animation: pl-step 7.5s linear calc(var(--s) * 2.5s) infinite; }
-@keyframes pl-step { 0% { opacity: 0; } 4%, 30% { opacity: 1; } 34%, 100% { opacity: 0; } }
+.pl-steps span { position: absolute; left: 0; right: 0; opacity: 0; transition: opacity .3s; }
+.pl-steps span.is-on { opacity: 1; }   /* the step showing now, moved on by the clock in app.js */
 .pl-bar { position: relative; height: 4px; max-width: 280px; margin: 16px auto 0; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
 .pl-bar i { position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 4px; background: var(--neon); animation: pl-slide 1.4s ease-in-out infinite; }
 @keyframes pl-slide { from { left: -35%; } to { left: 100%; } }
@@ -2903,9 +2903,8 @@ input.is-err, textarea.is-err { border-color: var(--danger); box-shadow: 0 0 0 3
   .pl-name--r { left: 73% !important; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pl-name, .pl-steps span, .pl-bar i { animation: none; }
+  .pl-name, .pl-bar i { animation: none; }
   .pl-bar i { left: 0; width: 60%; }
-  .pl-steps span:first-child { opacity: 1; }
 }
 /* Your own answer on a test question */
 .own-answer__open { margin-top: 14px; font-size: 13.5px; color: var(--muted); }
