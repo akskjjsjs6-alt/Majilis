@@ -1768,6 +1768,9 @@ const TAB_TITLES = { motion:'Motion of the day', guide:'30-day guide', home:'Hom
 
 function brandMark(){
   const M_PATH = 'M 10,80 L 10,20 L 50,65 L 90,20 L 90,80';
+  // The page is rebuilt on every change (each answer in the test, say), and a new logo would start its 3.4 s loop from
+  // blank. A negative delay from one shared clock puts every new copy at the same point the old one had reached.
+  const phase = -Math.round(performance.now() % 3400);
   return el('div',{class:'mark', html: `
     <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -1782,8 +1785,8 @@ function brandMark(){
         </filter>
       </defs>
       <path class="logo-base" d="${M_PATH}"/>
-      <path class="logo-lit" d="${M_PATH}"/>
-      <path class="logo-flash" d="${M_PATH}"/>
+      <path class="logo-lit" d="${M_PATH}" style="animation-delay:${phase}ms"/>
+      <path class="logo-flash" d="${M_PATH}" style="animation-delay:${phase}ms"/>
     </svg>`});
 }
 
@@ -2641,12 +2644,28 @@ function stopThink(id){
   if(t){ clearInterval(t.timer); delete thinkStages[id]; }
 }
 // Marks one item of a thinkStage with real progress ('active' or 'done'); unknown stages and keys are ignored.
+// An item shows as active for at least a third of its expected time before it ticks off, so a quick answer doesn't
+// skip it; one marked "after" starts once the items before it have ticked off.
 function thinkItem(id, key, st){
   const t = thinkStages[id], it = t && t.items && t.items.find(x => x.key === key);
-  if(!it || it.state === 'done') return;
-  if(st === 'active' && it.state === 'active') return;
-  it.state = st; if(st === 'active') it.since = Date.now();
+  if(!it || it.state === 'done' || it.finished) return;
+  if(st === 'done'){ if(it.state === 'wait') thinkItem(id, key, 'active'); it.finished = true; t.tick(); return; }
+  if(it.state === 'active') return;
+  it.state = 'active'; it.since = Date.now();
+  if(it.after) t.items.slice(0, t.items.indexOf(it)).forEach(x => { if(x.state !== 'done') it.since = Math.max(it.since, x.since + x.secs * 1000 / 3); });
   t.tick();
+}
+// Waits until the stage shows every finished item ticked off (straight away if it isn't up).
+function thinkHold(id){
+  return new Promise(done => {
+    const check = () => {
+      const t = thinkStages[id];
+      if(!t || !t.items) return done();
+      if(t.items.every(it => !it.finished || it.state === 'done')) return setTimeout(done, 400);   // a moment on "Done"
+      setTimeout(check, 200);
+    };
+    check();
+  });
 }
 function thinkStage(id, cfg){
   if(thinkStages[id]) return thinkStages[id].node;
@@ -2697,11 +2716,13 @@ function thinkStage(id, cfg){
     const tick = () => {
       let done = 0;
       items.forEach(it => {
+        if(it.state === 'active' && it.finished && Date.now() - it.since >= it.secs * 1000 / 3) it.state = 'done';
+        const shown = it.state === 'active' && Date.now() < it.since ? 'wait' : it.state;
+        it.row.className = 'think-step is-' + shown;
         if(it.state === 'done') done += it.weight;
-        else if(it.state === 'active') done += it.weight * 0.92 * (1 - Math.exp(-(Date.now() - it.since) / 1000 / it.secs));
-        it.row.className = 'think-step is-' + it.state;
+        else if(shown === 'active') done += it.weight * 0.92 * (1 - Math.exp(-(Date.now() - it.since) / 1000 / it.secs));
       });
-      const now = items.find(it => it.state === 'active');
+      const now = items.find(it => it.state === 'active' && Date.now() >= it.since);
       node.querySelector('.judge-phase').textContent = now ? now.label + '…' : (items.every(it => it.state === 'done') ? 'Done' : items[0].label + '…');
       const p = Math.min(99, Math.round(100 * done / total));
       node.querySelector('.judge-bar__fill').style.width = p + '%';
@@ -2808,12 +2829,37 @@ const cardMatchKey = () => 'majlis-card-' + (state.user && state.user.id || 'gue
 const answersKey = () => 'majlis-answers-' + (state.user && state.user.id || 'guest');
 const compassSig = (c) => ['economic', 'political', 'social'].map(k => c[k].x + ',' + c[k].y).join('|');
 let cardMatchesMemory = null;   // kept here too, in case the device can't store it
+// Ideologies rooted in one faith are only for people of that faith: a Muslim is never shown Christian democracy (the
+// server filters the AI's answers the same way; this also covers results saved before it did).
+const FAITH_OF = [['Christianity', /christian|catholic|protestant|evangelical|social gospel|liberation theology/i], ['Islam', /islam|muslim|caliphat|salafi|wahhab/i],
+  ['Judaism', /judai|jewish|zionis|torah/i], ['Hinduism', /hindu/i], ['Buddhism', /buddhis/i], ['Sikhism', /sikh|khalsa/i]];
+function faithClash(name){
+  const mine = state.user && state.user.religion;
+  if(!mine || /^(Atheism|Agnosticism|Spiritual but not religious|Other|Prefer not to say)$/.test(mine)) return false;
+  const its = (FAITH_OF.find(([, re]) => re.test(name || '')) || [])[0];
+  return !!(its && its !== mine);
+}
+function faithSafeMatches(m){
+  if(m && m.ideologies) m.ideologies = m.ideologies.filter(i => !faithClash(i.name));
+  return m;
+}
+// A precision result whose match is another faith's ideology: the closest runner-up that fits takes its place.
+function faithSafePrecision(r){
+  if(!r || !r.match) return r;
+  const runners = (r.runnersUp || []).filter(x => x && !faithClash(x.name));
+  if(faithClash(r.match.name) && runners.length){
+    const next = runners.shift();
+    r.match = { name: next.name, blurb: next.blurb || '', fit: next.fit || 0, why: 'Of the ideologies that fit your answers, ' + next.name + ' is the closest one that sits with your own faith.' };
+  }
+  r.runnersUp = runners;
+  return r;
+}
 function savedCardMatches(){
   const c = state.user && state.user.compass;
   if(!c) return null;
   const sig = compassSig(c);
-  if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return cardMatchesMemory;
-  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 4 && m.sig === sig ? m : null; } catch(e){ return null; }
+  if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return faithSafeMatches(cardMatchesMemory);
+  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 4 && m.sig === sig ? faithSafeMatches(m) : null; } catch(e){ return null; }
 }
 // The leader shown for an era: the closest one who has a photo, so the card always shows a face.
 function leaderFor(m, era){
@@ -2831,12 +2877,13 @@ const SYMBOL_URL = /^https:\/\/bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/
 const okSymbol = (u) => typeof u === 'string' && SYMBOL_URL.test(u) ? u : null;
 // Cards made before the server picked portraits and symbols ask for them, then keep them.
 // The server keeps picking after it answers, so a card still missing some asks again a little later.
-let artTries = 0, artBusy = false;
+let artTries = 0, artBusy = false, artAt = 0;
 async function refreshCardArt(){
   const m = savedCardMatches();
-  if(artBusy || artTries >= 4 || !m || m.art || !state.user || state.user.isGuest) return;
+  // Every redraw asks for this, so a try counts for 30 seconds: one request, not one per redraw.
+  if(artBusy || artTries >= 4 || Date.now() - artAt < 30000 || !m || m.art || !state.user || state.user.isGuest) return;
   artBusy = true;
-  artTries++;
+  artTries++; artAt = Date.now();
   try {
     const { data } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body: { mode: 'art',
       leaders: m.leaders.map(l => ({ name: l.name, era: l.era })), ideologies: m.ideologies.map(i => i.name) } });
@@ -3296,7 +3343,7 @@ function renderResultOverlay(){
 /* ================= THE RESULTS REVEAL (after the test, before the card) =================
    A short animation through your results (about 30 seconds): the Majlis M draws itself, then your conviction
    score, what sets you apart, where you sit on the three maps, a world heat map of your closest nations, podiums of
-   your three closest nations and leaders (modern and historical), your fingerprint beside your closest leader's,
+   your three closest nations, leaders and parties (each today and in history),
    your era, your three closest ideologies, and finally the card spins up and hands over to the card window. It
    sits outside the page, so the page redrawing underneath never restarts it. Everything it shows comes from the
    AI's matches: the leaders, nations and ideologies it placed on the three maps are the crowd
@@ -3560,6 +3607,19 @@ function rvFigureScene(m){
   return rvTopScene('Figures closest to you', eras, (key) => rvPodium(eras.find(e => e.key === key).list,
     (l) => portraitNode(l.name, l.photo), (l) => [l.label, rvEraNote(key)].filter(Boolean).join(' · '), (l) => l.why));
 }
+// Your closest parties, today and in history, the same way as the leaders: a podium for each, a switch between them.
+// They come from the AI's "more" results (rxMore in results.js), asked for while the reveal waits on your card.
+function rvPartyScene(){
+  const more = typeof rxMore === 'function' ? rxMore() : null;
+  if(!more || !more.parties.length) return null;
+  const eras = [{ key: 'modern', label: 'Today', list: more.parties.filter(p => p.active) }, { key: 'historical', label: 'Historical', list: more.parties.filter(p => !p.active) }]
+    .filter(e => e.list.length);
+  if(!eras.length) return null;
+  const nameOf = (p) => Object.assign({}, p, { name: p.short && p.short !== p.name && p.name.length > 28 ? p.short : p.name });
+  eras.forEach(e => { e.list = e.list.map(nameOf); });
+  return rvTopScene('Parties closest to you', eras, (key) => rvPodium(eras.find(e => e.key === key).list,
+    (p) => el('span',{class:'rv-flag'}, rxFlag(p.code, p.country)), (p) => [p.country, key === 'modern' ? 'active today' : 'historical party'].filter(Boolean).join(' · '), (p) => p.blurb));
+}
 // Where an ideology sits economically, as a plain tag.
 function rvSide(i){
   if(!okPos(i.pos)) return null;
@@ -3693,29 +3753,6 @@ function rvFingerprint(v, colors, cls, coarse){
   const code = 'MJ-' + v.reduce((h, x) => Math.imul(h ^ x, 16777619) >>> 0, 2166136261).toString(16).toUpperCase().padStart(8, '0').replace(/(.{4})/, '$1-');
   return { node: el('div',{class:'rv-fp ' + (cls || ''), html: svg}), read: d, code };
 }
-// After the leaders: your print beside your closest leader's, then the two slide together so the ridges overlap.
-function rvPrintScene(m){
-  const pick = ['modern', 'historical'].map(e => leaderFor(m, e)).filter(l => l && okPos(l.pos)).sort((a, b) => b.pct - a.pct)[0];
-  if(!pick) return null;
-  const mine = rvFingerprint(rvFpValues(state.user.compass), ['var(--neon)', 'var(--accent)'], 'rv-fp--you');
-  const theirs = rvFingerprint(rvFpValues(pick.pos), ['var(--gold)', 'var(--danger)'], 'rv-fp--them');
-  const side = (f, who, face, d0) => el('div',{class:'rv-prints__side ' + (f === mine ? 'is-l' : 'is-r')},[
-    el('div',{class:'rv-prints__print'},[f.node, el('i',{class:'rv-prints__scan', style:'--d:' + rvD(d0 + 1500) + 'ms'})]),
-    el('div',rvIn(d0 + 1900, 'rv-prints__who'),[face, el('div',{},[el('b',{}, who), el('small',{}, f.read.type + ' · ' + f.read.core + ' core')])]),
-    el('code',rvIn(d0 + 2100, 'rv-prints__code'), f.code),
-  ]);
-  const you = el('div',{class:'match-photo rv-prints__you'}, 'You');
-  return { title: 'Your fingerprint', ms: rvD(5200), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
-    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your fingerprint', 0, 90)),
-      el('p',rvIn(300, 'rv-sub rv-sub--head'), 'Drawn from where you each sit on the three maps. Different answers, different print.')]),
-    el('div',{class:'rv-prints', style:'--m:' + rvD(3300) + 'ms'},[
-      side(mine, 'You', you, 200),
-      el('div',{class:'rv-prints__mid'},[rvRing(pick.pct, 3500), el('small',rvIn(3900), 'Where the ridges run together, you think alike')]),
-      side(theirs, pick.name, portraitNode(pick.name, pick.photo), 500),
-    ]),
-  ])]) };
-}
-
 // Your era: are your closest modern matches (1900 to today) or historical ones (before 1900) nearer to you?
 // The average of the top three leaders and the top three nations of each era decides it.
 function rvEraFitScene(m){
@@ -3789,6 +3826,70 @@ function rvWorldScene(m){
   ])]) };
 }
 
+// The middle part: straight after the test the AI may still be finding your leaders, nations and ideologies. The
+// reveal opens anyway (the opening and your conviction score don't need them) and this scene plays until they are
+// in: an orbit around the M, and what the AI is doing now, moving on by the clock and holding on the last step.
+const RV_WAIT_STEPS = ['Placing world leaders on your three maps', 'Comparing present-day nations', 'Looking back through history',
+  'Matching the ideologies closest to you', 'Finding portraits for your card'];
+const RV_WAIT_MIN = 4500;   // it always plays this long, so it never just flashes past
+function rvWaitScene(ready, retry, giveUp){
+  const p = savedPrecision(), match = p && p.result && p.result.match && p.result.match.name;
+  const steps = el('div',{class:'rv-wait__steps'}, RV_WAIT_STEPS.map((t, i) => el('span',{class: i ? '' : 'is-on'}, t + '…')));
+  const fill = el('i');
+  const orbit = el('div',{class:'rv-wait__orb', 'aria-hidden':'true'},[
+    el('i',{class:'rv-wait__ring'}), el('i',{class:'rv-wait__ring', style:'--k:1'}), el('i',{class:'rv-wait__ring', style:'--k:2'}),
+    ...[0, 1, 2, 3, 4, 5].map(i => el('i',{class:'rv-wait__sat', style:'--i:' + i})),
+    el('div',{class:'rv-logo rv-wait__m', html: M_SVG(10)}),
+  ]);
+  const body = el('div',{class:'rv-wait__body'},[steps, el('div',{class:'rv-wait__bar'}, fill)]);
+  const node = el('div',{class:'rv-scene rv-scene--intro rv-wait'},[el('div',{class:'rv-scene__in'},[
+    orbit,
+    el('div',rvIn(0, 'rv-kicker'), 'ALMOST THERE'),
+    el('h2',{class:'rv-title'}, rvWords('Finding your people', 100, 100)),
+    el('p',rvIn(700, 'rv-lede'), match ? 'You\'re closest to ' + match + '. Now the AI is finding the leaders, nations and ideologies that share your views.'
+      : 'The AI is finding the leaders, nations and ideologies that share your views.'),
+    el('div',rvIn(1100), body),
+  ])]);
+  let t0 = 0, timer = null, done = false;   // its clock starts when it comes on, not when it's built
+  const tick = () => {
+    if(!node.isConnected && Date.now() - t0 > 2000){ clearInterval(timer); timer = null; return; }
+    const secs = (Date.now() - t0) / 1000;
+    const k = done ? RV_WAIT_STEPS.length - 1 : Math.min(RV_WAIT_STEPS.length - 1, Math.floor(secs / 2.6));
+    [...steps.children].forEach((n, i) => n.classList.toggle('is-on', i === k));
+    fill.style.width = (done ? 100 : Math.round(92 * (1 - Math.exp(-secs / 14)))) + '%';
+  };
+  return { title: 'Finding your people', auto: true, wait: true, node, settle: ready,
+    // Called when the scene comes on: moves on (go) once the matches are in and it has played for a while.
+    hold(go){
+      if(!t0) t0 = Date.now();
+      if(!timer){ timer = setInterval(tick, 200); tick(); }
+      ready().then(ok => {
+        if(!ok){
+          clearInterval(timer);
+          body.replaceChildren(el('p',{class:'rv-sub rv-sub--c'}, 'The AI couldn\'t finish your matches just now.'),
+            el('div',{class:'rv-wait__acts'},[
+              el('button',{type:'button', class:'btn', onclick:()=>{ body.replaceChildren(steps, el('div',{class:'rv-wait__bar'}, fill)); timer = null; t0 = 0; retry(); }}, 'Try again'),
+              el('button',{type:'button', class:'btn secondary', onclick: giveUp}, 'See my card'),
+            ]));
+          return;
+        }
+        setTimeout(() => { done = true; tick(); clearInterval(timer); setTimeout(go, 500); }, Math.max(0, RV_WAIT_MIN - (Date.now() - t0)));
+      });
+    } };
+}
+// The card's matches, when they are in (true) or have failed (false); asks for them if nothing is asking yet.
+function cardMatchesReady(){
+  if(!cardMatchesPending){
+    if(savedCardMatches()) return Promise.resolve(true);
+    if(state.cardMatches.error) state.cardMatches = { loading: false, error: null };
+    const run = state.cardMatches.loading
+      ? new Promise(done => { const t = setInterval(() => { if(!state.cardMatches.loading){ clearInterval(t); done(); } }, 300); })
+      : fetchCardMatches();
+    cardMatchesPending = run.then(() => preloadCardPortrait()).catch(() => {}).finally(() => { cardMatchesPending = null; });
+  }
+  return cardMatchesPending.then(() => !!savedCardMatches());
+}
+
 // Closing: your card spins up out of the scene, a light sweeps across it, and it hands over to the card window.
 function rvCardScene(){
   const card = buildResultCard();
@@ -3805,19 +3906,52 @@ function rvCardScene(){
 // scene hands over to the card window by itself.
 let revealOpen = null;
 function startResultsReveal(){
-  const m = savedCardMatches();
   if(revealOpen) revealOpen.close(true);
   const openCard = () => { state.showCard = true; render(); };
-  if(!m || !state.user || !state.user.compass) return openCard();
+  if(!state.user || !state.user.compass) return openCard();
+  // Signed in with the AI's matches still on their way, the reveal opens with the scenes that don't need them, then
+  // the middle part (rvWaitScene) plays until they are in, and the rest follows.
+  const u = state.user, waiting = !!(cardMatchesPending || (!savedCardMatches() && !u.isGuest && u.id));
+  let m = waiting ? null : savedCardMatches();
+  if(!m && !waiting) return openCard();
   // Each scene is built once here (empty ones are left out) and built again only when you go back to it.
   rvWorld();   // the map outlines start loading now, so they're ready by their scene
-  const parts = [rvIntroScene, rvConvictionScene, rvApartScene, rvMapsScene, rvCubeScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvSkyScene, rvPrecisionScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
-  if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
-  const titles = parts.map(x => x.s.title);
+  const LATER = [rvApartScene, rvMapsScene, rvCubeScene, rvWorldScene, rvNationScene, rvFigureScene, rvPartyScene, rvEraFitScene, rvIdeologyScene, rvPrecisionScene, rvCardScene];
+  const build = (fs) => fs.map(f => { const s = f(m); return s && { f, s, title: s.title, auto: !!s.auto }; }).filter(Boolean);
+  const usable = (list) => list.length >= 1 && list[list.length - 1].f === rvCardScene;
+  let parts;
+  if(waiting){
+    const waitPart = { f: rvWaitScene, s: null, title: 'Finding your people', auto: true };
+    let settling = null;
+    const settle = () => settling || (settling = cardMatchesReady().then(ok => ok ? Promise.race([partiesReady(), new Promise(r => setTimeout(r, 20000))]).then(() => ok) : ok).then(ok => {
+      m = ok ? savedCardMatches() : null;
+      const rest = m ? build(LATER) : [];
+      const at = parts.indexOf(waitPart);
+      if(!m || !usable(rest) || at === -1){ settling = null; return false; }   // "Try again" asks again
+      // The matches are in: the rest of the scenes take the middle part's place (it plays on if it's showing).
+      parts.splice(at + 1, 0, ...rest);
+      if(ch !== at) parts.splice(at, 1);
+      paintDots();
+      return true;
+    }));
+    waitPart.s = rvWaitScene(settle, () => { const at = parts.indexOf(waitPart); scene = null; if(ch === at) show(at); }, () => finish());
+    parts = build([rvIntroScene, rvConvictionScene]).concat([waitPart]);
+  } else {
+    parts = build([rvIntroScene, rvConvictionScene]).concat(build(LATER));
+    if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
+  }
+  let titles = [];
   let ch = -1, scene = null, ended = false, readyTimer = null;
 
-  const dots = el('div',{class:'rv-dots', role:'group', 'aria-label':'Parts of the reveal'}, parts.map((x, k) => x.s.auto ? null :
-    el('button',{type:'button', class:'rv-dot', 'aria-label': titles[k], title: titles[k], onclick:()=>show(k)})));
+  const dots = el('div',{class:'rv-dots', role:'group', 'aria-label':'Parts of the reveal'});
+  function paintDots(){
+    titles = parts.map(x => x.title);
+    dots.replaceChildren(...parts.map((x, k) => x.auto ? null :
+      el('button',{type:'button', class:'rv-dot', 'aria-label': titles[k], title: titles[k], onclick:()=>show(parts.indexOf(x))})).filter(Boolean));
+    [...dots.children].forEach(d => d.classList.toggle('is-on', d.title === titles[ch]));
+  }
+  paintDots();
+  if(waiting) parts.find(x => x.f === rvWaitScene).s.settle();   // matches in before you get there: the middle part is left out
   const count = el('span',{class:'rv-count', 'aria-hidden':'true'});
   const backBtn = el('button',{type:'button', class:'rv-back', 'aria-label':'Back', onclick:()=>back()}, '‹');
   const nextBtn = el('button',{type:'button', class:'rv-next', onclick:()=>show(ch + 1)}, 'Next ›');
@@ -3836,9 +3970,10 @@ function startResultsReveal(){
     clearTimeout(readyTimer);
     ch = k;
     const next = parts[k].s || parts[k].f(m);
-    parts[k].s = null;
+    if(!next.wait) parts[k].s = null;
     const old = scene;
-    if(old){ old.node.classList.add('is-out'); setTimeout(() => old.node.remove(), 900); }
+    if(old){ old.node.classList.add('is-out'); setTimeout(() => { if(scene !== old) old.node.remove(); }, 900); }
+    next.node.classList.remove('is-out');   // the middle part is the same scene each time you come back to it
     scene = next;
     stage.appendChild(next.node);
     root.dataset.ch = String(k);
@@ -3851,6 +3986,12 @@ function startResultsReveal(){
     else nextBtn.append('Next', el('span',{class:'rv-next__to'}, ': ' + after.replace(/ closest to you$/, '')), ' ›');   // phones show just "Next ›"
     count.textContent = ([...dots.children].findIndex(d => d.title === titles[k]) + 1) + ' / ' + dots.children.length;
     nextBtn.classList.remove('is-ready');
+    // The middle part moves on once the AI's matches are in (to the scene that took its place).
+    const part = parts[k];
+    if(next.wait) return next.hold(() => {
+      if(ended || parts[ch] !== part) return;
+      const at = ch; parts.splice(at, 1); paintDots(); show(at);
+    });
     // The opening and the card move on by themselves; every other scene waits for you once it has played.
     readyTimer = setTimeout(() => {
       if(parts[k].f === rvCardScene) return handOver();
@@ -4249,7 +4390,7 @@ function renderAssessment(){
       items: [
         { key: 'answers', label: 'Reading your answers', weight: 18, secs: 7 },
         { key: 'case', label: 'Grading your written case', weight: 14, secs: 7 },
-        { key: 'save', label: 'Saving your compass', weight: 6, secs: 2 },
+        { key: 'save', label: 'Saving your compass', weight: 6, secs: 3, after: true },
       ],
     }));
     return wrap;
@@ -4302,8 +4443,10 @@ function renderAssessment(){
       let ok = false;
       try { ok = await finishAssessment(position, viewText); }
       finally {
+        if(ok) await thinkHold('assessment');
         state.quiz.analysing = false; stopThink('assessment');
         if(signedIn){
+          if(ok) await plHold();   // the scoring screen, if you finished the opening questions first, plays through
           precisionUi.preparing = false;
           if(ok){
             adoptEarlyPrecision();
@@ -4789,6 +4932,8 @@ function subscribeToDebate(debateId){
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'debates', filter: 'id=eq.'+debateId }, (payload) => {
       const d = state.debates[debateId];
       if(!d) return;
+      // A verdict that comes back before the judging screen was ever shown still plays it first.
+      if(!d.verdict && payload.new.verdict && payload.new.end_request && payload.new.end_request.accepted && payload.new.end_request.kind === 'end') startJudgeAnim(d);
       d.verdict = payload.new.verdict;
       d.status = payload.new.status;
       if('end_request' in payload.new) d.endRequest = payload.new.end_request;
@@ -6510,7 +6655,8 @@ async function leaveDebate(debate){
 
 /* ---------- The AI judge at work ----------
    An animated screen while the verdict is worked out. It runs on its own clock (so re-renders
-   don't restart it) and speeds up once the verdict has arrived, so it never adds much waiting. */
+   don't restart it) at the same pace whether or not the verdict is back: a quick verdict waits for the
+   checklist to play through, and a slow one holds on the last step until it arrives. */
 const JUDGE_STEPS = [
   { label: n => 'Reading the transcript ('+n+' messages)', end: 1.2 },
   { label: () => 'Mapping each side\'s main arguments', end: 2.4 },
@@ -6603,7 +6749,7 @@ function tickJudgeAnim(debate){
   const dt = (now - a.last) / 1000; a.last = now;
   const d = state.debates[debate.id] || debate;
   const haveVerdict = !!d.verdict;
-  a.vt += dt * (haveVerdict ? 6 : 1);
+  a.vt += dt;
 
   const stepsEnd = JUDGE_STEPS[4].end;
   if(haveVerdict && a.vt >= stepsEnd && a.finishVt === null) a.finishVt = a.vt + 0.5;
@@ -7241,7 +7387,7 @@ function savedPrecision(){
   if(!c) return null;
   const sig = compassSig(c);
   if(precisionMemory && precisionMemory.sig === sig && precisionMemory.key === precisionKey()) return precisionMemory;
-  try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); return p && p.v === 3 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
+  try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); if(p && p.result) faithSafePrecision(p.result); return p && p.v === 3 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
 }
 function savePrecision(p){
   if(p.early) return;   // only kept in memory until your results are in
@@ -7299,9 +7445,8 @@ function queuePrecisionAfterTest(){
   precisionUi.error = null;
   state.tab = 'precision';
 }
-// Leaves the round for your results: the compass page, with the reveal playing over it.
 // Leaves the round for your results: the compass page, with the reveal playing over it. If your card is still being
-// made, the compass page shows that and the reveal starts as soon as the card is ready.
+// made, the reveal plays its middle part until it is ready.
 let cardMatchesPending = null;   // the card's AI step, running in the background after the test
 function finishPrecisionFlow(){
   const p = savedPrecision();
@@ -7309,8 +7454,7 @@ function finishPrecisionFlow(){
   if(p && p.afterTest){ p.afterTest = false; savePrecision(p); }
   navigateWithLoading('compass');
   if(!reveal) return;
-  if(cardMatchesPending) cardMatchesPending.then(() => { if(state.tab === 'compass') startResultsReveal(); });
-  else startResultsReveal();
+  startResultsReveal();
 }
 function startPrecision(){
   precisionAhead = null;
@@ -7336,11 +7480,12 @@ async function callPrecision(extra){
   }
   throw lastErr;
 }
+// fn may hand back what to do once the loading screen has finished (it runs before the screen goes).
 async function loadPrecision(kind, fn){
   if(precisionUi.loading) return;
   precisionUi.loading = kind; precisionUi.error = null;
   render();
-  try { await fn(); }
+  try { const then = await fn(); await plHold(); if(then) await then(); }
   catch(e){ precisionUi.error = String(e && e.message || e).slice(0, 160); }
   finally { precisionUi.loading = null; stopThink('precision-' + kind); render(); }
 }
@@ -7372,7 +7517,7 @@ function applyPrecisionRound(p, data){
   const cur = savedPrecision();
   if(!cur || cur.sig !== p.sig) return;
   cur.round += 1; cur.batch = questions; cur.idx = 0;
-  cur.candidates = (data.candidates || []).filter(c => c && c.name).map(c => ({ name: String(c.name), blurb: String(c.blurb || '') }));
+  cur.candidates = (data.candidates || []).filter(c => c && c.name && !faithClash(String(c.name))).map(c => ({ name: String(c.name), blurb: String(c.blurb || '') }));
   savePrecision(cur);
 }
 // The next round: the questions still owed (10, or fewer if an earlier round came back short). Written in the
@@ -7421,7 +7566,7 @@ function loadPrecisionFinal(){
     const r = data && data.result;
     const cur = savedPrecision();
     if(!cur) return;
-    if(r && r.match && r.match.name) cur.result = { match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] };
+    if(r && r.match && r.match.name) cur.result = faithSafePrecision({ match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] });
     else {
       cur.result = localPrecisionResult(cur);
       // The AI's answer, if it comes later, replaces the quick result.
@@ -7429,16 +7574,28 @@ function loadPrecisionFinal(){
       ask.then(d => {
         const rr = d && d.result, now = savedPrecision();
         if(!rr || !rr.match || !rr.match.name || !now || now.sig !== sig || !now.result || !now.result.local) return;
-        now.result = { match: rr.match, runnersUp: Array.isArray(rr.runnersUp) ? rr.runnersUp : [], deciding: Array.isArray(rr.deciding) ? rr.deciding : [] };
+        now.result = faithSafePrecision({ match: rr.match, runnersUp: Array.isArray(rr.runnersUp) ? rr.runnersUp : [], deciding: Array.isArray(rr.deciding) ? rr.deciding : [] });
         savePrecision(now);
         if(state.tab === 'precision') render();
       }).catch(() => {});
     }
     savePrecision(cur);
-    // Straight after the test, the round ends in the end results (if your card is still being made, the compass page
-    // shows that and the reveal starts as soon as it's ready).
-    if(cur.afterTest) finishPrecisionFlow();
+    // Straight after the test, "Deciding" stays up until your card's matches and your parties are in too (for up to
+    // REVEAL_WAIT_MS), so the results reveal then plays straight through; if the AI is slower than that, the reveal's
+    // own middle part covers the rest.
+    if(cur.afterTest) return () => revealInputsReady(REVEAL_WAIT_MS).then(finishPrecisionFlow);
   });
+}
+const REVEAL_WAIT_MS = 60000;
+function revealInputsReady(ms){
+  const all = cardMatchesReady().then(ok => ok ? partiesReady() : null).catch(() => {});
+  return Promise.race([all, new Promise(r => setTimeout(r, ms))]);
+}
+// Your closest parties (for their scene in the reveal), asked for once your card's matches are in.
+function partiesReady(){
+  if(typeof rxMore !== 'function' || rxMore()) return Promise.resolve();
+  if(!rx.more.loading && !rx.more.error) rxFetchMore();
+  return new Promise(done => { const t = setInterval(() => { if(!rx.more.loading){ clearInterval(t); done(); } }, 300); });
 }
 function answerPrecision(opt){
   const p = savedPrecision();
@@ -7523,9 +7680,63 @@ function plNames(p){
 // The loading screen itself: a cloud of ideology names, and a glowing selector that moves from name to name. Each
 // name it lands on is either kept (it stays lit) or ruled out (struck through and faded, then replaced by a new name),
 // so the screen keeps changing while the AI works. Four markers below show which round you're on.
+// The screen is built once and kept while it's up (a redraw would restart it), and its steps move on by the clock:
+// each shows for PL_STEP_MS and the last one holds until the AI is done. Whatever the AI is doing waits for plHold()
+// before the screen goes, so every step is seen even when the answer comes back in a second.
+const PL_STEP_MS = 2500;
+let plShow = null;   // { key, page, at, steps }
+function precisionLoaderPage(p, cfg){
+  const key = cfg.kicker + '|' + cfg.title;
+  if(plShow && plShow.key === key && plShow.page.isConnected) return plShow.page;
+  const page = el('div',{class:'prec-page'},[el('h2',{class:'section-title'},'Precision Round'), precisionLoader(p, cfg)]);
+  plShow = { key, page, at: Date.now(), steps: cfg.steps.length };
+  return page;
+}
+function plHold(){
+  const s = plShow;
+  const left = s && s.page.isConnected ? s.at + s.steps * PL_STEP_MS - Date.now() : 0;
+  return left > 0 ? new Promise(r => setTimeout(r, left)) : Promise.resolve();
+}
+let plStepTimer = null;
+function plStepTick(){
+  const s = plShow, box = s && s.page.isConnected && s.page.querySelector('.pl-steps');
+  if(!box){ clearInterval(plStepTimer); plStepTimer = null; return; }
+  const k = Math.min(s.steps - 1, Math.floor((Date.now() - s.at) / PL_STEP_MS));
+  [...box.children].forEach((n, i) => n.classList.toggle('is-on', i === k));
+}
 const PL_SPOTS = [[13, 14], [37, 14], [63, 14], [87, 14], [25, 38], [50, 38], [75, 38], [13, 62], [37, 62], [63, 62], [87, 62], [25, 86], [50, 86], [75, 86]];
 let plTimer = null;
+// The last screen of the round ("Deciding"): its own look, so it doesn't replay the funnel you saw between rounds.
+// Your finalists circle the Majlis seal and light up in turn while the AI names your match; it stays up until your
+// card, leaders and parties are in too, then the results reveal plays.
+function precisionDecider(p, cfg){
+  const finalists = (p && p.candidates && p.candidates.length ? p.candidates.map(c => c.name) : plNames(p).names).slice(0, 6);
+  const slots = finalists.map((n, i) => el('div',{class:'dc-slot', style:'--a:' + Math.round(i / finalists.length * 360) + 'deg'}, el('span',{class:'dc-name'}, n)));
+  const node = el('div',{class:'pl pl--final dc', role:'status', 'aria-live':'polite'},[
+    el('div',{class:'dc-stage', 'aria-hidden':'true'},[
+      el('i',{class:'dc-ring'}), el('i',{class:'dc-ring dc-ring--2'}), el('i',{class:'dc-ring dc-ring--3'}),
+      el('div',{class:'dc-orbit'}, slots),
+      el('div',{class:'dc-seal', html: M_SVG(10)}),
+    ]),
+    el('div',{class:'pl-kicker'}, cfg.kicker),
+    el('div',{class:'pl-title'}, cfg.title),
+    el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{class: i ? '' : 'is-on'}, t + '…'))),
+    el('div',{class:'pl-bar', 'aria-hidden':'true'}, el('i')),
+  ]);
+  const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let k = 0;
+  const lit = setInterval(() => {
+    if(!node.isConnected && k > 2){ clearInterval(lit); return; }
+    slots.forEach((s, i) => s.classList.toggle('is-lit', i === k % slots.length));
+    const seal = node.querySelector('.dc-seal');
+    if(seal){ seal.classList.remove('is-pulse'); void seal.offsetWidth; seal.classList.add('is-pulse'); }
+    k += 1;
+  }, still ? 2400 : 1300);
+  if(!plStepTimer) plStepTimer = setInterval(plStepTick, 250);
+  return node;
+}
 function precisionLoader(p, cfg){
+  if(cfg.decide) return precisionDecider(p, cfg);
   const list = plNames(p);
   const take = () => { const n = list.names[list.next % list.names.length]; list.next += 1; return n; };
   const names = PL_SPOTS.map(([x, y], i) => el('span',{class:'pl-name' + (x < 20 || x > 80 ? ' pl-name--edge' : x === 50 ? ' pl-name--mid' : x < 50 ? ' pl-name--l' : ' pl-name--r'), style:'left:' + x + '%;top:' + y + '%;--i:' + i}, take()));
@@ -7533,11 +7744,12 @@ function precisionLoader(p, cfg){
     el('div',{class:'pl-stage', 'aria-hidden':'true'}, [el('div',{class:'pl-lens'}), ...names]),
     el('div',{class:'pl-kicker'}, cfg.kicker),
     el('div',{class:'pl-title'}, cfg.title),
-    el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{style:'--s:' + i}, t + '…'))),
+    el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{class: i ? '' : 'is-on'}, t + '…'))),
     el('div',{class:'pl-bar', 'aria-hidden':'true'}, el('i')),
   ]);
   const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!plTimer && !still) plTimer = setInterval(() => plTick(take), 1000);
+  if(!plStepTimer) plStepTimer = setInterval(plStepTick, 250);
   return node;
 }
 // One step of the selector: move to a name that is showing and not busy, then keep it or rule it out.
@@ -7561,6 +7773,8 @@ function plTick(take){
     } else n.classList.add('is-kept');
   }, 880);
 }
+const PL_FINAL = { kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Deciding', final: true, decide: true,
+  steps: ['Weighing all 40 answers', 'Comparing your finalists', 'Naming your match', 'Lining up your leaders, nations and parties'] };
 const AREA_LABEL = { political: 'Politics', economic: 'Economics', social: 'Society', religious: 'Religion', philosophical: 'Philosophy' };
 function renderPrecision(){
   const wrap = el('div',{class:'prec-page'});
@@ -7581,21 +7795,9 @@ function renderPrecision(){
 
   // Just after the test: you answer the opening questions while it is scored; if you finish them first, the animation
   // shows until your results are in.
-  if(precisionUi.preparing && !(precisionEarly && precisionEarly.batch[precisionEarly.idx])){
-    wrap.appendChild(precisionLoader(null, precisionRoundLoader(null)));
-    return wrap;
-  }
-  if(precisionUi.loading === 'round'){
-    wrap.appendChild(precisionLoader(p, precisionRoundLoader(p)));
-    return wrap;
-  }
-  if(precisionUi.loading === 'final'){
-    wrap.appendChild(precisionLoader(p, {
-      kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match', final: true,
-      steps: ['Weighing all 40 answers', 'Comparing the last few', 'Naming your match'],
-    }));
-    return wrap;
-  }
+  if(precisionUi.preparing && !(precisionEarly && precisionEarly.batch[precisionEarly.idx])) return precisionLoaderPage(null, precisionRoundLoader(null));
+  if(precisionUi.loading === 'round') return precisionLoaderPage(p, precisionRoundLoader(p));
+  if(precisionUi.loading === 'final') return precisionLoaderPage(p, PL_FINAL);
   if(precisionUi.error){
     const finalStep = p && p.asked.length >= PRECISION_TOTAL;
     wrap.appendChild(el('div',{class:'card'},[
@@ -7616,8 +7818,7 @@ function renderPrecision(){
   // After the test there's no intro: the first questions are written straight away, behind the animation.
   if(p && !p.batch.length && p.afterTest){
     setTimeout(loadPrecisionRound, 0);
-    wrap.appendChild(precisionLoader(p, precisionRoundLoader(p)));
-    return wrap;
+    return precisionLoaderPage(p, precisionRoundLoader(p));
   }
   if(!p || !p.batch.length){
     wrap.appendChild(el('p',{class:'section-sub'},

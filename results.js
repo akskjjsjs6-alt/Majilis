@@ -1,7 +1,7 @@
 /* =====================================================================
    Majlis — your results, explored
    The sections under the three maps on the Compass page: every axis with how sure the test is about it (and the
-   answers that pull against each other), a 3D cube and a constellation of everyone the AI placed around you, your
+   answers that pull against each other), a 3D cube, your
    figures through the ages, your closest parties, books to read, a side-by-side comparison with anyone, and short
    deep dives on one topic. Also the coloured ideology tags beside names and the guide's notes for you.
    Loaded before app.js. Nothing here runs until the page is up.
@@ -438,72 +438,6 @@ function rxCubeBody(m){
   return body;
 }
 
-/* ================= 3. THE CONSTELLATION ================= */
-// You in the middle. Every leader, nation, ideology and party the AI placed around you is a star: the closer its
-// views, the nearer it sits; up is more libertarian than you, right is further right economically.
-function rxStars(m){
-  const more = rxMore(), list = [];
-  const add = (kind, o, extra) => { if(o && okPos(o.pos)) list.push(Object.assign({ kind, name: o.name, pos: o.pos, pct: rxPct(o.pos), photo: o.photo, code: o.code, flag: o.flag, symbol: o.symbol, note: o.why || o.blurb || o.label || '' }, extra || {})); };
-  (m.leaders || []).forEach(l => add('leader', l, { sub: l.era === 'modern' ? 'Modern leader' : 'Historical leader' }));
-  (m.countries || []).forEach(c => add('nation', c, { sub: 'Nation today' }));
-  (m.oldCountries || []).forEach(c => add('nation', c, { sub: 'Historical state' }));
-  (m.ideologies || []).forEach(i => add('ideology', i, { sub: 'Ideology' }));
-  if(more) more.parties.forEach(p => add('party', p, { name: p.short || p.name, full: p.name, sub: (p.active ? 'Party · ' : 'Historical party · ') + p.country, note: p.blurb }));
-  const me = state.user.compass;
-  const hi = Math.max(...list.map(s => s.pct)), lo = Math.min(...list.map(s => s.pct));
-  list.forEach((s, i) => {
-    const dx = s.pos.economic.x - me.economic.x, dy = s.pos.political.y - me.political.y;
-    const ang = Math.abs(dx) + Math.abs(dy) < 2 ? (i * 2.39996) : Math.atan2(dy, dx);
-    const r = 13 + (hi === lo ? 0.5 : (hi - s.pct) / (hi - lo)) * 31;   // the nearest just outside you, the furthest near the edge
-    s.x = 50 + r * Math.cos(ang); s.y = 50 - r * Math.sin(ang);
-  });
-  // Nudge stars apart so none sit on top of each other.
-  for(let it = 0; it < 40; it++) list.forEach((a, i) => list.slice(i + 1).forEach(b => {
-    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
-    if(d < 8.5){ const k = (8.5 - d) / 2 / d; a.x -= dx * k; a.y -= dy * k; b.x += dx * k; b.y += dy * k; }
-  }));
-  list.forEach(s => { s.x = rxClamp(s.x, 4, 96); s.y = rxClamp(s.y, 4, 96); });
-  return list.sort((a, b) => b.pct - a.pct);
-}
-function rxConstellationSection(m){
-  if(!m) return rxSection('stars', 'YOUR CONSTELLATION', 'Everyone around you', null, rxMoreGate());
-  const body = rxSkyBody(m);
-  return body ? rxSection('stars', 'YOUR CONSTELLATION', 'Everyone around you', 'The closer a star, the closer its views to yours. Tap one to see who it is.', body) : null;
-}
-// The sky with its legend and the card for the picked star; picking a star redraws it in place (page or reveal).
-function rxSkyBody(m){
-  const stars = rxStars(m);
-  if(!stars.length) return null;
-  const sky = el('div',{class:'rx-sky'});
-  // A few fixed background stars (the same every time).
-  let seed = 7;
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for(let i = 0; i < 46; i++) sky.appendChild(el('i',{class:'rx-sky__bg', style:'left:' + (rnd() * 100).toFixed(1) + '%;top:' + (rnd() * 100).toFixed(1) + '%;animation-delay:' + (rnd() * 4).toFixed(2) + 's;--s:' + (1 + rnd() * 1.6).toFixed(1) + 'px'}));
-  sky.appendChild(el('span',{class:'rx-sky__ax rx-sky__ax--t'}, 'More libertarian'));
-  sky.appendChild(el('span',{class:'rx-sky__ax rx-sky__ax--b'}, 'More authoritarian'));
-  sky.appendChild(el('span',{class:'rx-sky__ax rx-sky__ax--l'}, 'Further left'));
-  sky.appendChild(el('span',{class:'rx-sky__ax rx-sky__ax--r'}, 'Further right'));
-  [16, 30, 44].forEach(r => sky.appendChild(el('i',{class:'rx-sky__orbit', style:'width:' + r * 2 + '%;height:' + r * 2 + '%'})));
-  const lines = stars.slice(0, 6).map(s => '<line x1="50" y1="50" x2="' + s.x.toFixed(1) + '" y2="' + s.y.toFixed(1) + '"/>').join('');
-  sky.appendChild(el('span',{class:'rx-sky__lines', html:'<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' + lines + '</svg>'}));
-  const sel = stars.find(s => s.name === rx.star) || stars[0];
-  stars.forEach((s, i) => sky.appendChild(el('button',{type:'button', class:'rx-star rx-k--' + s.kind + (s === sel ? ' is-on' : '') + (i < 6 ? ' is-named' : ''),
-    style:'left:' + s.x.toFixed(1) + '%;top:' + s.y.toFixed(1) + '%;--z:' + (0.7 + s.pct / 140).toFixed(2) + ';animation-delay:' + (i * 0.07).toFixed(2) + 's',
-    'aria-label': s.name + ', ' + s.sub + ', ' + s.pct + '% match', onclick:()=>{ rx.star = s.name; body.replaceWith(rxSkyBody(m)); }},
-    [el('i',{class:'rx-star__dot'}), el('span',{class:'rx-star__name'}, s.name)])));
-  sky.appendChild(el('div',{class:'rx-sky__you'}, el('b',{}, 'You')));
-  const pic = sel.kind === 'leader' ? portraitNode(sel.name, sel.photo) : sel.kind === 'nation' ? (sel.code ? rxFlag(sel.code, sel.name) : sel.flag ? el('img',{class:'rx-flag', src: sel.flag, alt:''}) : rxFlag('', sel.name))
-    : sel.kind === 'ideology' ? ideologyEmblem(sel.name, sel.symbol) : rxFlag(sel.code, sel.name);
-  const card = el('div',{class:'rx-starcard'},[
-    el('div',{class:'rx-starcard__pic'}, pic),
-    el('div',{class:'rx-starcard__body'},[el('div',{class:'rx-starcard__kind'}, sel.sub), el('b',{}, sel.full || sel.name), sel.note ? el('p',{}, sel.note) : null]),
-    el('div',{class:'rx-starcard__pct'}, sel.pct + '%'),
-  ]);
-  const legend = el('div',{class:'rx-legend'}, ['leader', 'nation', 'ideology', 'party'].filter(k => stars.some(s => s.kind === k)).map(k => el('span',{},[el('i',{class:'rx-k rx-k--' + k}), RX_KINDS[k]])));
-  const body = el('div',{class:'rx-sky-body'},[legend, sky, card]);
-  return body;
-}
-
 /* ================= 4. TIMELINE BY ERA ================= */
 const RX_ERAS = [['antiquity', 'Antiquity', 'Until 476'], ['middle', 'Middle Ages', '476 to 1500'], ['early', 'Early modern', '1500 to 1800'],
   ['c19', '19th century', '1800 to 1900'], ['c20', '20th century', '1900 to 2000'], ['c21', '21st century', 'Since 2000']];
@@ -666,8 +600,6 @@ function rxCompareResult(t){
   const split = rows.slice().sort((a, b) => b.gap - a.gap)[0], close = rows.slice().sort((a, b) => a.gap - b.gap)[0];
   const pole = (r, v) => Math.abs(v - 50) < 5 ? 'the middle' : (v >= 50 ? r.hi : r.lo);
   const pic = t.kind === 'member' ? avatarNode(t.username, 46) : t.kind === 'person' ? portraitNode(t.name, t.photo) : t.kind === 'country' ? rxFlag(t.code, t.name) : ideologyEmblem(t.name, null);
-  const fpMe = rvFingerprint(rvFpValues(me.compass), ['var(--neon)', 'var(--accent)'], 'rx-fp');
-  const fpThem = rvFingerprint(rvFpValues(t.pos), ['var(--gold)', 'var(--danger)'], 'rx-fp');
   return el('div',{class:'rx-cmp'},[
     el('div',{class:'rx-hero'},[
       el('div',{class:'rx-hero__pics'}, pic),
@@ -686,10 +618,6 @@ function rxCompareResult(t){
         el('i',{class:'rx-crow__dot rx-crow__dot--you', style:'left:' + r.v + '%', title:'You: ' + r.v}),
       ]),
     ]))),
-    el('div',{class:'rx-cmp__prints'},[
-      el('figure',{},[fpMe.node, el('figcaption',{},[el('b',{}, 'You'), el('code',{}, fpMe.code)])]),
-      el('figure',{},[fpThem.node, el('figcaption',{},[el('b',{}, t.name), el('code',{}, fpThem.code)])]),
-    ]),
   ]);
 }
 
@@ -755,7 +683,7 @@ function rxSections(){
   const m = savedCardMatches();
   if(m) rxSyncTopIdeology(m);
   const parts = [
-    ['axes', 'Axes', rxAxesSection], ['cube', '3D cube', () => rxCubeSection(m)], ['stars', 'Constellation', () => rxConstellationSection(m)],
+    ['axes', 'Axes', rxAxesSection], ['cube', '3D cube', () => rxCubeSection(m)],
     ['timeline', 'Timeline', rxTimelineSection], ['parties', 'Parties', rxPartiesSection], ['books', 'Books', rxBooksSection],
     ['compare', 'Compare', () => rxCompareSection(m)], ['dive', 'Deep dives', rxDiveSection],
   ].map(([id, label, f]) => {
@@ -772,7 +700,7 @@ function rxSections(){
 }
 
 // At the top of the Compass page, so the sections below the maps are one tap away.
-const RX_JUMPS = [['cube', '3D cube'], ['stars', 'Constellation'], ['axes', 'All axes'], ['timeline', 'Timeline'], ['parties', 'Parties'], ['books', 'Books'], ['compare', 'Compare'], ['dive', 'Deep dives']];
+const RX_JUMPS = [['cube', '3D cube'], ['axes', 'All axes'], ['timeline', 'Timeline'], ['parties', 'Parties'], ['books', 'Books'], ['compare', 'Compare'], ['dive', 'Deep dives']];
 function rxJump(id){
   const n = document.getElementById('rx-' + id) || document.querySelector('.rx');
   if(n) n.scrollIntoView({ behavior: rxReduced() ? 'auto' : 'smooth', block: 'start' });
@@ -780,8 +708,8 @@ function rxJump(id){
 function rxJumpBar(){
   if(!state.user || !state.user.compass) return null;
   return el('div',{class:'rx-jump'},[
-    el('div',{class:'rx-jump__text'},[el('b',{}, 'Explore your results'), el('span',{}, 'The 3D cube, your constellation, timeline, parties, books and more are below the maps.')]),
-    el('div',{class:'rx-jump__chips'}, RX_JUMPS.map(([id, label]) => el('button',{type:'button', class:'rx-chip' + (id === 'cube' || id === 'stars' ? ' is-hot' : ''), onclick:()=>rxJump(id)}, label))),
+    el('div',{class:'rx-jump__text'},[el('b',{}, 'Explore your results'), el('span',{}, 'The 3D cube, all your axes, timeline, parties, books and more are below the maps.')]),
+    el('div',{class:'rx-jump__chips'}, RX_JUMPS.map(([id, label]) => el('button',{type:'button', class:'rx-chip' + (id === 'cube' ? ' is-hot' : ''), onclick:()=>rxJump(id)}, label))),
   ]);
 }
 // Opens the Compass page (if needed) and scrolls to a section once it's drawn.
@@ -792,7 +720,7 @@ function rxOpenSection(id){
   setTimeout(() => rxJump(id), 120);
 }
 
-/* ================= THE CUBE AND THE CONSTELLATION IN THE RESULTS REVEAL ================= */
+/* ================= THE CUBE IN THE RESULTS REVEAL ================= */
 function rvCubeScene(m){
   if(!state.user || !state.user.compass) return null;
   return { title: 'Your political cube', ms: 2600, node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in rx rx--rv'},[
@@ -801,17 +729,6 @@ function rvCubeScene(m){
     el('div',{class:'rv-in rv-in--zoom', style:'--d:400ms'}, rxCubeBody(m)),
   ])]) };
 }
-function rvSkyScene(m){
-  if(!m) return null;
-  const body = rxSkyBody(m);
-  if(!body) return null;
-  return { title: 'Your constellation', ms: 2600, node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in rx rx--rv'},[
-    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your constellation', 0, 90)),
-      el('p',{class:'rv-sub rv-sub--head rv-in', style:'--d:300ms'}, 'Everyone the AI placed around you. The closer a star, the closer its views. Tap one.')]),
-    el('div',{class:'rv-in rv-in--zoom', style:'--d:400ms'}, body),
-  ])]) };
-}
-
 /* ================= IDEOLOGY TAGS BESIDE NAMES ================= */
 // Each ideology gets its own colour from its name (the same name is always the same colour). Cyan is kept for the
 // Founder and Co-founder tags, so hues near it are skipped.

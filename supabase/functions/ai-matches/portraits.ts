@@ -2,11 +2,13 @@
 // The first time a leader appears on anyone's card, their best photo is chosen and kept:
 //   1. candidates: the photo Wikidata lists for them, then the files in their Wikimedia Commons category;
 //   2. a quick filter on each file's listed size and shape (nothing is downloaded yet);
-//   3. Gemini looks at small previews of the shortlist and picks the clearest single-person portrait;
+//   3. the AI (Gemini, or OpenRouter's free image models as the backup) looks at small previews of the shortlist and
+//      picks the clearest single-person portrait;
 //   4. the winner is copied (about 1280px wide, plus a 330px copy) into the public "portraits" bucket.
 // Every later card for that leader uses the saved copy. If nothing is good enough, that is saved too and the card
 // keeps the plain Wikipedia photo. Each leader is judged once (a failed attempt is retried a few times, a day apart).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { aiJson } from '../_shared/openrouter.ts';
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
@@ -116,8 +118,14 @@ const JUDGE_SCHEMA = {
   required: ['photos', 'best', 'reason'],
 };
 
+// The AI's verdict on the photos, as the card needs it.
+function verdict(j: any) {
+  const p = (j.photos ?? []).find((x: any) => x.index === j.best);
+  const ok = p && p.onePerson && p.adult && p.likelyThisPerson && p.faceClear && p.framing !== 'scene'
+    && (p.kind === 'photograph' || p.kind === 'realistic painting');
+  return { best: ok ? j.best : -1, score: p ? p.score : 0, reason: String(j.reason ?? '').slice(0, 300) };
+}
 async function judge(name: string, cands: Cand[], images: string[]): Promise<{ best: number; score: number; reason: string } | null> {
-  if (!GEMINI_API_KEY) return null;
   const parts: any[] = [{ text: `These are candidate photos of ${name} for a large portrait on a results card. The face will be shown big, `
     + `cut out of its background, in black and white. For each photo (numbered from 0, with its file name), judge:\n`
     + `- onePerson: exactly one person clearly in focus (no group).\n- adult: the person is an adult.\n`
@@ -130,7 +138,9 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
     parts.push({ text: `Photo ${i}: ${c.file} (${c.w}x${c.h})` });
     parts.push({ inline_data: { mime_type: 'image/jpeg', data: images[i] } });
   });
-  for (const model of MODELS) {
+  // Gemini first (the portrait is kept for everyone, so the best judge of pictures goes first), then OpenRouter's free
+  // image models when Gemini is busy.
+  for (const model of GEMINI_API_KEY ? MODELS : []) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST', headers: { 'x-goog-api-key': GEMINI_API_KEY, 'Content-Type': 'application/json' },
@@ -142,13 +152,12 @@ async function judge(name: string, cands: Cand[], images: string[]): Promise<{ b
       const d = await r.json();
       const j = JSON.parse(d?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'null');
       if (!j) continue;
-      const p = (j.photos ?? []).find((x: any) => x.index === j.best);
-      const ok = p && p.onePerson && p.adult && p.likelyThisPerson && p.faceClear && p.framing !== 'scene'
-        && (p.kind === 'photograph' || p.kind === 'realistic painting');
-      return { best: ok ? j.best : -1, score: p ? p.score : 0, reason: String(j.reason ?? '').slice(0, 300) };
+      return verdict(j);
     } catch (e) { console.warn('portrait judge', model, String(e).slice(0, 80)); }
   }
-  return null;
+  const viaOpenRouter = await aiJson(parts[0].text, JUDGE_SCHEMA, 0.1, 50_000, 'portrait ' + name,
+    { images: cands.map((c, i) => ({ text: `Photo ${i}: ${c.file} (${c.w}x${c.h})`, mime: 'image/jpeg', data: images[i] })) });
+  return viaOpenRouter ? verdict(viaOpenRouter) : null;
 }
 
 async function upload(path: string, url: string): Promise<string | null> {

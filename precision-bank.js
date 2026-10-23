@@ -432,12 +432,13 @@ function pbDistance(a, b, open){
 // The starting likelihood of each ideology, from the test's scores (and faith, for the ideologies rooted in one).
 function pbPrior(vec, religion){
   const out = {};
-  const none = !religion || /^(Atheism|Agnosticism|Prefer not to say|Other)$/.test(religion);
+  const none = !religion || /^(Atheism|Agnosticism|Spiritual but not religious|Prefer not to say|Other)$/.test(religion);
   for(const c of PB_CODES){
     const [, prof, faith] = PB_IDEOLOGIES[c];
     const d = pbDistance(vec, prof, true);
     let p = d === null ? 0.2 : Math.exp(-(d * d) / (2 * 16 * 16));
-    if(faith) p *= religion === faith ? 3 : none ? 0.25 : 0.2;
+    // Another faith's ideology is all but ruled out: a Muslim is never matched to Christian democracy.
+    if(faith) p *= religion === faith ? 3 : none ? 0.25 : 0.001;
     out[c] = p;
   }
   return pbNormalize(out);

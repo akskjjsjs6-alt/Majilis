@@ -2887,11 +2887,32 @@ input.is-err, textarea.is-err { border-color: var(--danger); box-shadow: 0 0 0 3
   border: 2px solid var(--neon); background: var(--neon-soft); box-shadow: 0 0 0 4px var(--neon-soft), 0 0 26px var(--neon-line);
   transition: left .45s cubic-bezier(.3,.7,.3,1), top .45s cubic-bezier(.3,.7,.3,1), width .45s, height .45s, opacity .3s; }
 .pl-lens.is-on { opacity: 1; }
+/* the round's last screen, "Deciding": the finalists circle the Majlis seal and light up in turn */
+.dc-stage { --r: 150px; position: relative; height: 330px; max-width: 720px; margin: 0 auto 14px; }
+.dc-ring { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+  border: 2px solid transparent; border-top-color: var(--neon); border-right-color: color-mix(in srgb, var(--neon) 35%, transparent); animation: dc-spin 2.4s linear infinite; }
+.dc-ring--2 { width: 156px; height: 156px; margin: -78px 0 0 -78px; border-width: 1px; border-top-color: transparent; border-bottom-color: var(--accent); animation-duration: 4s; animation-direction: reverse; opacity: .8; }
+.dc-ring--3 { width: calc(var(--r) * 2); height: calc(var(--r) * 2); margin: calc(var(--r) * -1) 0 0 calc(var(--r) * -1); border: 1px dashed var(--line-2); animation: none; }
+.dc-seal { position: absolute; left: 50%; top: 50%; width: 84px; height: 84px; margin: -42px 0 0 -42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: var(--neon); background: radial-gradient(circle, color-mix(in srgb, var(--neon) 18%, var(--bg)) 0%, var(--bg) 72%); box-shadow: 0 0 34px color-mix(in srgb, var(--neon) 35%, transparent); }
+.dc-seal svg { width: 46px; height: 46px; }
+.dc-seal.is-pulse { animation: dc-pulse .9s ease-out; }
+.dc-orbit { position: absolute; inset: 0; animation: dc-spin 46s linear infinite; }
+.dc-slot { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform: rotate(var(--a)) translateX(var(--r)) rotate(calc(var(--a) * -1)); }
+.dc-name { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap; max-width: 190px; overflow: hidden; text-overflow: ellipsis;
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); font-size: 12.5px; font-weight: 600; color: var(--muted);
+  animation: dc-unspin 46s linear infinite; transition: color .3s, border-color .3s, box-shadow .3s; }
+.dc-slot.is-lit .dc-name { color: var(--text); border-color: var(--neon); box-shadow: 0 0 18px color-mix(in srgb, var(--neon) 40%, transparent); }
+@keyframes dc-spin { to { transform: rotate(360deg); } }
+@keyframes dc-unspin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(-360deg); } }
+@keyframes dc-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--neon) 55%, transparent); } 100% { box-shadow: 0 0 0 26px transparent, 0 0 34px color-mix(in srgb, var(--neon) 35%, transparent); } }
+@media (max-width: 560px) { .dc-stage { --r: 108px; height: 270px; } .dc-name { max-width: 104px; font-size: 11px; padding: 5px 9px; } }
+@media (prefers-reduced-motion: reduce) { .dc-ring, .dc-orbit, .dc-name, .dc-seal.is-pulse { animation: none; } }
 .pl-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; color: var(--neon); }
 .pl-title { font-size: 22px; font-weight: 700; margin: 6px 0 4px; }
 .pl-steps { position: relative; height: 20px; font-size: 13.5px; color: var(--muted); }
-.pl-steps span { position: absolute; left: 0; right: 0; opacity: 0; animation: pl-step 7.5s linear calc(var(--s) * 2.5s) infinite; }
-@keyframes pl-step { 0% { opacity: 0; } 4%, 30% { opacity: 1; } 34%, 100% { opacity: 0; } }
+.pl-steps span { position: absolute; left: 0; right: 0; opacity: 0; transition: opacity .3s; }
+.pl-steps span.is-on { opacity: 1; }   /* the step showing now, moved on by the clock in app.js */
 .pl-bar { position: relative; height: 4px; max-width: 280px; margin: 16px auto 0; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
 .pl-bar i { position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 4px; background: var(--neon); animation: pl-slide 1.4s ease-in-out infinite; }
 @keyframes pl-slide { from { left: -35%; } to { left: 100%; } }
@@ -2903,9 +2924,8 @@ input.is-err, textarea.is-err { border-color: var(--danger); box-shadow: 0 0 0 3
   .pl-name--r { left: 73% !important; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pl-name, .pl-steps span, .pl-bar i { animation: none; }
+  .pl-name, .pl-bar i { animation: none; }
   .pl-bar i { left: 0; width: 60%; }
-  .pl-steps span:first-child { opacity: 1; }
 }
 /* Your own answer on a test question */
 .own-answer__open { margin-top: 14px; font-size: 13.5px; color: var(--muted); }
@@ -3058,6 +3078,25 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rv-logo svg { width: 100%; height: 100%; }
 .rv-logo path { stroke-dasharray: 400; stroke-dashoffset: 400; animation: rvDraw 1.1s .1s cubic-bezier(.6,0,.3,1) forwards; }
 @keyframes rvDraw { to { stroke-dashoffset: 0; } }
+/* The middle part of the reveal, while the AI is still finding your matches: an orbit around the M, then what it is doing now. */
+.rv-wait__orb { position: relative; width: 170px; height: 170px; margin: 0 auto 22px; }
+.rv-wait__ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--neon) 55%, transparent);
+  animation: rvWaitRing 3s cubic-bezier(.2,.6,.4,1) calc(var(--k, 0) * 1s) infinite; opacity: 0; }
+@keyframes rvWaitRing { 0% { transform: scale(.45); opacity: .9; } 100% { transform: scale(1.15); opacity: 0; } }
+.rv-wait__sat { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 12px var(--accent); animation: rvWaitOrbit calc(5s + var(--i) * .7s) linear calc(var(--i) * -1.3s) infinite; }
+.rv-wait__sat:nth-child(odd) { background: var(--gold); box-shadow: 0 0 12px var(--gold); }
+@keyframes rvWaitOrbit { from { transform: rotate(0deg) translateX(calc(52px + var(--i) * 6px)) rotate(0deg); } to { transform: rotate(360deg) translateX(calc(52px + var(--i) * 6px)) rotate(-360deg); } }
+.rv-wait__m { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; animation: rvWaitBeat 2.4s ease-in-out infinite; }
+@keyframes rvWaitBeat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.rv-wait__body { max-width: 440px; margin: 26px auto 0; }
+.rv-wait__steps { position: relative; height: 22px; font-size: 15px; color: var(--text); }
+.rv-wait__steps span { position: absolute; left: 0; right: 0; opacity: 0; transform: translateY(6px); transition: opacity .35s, transform .35s; }
+.rv-wait__steps span.is-on { opacity: 1; transform: none; }
+.rv-wait__bar { position: relative; height: 4px; margin: 14px auto 0; max-width: 300px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.rv-wait__bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 4px; background: var(--neon); transition: width .5s ease; }
+.rv-wait__acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { .rv-wait__ring, .rv-wait__sat, .rv-wait__m { animation: none; } .rv-wait__ring { opacity: .3; } }
 @keyframes rvLogo { 0% { transform: scale(.8); } 40% { transform: scale(1); } 100% { transform: scale(1.06); } }
 .rv-lede { margin: 18px 0 0; color: var(--muted); font-size: clamp(16px, 2.2vw, 20px); }
 
@@ -3259,6 +3298,7 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 /* a flag filling its round frame (podium, map dots, the list under the world map) */
 .rv-flag { display: flex; width: 100%; height: 100%; }
 .rv .rv-flag .rc-flag { width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; object-fit: cover; background: var(--surface-2); }
+.rv .rv-flag .rx-flag { width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; object-fit: cover; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--text); }
 .rv .rv-flag .rc-flag--code { display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--text); }
 .rv-flag--dot { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; flex: none; box-shadow: 0 0 0 1.5px var(--line-2); }
 .rv-flag--dot .rc-flag--code { font-size: 9px; }
@@ -3274,34 +3314,11 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rv-ring__in b { font-size: 32px; font-weight: 800; color: var(--accent); line-height: 1; letter-spacing: -.02em; }
 .rv-ring__in small { font-size: 11px; letter-spacing: .2em; font-weight: 700; color: var(--muted); margin-top: 4px; }
 
-/* fingerprints: yours and your closest leader's draw themselves, then slide together so the ridges overlap */
+/* fingerprints (the one on your card) draw themselves in */
 .rv-sub--head { margin: 0; flex-basis: 100%; }
-.rv-prints { position: relative; display: flex; justify-content: center; align-items: flex-start; gap: 150px; margin-top: 10px; }
-.rv-prints__side { width: 270px; display: flex; flex-direction: column; align-items: center; }
-.rv-prints__side.is-l .rv-prints__print { animation: rvMergeL 1.3s cubic-bezier(.6,0,.2,1) var(--m) both; }
-.rv-prints__side.is-r .rv-prints__print { animation: rvMergeR 1.3s cubic-bezier(.6,0,.2,1) var(--m) both; }
-.rv-prints__side.is-r .rv-prints__print { z-index: 1; }
-@keyframes rvMergeL { from { transform: translateX(-60px); } to { transform: translateX(95px); } }
-@keyframes rvMergeR { from { transform: translateX(60px); } to { transform: translateX(-95px); } }
-.rv-prints__print { position: relative; width: 100%; aspect-ratio: 290 / 380; }
 .rv-fp { position: absolute; inset: 0; clip-path: circle(0% at 50% 48%); animation: rvFpGrow 2.2s cubic-bezier(.45,0,.2,1) both; }
-.rv-prints__side.is-l .rv-fp { animation-delay: .25s; } .rv-prints__side.is-r .rv-fp { animation-delay: .5s; }
 @keyframes rvFpGrow { to { clip-path: circle(75% at 50% 48%); } }
 .rv-fp svg { width: 100%; height: 100%; display: block; }
-.rv-fp--you svg { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--neon) 45%, transparent)); }
-.rv-fp--them { opacity: .88; } .rv-fp--them svg { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--gold) 40%, transparent)); }
-.rv-prints__scan { position: absolute; left: -6%; right: -6%; top: 0; height: 3px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--neon), transparent);
-  box-shadow: 0 0 14px var(--neon); opacity: 0; animation: rvScan 1.3s ease-in-out var(--d, 0ms) both; }
-@keyframes rvScan { 0% { top: 0; opacity: 0; } 15%, 85% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-.rv-prints__who { display: flex; align-items: center; gap: 10px; margin-top: 12px; text-align: left; }
-.rv-prints__who .match-photo { width: 44px; height: 44px; font-size: 13px; border-width: 2px; box-shadow: none; }
-.rv-prints__you { background: var(--neon); color: var(--neon-ink); border-color: transparent; }
-.rv-prints__who b { display: block; font-size: 16px; line-height: 1.2; }
-.rv-prints__who small { color: var(--muted); font-size: 12.5px; }
-.rv-prints__code { margin-top: 6px; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; color: var(--accent); }
-.rv-prints__mid { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 200px; text-align: center; }
-.rv-prints__mid .rv-ring { border-radius: 50%; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
-.rv-prints__mid small { font-size: 12.5px; color: var(--text); font-weight: 600; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 70%, transparent); }
 
 /* closing: the card spins up and a light runs across it */
 .rv-scene--card .rv-scene__in { display: flex; flex-direction: column; align-items: center; }
@@ -3355,16 +3372,6 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
   .rv-tug__end { flex-direction: row; gap: 10px; justify-content: center; }
   .rv-tug__face { width: 52px; height: 52px; margin: 0; }
   .rv-world { padding: 8px; }
-  .rv-prints { gap: 24px; }
-  .rv-prints__side { width: 155px; }
-  @keyframes rvMergeL { from { transform: translateX(-10px); } to { transform: translateX(45px); } }
-  @keyframes rvMergeR { from { transform: translateX(10px); } to { transform: translateX(-45px); } }
-  .rv-prints__who { flex-direction: column; text-align: center; gap: 6px; }
-  .rv-prints__who b { font-size: 14px; }
-  .rv-prints__mid { top: 16%; width: 140px; }
-  .rv-prints__mid .rv-ring { width: 92px; height: 92px; } .rv-prints__mid .rv-ring__in b { font-size: 22px; }
-  .rv-prints__mid small { font-size: 11px; }
-  .rv-prints__code { font-size: 10.5px; letter-spacing: .08em; }
   .rv-world__pin text { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3475,37 +3482,7 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rx-cube__info { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; min-height: 22px; }
 .rx-cube__info b { color: var(--text); }
 
-/* 3. constellation */
-.rx-sky { position: relative; max-width: 620px; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
-  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--neon) 9%, var(--bg-2)) 0, var(--bg) 70%); border: 1px solid var(--line); }
-.rx-sky__bg { position: absolute; width: var(--s); height: var(--s); border-radius: 50%; background: var(--text); opacity: .3; animation: rxTwinkle 4s ease-in-out infinite; }
-@keyframes rxTwinkle { 50% { opacity: .9; } }
-.rx-sky__orbit { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; border: 1px dashed var(--line-2); pointer-events: none; }
-.rx-sky__lines { position: absolute; inset: 0; pointer-events: none; }
-.rx-sky__lines svg { width: 100%; height: 100%; }
-.rx-sky__lines line { stroke: var(--neon); stroke-width: .25; opacity: .35; stroke-dasharray: 1 1; }
-.rx-sky__ax { position: absolute; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); pointer-events: none; }
-.rx-sky__ax--t { top: 4%; left: 50%; transform: translateX(-50%); } .rx-sky__ax--b { bottom: 4%; left: 50%; transform: translateX(-50%); }
-.rx-sky__ax--l { left: 3%; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: left center; margin-left: 8px; }
-.rx-sky__ax--r { right: 3%; top: 50%; transform: translateY(-50%) rotate(90deg); transform-origin: right center; margin-right: 8px; }
-.rx-sky__you { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%); border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: var(--neon); color: var(--neon-ink, #000); font-size: 13px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--neon) 20%, transparent), 0 0 30px var(--neon); z-index: 2; }
-.rx-star { position: absolute; transform: translate(-50%, -50%) scale(var(--z)); border: 0; background: none; padding: 0; cursor: pointer; color: var(--text); z-index: 1;
-  display: flex; flex-direction: column; align-items: center; animation: rxStarIn .6s ease both; }
 @keyframes rxStarIn { from { opacity: 0; transform: translate(-50%, -50%) scale(0); } }
-.rx-star__dot { width: 13px; height: 13px; border-radius: 50%; background: currentColor; box-shadow: 0 0 12px currentColor; }
-.rx-star.rx-k--leader { color: var(--rx-leader); } .rx-star.rx-k--nation { color: var(--rx-nation); } .rx-star.rx-k--ideology { color: var(--rx-ideology); } .rx-star.rx-k--party { color: var(--rx-party); }
-.rx-star__name { margin-top: 4px; font-size: 10.5px; font-weight: 700; color: var(--text); white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 3px var(--bg), 0 0 6px var(--bg); opacity: 0; transition: opacity .2s; }
-.rx-star.is-named .rx-star__name, .rx-star:hover .rx-star__name, .rx-star:focus-visible .rx-star__name, .rx-star.is-on .rx-star__name { opacity: 1; }
-.rx-star.is-on { z-index: 3; } .rx-star.is-on .rx-star__dot { box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px currentColor, 0 0 18px currentColor; }
-.rx-starcard { display: flex; align-items: center; gap: 14px; max-width: 620px; margin: 14px auto 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; }
-.rx-starcard__pic { flex: none; } .rx-starcard__pic .match-photo, .rx-starcard__pic .rc9-emb { width: 52px; height: 52px; }
-.rx-starcard__pic .rx-flag { width: 60px; height: 40px; }
-.rx-starcard__body { flex: 1; min-width: 0; }
-.rx-starcard__kind { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.rx-starcard__body b { font-size: 16px; }
-.rx-starcard__body p { margin: 3px 0 0; font-size: 13px; color: var(--muted); line-height: 1.4; }
-.rx-starcard__pct { font-size: 24px; font-weight: 800; color: var(--neon); }
 
 /* 4. timeline */
 .rx-tl { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--line-2); }
@@ -3550,11 +3527,6 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rx-crow__dot { position: absolute; top: 50%; width: 15px; height: 15px; border-radius: 50%; transform: translate(-50%, -50%); border: 3px solid var(--bg); }
 .rx-crow__dot--you { background: var(--neon); z-index: 1; } .rx-crow__dot--them { background: var(--rx-them); }
 .rx-crow__dot--test { background: transparent; border: 3px solid var(--muted); width: 17px; height: 17px; }
-.rx-cmp__prints { display: flex; justify-content: center; gap: 30px; margin-top: 18px; }
-.rx-cmp__prints figure { margin: 0; text-align: center; }
-.rx-cmp__prints .rv-fp { position: relative; inset: auto; clip-path: none; animation: none; width: 110px; height: 144px; }
-.rx-cmp__prints figcaption { margin-top: 6px; font-size: 12.5px; display: flex; flex-direction: column; gap: 2px; }
-.rx-cmp__prints code { font-size: 11px; color: var(--muted); letter-spacing: .06em; }
 
 /* 8. deep dives */
 .rx-topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
@@ -3595,11 +3567,9 @@ h2 .ideo-tag { font-size: 0.42em; }
   .rx-hero .rx-ring { width: 76px; height: 76px; }
   .rx-tl__row { grid-template-columns: 1fr; gap: 8px; }
   .rx-tl__figs { grid-template-columns: 1fr; }
-  .rx-star__name { font-size: 9.5px; max-width: 80px; }
-  .rx-sky__ax { font-size: 8.5px; }
 }
 @media (prefers-reduced-motion: reduce){
-  .rx-sky__bg, .rx-star, .rx-wait.is-loading::before { animation: none; }
+  .rx-wait.is-loading::before { animation: none; }
 }
 
 /* The way into the results sections: a bar at the top of the Compass page */
@@ -3611,8 +3581,6 @@ h2 .ideo-tag { font-size: 0.42em; }
 .rx-chip.is-hot { color: var(--neon-ink, #000); background: var(--neon); border-color: var(--neon); }
 .acct__tag { display: block; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acct__tag .ideo-tag { margin-left: 0; font-size: 10.5px; }
-/* the cube and the constellation inside the results reveal */
+/* the cube inside the results reveal */
 .rx--rv { margin-top: 0; }
 .rx--rv .rx-cube { max-width: min(520px, 58vh); }
-.rx--rv .rx-sky { max-width: min(560px, 56vh); }
-.rx--rv .rx-starcard { margin-top: 10px; }
