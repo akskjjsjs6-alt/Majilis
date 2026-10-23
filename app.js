@@ -2849,12 +2849,13 @@ const SYMBOL_URL = /^https:\/\/bsgairwtzawuzjzdnutb\.supabase\.co\/storage\/v1\/
 const okSymbol = (u) => typeof u === 'string' && SYMBOL_URL.test(u) ? u : null;
 // Cards made before the server picked portraits and symbols ask for them, then keep them.
 // The server keeps picking after it answers, so a card still missing some asks again a little later.
-let artTries = 0, artBusy = false;
+let artTries = 0, artBusy = false, artAt = 0;
 async function refreshCardArt(){
   const m = savedCardMatches();
-  if(artBusy || artTries >= 4 || !m || m.art || !state.user || state.user.isGuest) return;
+  // Every redraw asks for this, so a try counts for 30 seconds: one request, not one per redraw.
+  if(artBusy || artTries >= 4 || Date.now() - artAt < 30000 || !m || m.art || !state.user || state.user.isGuest) return;
   artBusy = true;
-  artTries++;
+  artTries++; artAt = Date.now();
   try {
     const { data } = await sb.functions.invoke('ai-matches', { region: FN_REGION, body: { mode: 'art',
       leaders: m.leaders.map(l => ({ name: l.name, era: l.era })), ideologies: m.ideologies.map(i => i.name) } });
