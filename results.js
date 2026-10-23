@@ -1,7 +1,7 @@
 /* =====================================================================
    Majlis — your results, explored
    The sections under the three maps on the Compass page: every axis with how sure the test is about it (and the
-   answers that pull against each other), a 3D cube, your
+   answers that pull against each other), a 3D cube, how close every nation on the world map is to you, your
    figures through the ages, your closest parties, books to read, a side-by-side comparison with anyone, and short
    deep dives on one topic. Also the coloured ideology tags beside names and the guide's notes for you.
    Loaded before app.js. Nothing here runs until the page is up.
@@ -676,6 +676,14 @@ function rxDiveSection(){
   return rxSection('dive', 'TOPIC DEEP DIVES', 'Go deeper on one topic', 'Eight quick statements on one subject sharpen the axes it touches, without retaking the whole test.', el('div',{},[body, redo]));
 }
 
+/* ================= EVERY NATION ON THE WORLD MAP ================= */
+// The reveal's world heat map, kept here so it can be looked at again: every nation shaded by how close it is to you.
+function rxWorldSection(m){
+  const map = worldHeatMap(m, 0);
+  return rxSection('world', 'EVERY NATION', 'How close every country is to you', 'Each nation\'s mainstream politics today, compared with yours on the three maps. Tap or hover over a country.',
+    el('div',{class:'rx-world'},[el('div',{class:'rv-world'}, map.box), map.read]));
+}
+
 /* ================= THE WHOLE BLOCK, WITH ITS OWN CONTENTS BAR ================= */
 function rxSections(){
   const u = state.user;
@@ -683,7 +691,7 @@ function rxSections(){
   const m = savedCardMatches();
   if(m) rxSyncTopIdeology(m);
   const parts = [
-    ['axes', 'Axes', rxAxesSection], ['cube', '3D cube', () => rxCubeSection(m)],
+    ['axes', 'Axes', rxAxesSection], ['cube', '3D cube', () => rxCubeSection(m)], ['world', 'World map', () => rxWorldSection(m)],
     ['timeline', 'Timeline', rxTimelineSection], ['parties', 'Parties', rxPartiesSection], ['books', 'Books', rxBooksSection],
     ['compare', 'Compare', () => rxCompareSection(m)], ['dive', 'Deep dives', rxDiveSection],
   ].map(([id, label, f]) => {
@@ -700,7 +708,7 @@ function rxSections(){
 }
 
 // At the top of the Compass page, so the sections below the maps are one tap away.
-const RX_JUMPS = [['cube', '3D cube'], ['axes', 'All axes'], ['timeline', 'Timeline'], ['parties', 'Parties'], ['books', 'Books'], ['compare', 'Compare'], ['dive', 'Deep dives']];
+const RX_JUMPS = [['cube', '3D cube'], ['world', 'World map'], ['axes', 'All axes'], ['timeline', 'Timeline'], ['parties', 'Parties'], ['books', 'Books'], ['compare', 'Compare'], ['dive', 'Deep dives']];
 function rxJump(id){
   const n = document.getElementById('rx-' + id) || document.querySelector('.rx');
   if(n) n.scrollIntoView({ behavior: rxReduced() ? 'auto' : 'smooth', block: 'start' });
@@ -708,8 +716,8 @@ function rxJump(id){
 function rxJumpBar(){
   if(!state.user || !state.user.compass) return null;
   return el('div',{class:'rx-jump'},[
-    el('div',{class:'rx-jump__text'},[el('b',{}, 'Explore your results'), el('span',{}, 'The 3D cube, all your axes, timeline, parties, books and more are below the maps.')]),
-    el('div',{class:'rx-jump__chips'}, RX_JUMPS.map(([id, label]) => el('button',{type:'button', class:'rx-chip' + (id === 'cube' ? ' is-hot' : ''), onclick:()=>rxJump(id)}, label))),
+    el('div',{class:'rx-jump__text'},[el('b',{}, 'Explore your results'), el('span',{}, 'The 3D cube, a world map of every nation, your axes, timeline, parties, books and more are below the maps.')]),
+    el('div',{class:'rx-jump__chips'}, RX_JUMPS.map(([id, label]) => el('button',{type:'button', class:'rx-chip' + (id === 'cube' || id === 'world' ? ' is-hot' : ''), onclick:()=>rxJump(id)}, label))),
   ]);
 }
 // Opens the Compass page (if needed) and scrolls to a section once it's drawn.

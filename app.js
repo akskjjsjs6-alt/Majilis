@@ -3791,38 +3791,84 @@ function rvMiddle(d){
   const big = rings.sort((a, b) => b.length - a.length)[0] || [[0, 0]];
   return big.reduce((s, p) => [s[0] + p[0] / big.length, s[1] + p[1] / big.length], [0, 0]);
 }
-function rvWorldScene(m){
-  const list = (m.countries || []).filter(c => c.code).slice(0, 6);
-  if(!list.length) return null;
-  const lo = Math.min(...list.map(c => c.pct)), hi = Math.max(...list.map(c => c.pct));
-  const heat = (c) => hi === lo ? 1 : (c.pct - lo) / (hi - lo);   // 0 = the least close of them, 1 = the closest
-  const box = el('div',{class:'rv-world__map'}, el('div',{class:'rv-world__wait'}, 'Loading the map…'));
-  rvWorld().then(w => {
-    if(!w){ box.innerHTML = ''; box.classList.add('is-none'); return; }
-    const shown = list.filter(c => w.c[c.code]);
-    const base = Object.keys(w.c).map(k => '<path d="' + w.c[k] + '"/>').join('');
-    const hot = shown.map((c, i) => '<path class="rv-world__hot" data-c="' + c.code + '" d="' + w.c[c.code] + '" style="--d:' + rvD(600 + i * 260) + 'ms;fill:color-mix(in srgb, var(--accent) ' + Math.round(35 + heat(c) * 65) + '%, var(--gold))"><title>' + c.name + ' · ' + c.pct + '%</title></path>').join('');
-    const pins = shown.slice(0, 3).map((c, i) => { const [x, y] = rvMiddle(w.c[c.code]);
-      return '<g class="rv-world__pin" style="--d:' + rvD(1500 + i * 220) + 'ms;transform-origin:' + x.toFixed(0) + 'px ' + y.toFixed(0) + 'px"><circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="5"/>'
-        + '<text x="' + x.toFixed(0) + '" y="' + (y - 11).toFixed(0) + '">' + c.name.replace(/[<&]/g, '') + ' ' + c.pct + '%</text></g>'; }).join('');
-    box.innerHTML = '<svg viewBox="0 0 ' + w.w + ' ' + w.h + '" role="img" aria-label="World map of your closest nations"><g class="rv-world__base">' + base + '</g><g>' + hot + '</g>' + pins + '</svg>';
+// Every nation on the map, placed once on the three maps (card/nations.json: the same for everyone), so how close each
+// one is to you is worked out here at once, with no wait for the AI. The nations the AI matched to you keep its numbers.
+let rvNationsP = null;
+const rvNations = () => rvNationsP || (rvNationsP = fetch('card/nations.json?v=1').then(r => r.ok ? r.json() : null).catch(() => { rvNationsP = null; return null; }));
+function worldCloseness(m, nations){
+  const ai = {}, out = {};
+  ((m && m.countries) || []).forEach(c => { if(c.code) ai[c.code] = c.pct; });
+  if(nations) Object.keys(nations.n).forEach(k => {
+    const [name, ex, ey, px, py, sx, sy] = nations.n[k];
+    out[k] = { name, pct: ai[k] != null ? ai[k] : rxPct({ economic: { x: ex, y: ey }, political: { x: px, y: py }, social: { x: sx, y: sy } }) };
   });
+  else ((m && m.countries) || []).forEach(c => { if(c.code) out[c.code] = { name: c.name, pct: c.pct }; });
+  return out;
+}
+// Furthest = red, middle = gold, closest = green, across your own range, so the whole scale is always used.
+const heatFill = (t) => t < .5
+  ? 'color-mix(in srgb, var(--gold) ' + Math.round(t * 200) + '%, color-mix(in srgb, var(--danger) 70%, var(--surface)))'
+  : 'color-mix(in srgb, var(--accent) ' + Math.round((t - .5) * 200) + '%, var(--gold))';
+const rvEsc = (t) => String(t).replace(/[<&"]/g, '');
+// The map itself: every country shaded by how close it is to you, your closest three pinned, and a line under it that
+// names any country you tap (or hover), its match and its place out of all of them.
+function worldHeatMap(m, d0){
+  const top = ((m && m.countries) || []).filter(c => c.code).slice(0, 6), topAt = {};
+  top.forEach((c, i) => { topAt[c.code] = i; });
+  const box = el('div',{class:'rv-world__map'}, el('div',{class:'rv-world__wait'}, 'Loading the map…'));
+  const read = el('div',{class:'rv-world__read', 'aria-live':'polite'}, 'Tap any country to see how close it is to you.');
+  let all = {}, ranked = [];
+  const show = (code) => {
+    const c = all[code];
+    if(!c) return;
+    box.querySelectorAll('.is-tap').forEach(p => p.classList.remove('is-tap'));
+    const p = box.querySelector('[data-c="' + code + '"]');
+    if(p) p.classList.add('is-tap');
+    read.replaceChildren(el('b',{}, c.name), el('em',{}, c.pct + '%'), el('span',{}, '#' + (ranked.indexOf(code) + 1) + ' of ' + ranked.length + ' nations'));
+  };
+  Promise.all([rvWorld(), rvNations()]).then(([w, n]) => {
+    if(!w){ box.innerHTML = ''; box.classList.add('is-none'); read.remove(); return; }
+    all = worldCloseness(m, n);
+    ranked = Object.keys(all).filter(k => w.c[k]).sort((a, b) => all[b].pct - all[a].pct);
+    const pcts = ranked.map(k => all[k].pct), lo = Math.min(...pcts), hi = Math.max(...pcts);
+    const paths = Object.keys(w.c).map(k => {
+      const c = all[k];
+      if(!c) return '<path class="rv-world__none" d="' + w.c[k] + '"/>';
+      const t = hi === lo ? 1 : (c.pct - lo) / (hi - lo), isTop = k in topAt;
+      return '<path class="' + (isTop ? 'rv-world__hot' : 'rv-world__fill') + '" data-c="' + k + '" d="' + w.c[k] + '" style="--d:'
+        + rvD(d0 + (isTop ? 900 + topAt[k] * 260 : Math.round((1 - t) * 700))) + 'ms;fill:' + heatFill(t) + '"><title>' + rvEsc(c.name) + ' · ' + c.pct + '%</title></path>';
+    }).join('');
+    const pins = top.filter(c => w.c[c.code]).slice(0, 3).map((c, i) => { const [x, y] = rvMiddle(w.c[c.code]);
+      return '<g class="rv-world__pin" style="--d:' + rvD(d0 + 1800 + i * 220) + 'ms;transform-origin:' + x.toFixed(0) + 'px ' + y.toFixed(0) + 'px"><circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="5"/>'
+        + '<text x="' + x.toFixed(0) + '" y="' + (y - 11).toFixed(0) + '">' + rvEsc(c.name) + ' ' + c.pct + '%</text></g>'; }).join('');
+    box.innerHTML = '<svg viewBox="0 0 ' + w.w + ' ' + w.h + '" role="img" aria-label="World map: every nation shaded by how close its politics are to yours">' + paths + pins + '</svg>';
+    const far = ranked[ranked.length - 1];
+    if(ranked.length > 1) read.replaceChildren('Tap any country. Furthest from you: ', el('b',{}, all[far].name), ' (' + all[far].pct + '%).');
+  });
+  box.addEventListener('click', (e) => { const p = e.target.closest && e.target.closest('[data-c]'); if(p) show(p.dataset.c); });
+  box.addEventListener('mouseover', (e) => { const p = e.target.closest && e.target.closest('[data-c]'); if(p) show(p.dataset.c); });
+  return { box, read, top, show };
+}
+function rvWorldScene(m){
+  const map = worldHeatMap(m, 0), box = map.box, list = map.top;
   // Tapping a country in the list lights it up on the map and dims the others; tapping it again shows them all.
   let picked = null;
   const pickCountry = (code, btn) => {
     picked = picked === code ? null : code;
     box.classList.toggle('has-pick', !!picked);
-    box.querySelectorAll('.rv-world__hot').forEach(p => p.classList.toggle('is-pick', p.dataset.c === picked));
+    box.querySelectorAll('[data-c]').forEach(p => p.classList.toggle('is-pick', p.dataset.c === picked));
     btn.parentNode.querySelectorAll('.rv-world__item').forEach(b => { const on = b === btn && !!picked; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+    if(picked) map.show(code);
   };
   return { title: 'World heat map', ms: rvD(3000), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
     el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your world heat map', 0, 90)),
-      el('div',rvIn(300, 'rv-heatkey'),[el('span',{}, 'Less close'), el('i',{}), el('span',{}, 'Closer')])]),
+      el('div',rvIn(300, 'rv-heatkey'),[el('span',{}, 'Further'), el('i',{}), el('span',{}, 'Closer')])]),
     el('div',rvIn(200, 'rv-world', 'zoom'), box),
-    el('div',{class:'rv-world__list'}, list.map((c, i) => el('button',Object.assign(rvIn(1700 + i * 120, 'rv-world__item', 'pop'), { type: 'button', 'aria-pressed': 'false',
+    el('div',rvIn(1200), map.read),
+    list.length ? el('div',{class:'rv-world__list'}, list.map((c, i) => el('button',Object.assign(rvIn(1700 + i * 120, 'rv-world__item', 'pop'), { type: 'button', 'aria-pressed': 'false',
       onclick: (e) => pickCountry(c.code, e.currentTarget) }),[
-      el('span',{class:'rv-flag rv-flag--dot'}, nationFlag(c)), el('b',{}, c.name), el('em',{}, c.pct + '%')]))),
-    el('p',rvIn(2200, 'rv-sub rv-sub--c'), 'Shaded: the ' + list.length + ' present-day nations the AI matched to you. Tap one to find it on the map.'),
+      el('span',{class:'rv-flag rv-flag--dot'}, nationFlag(c)), el('b',{}, c.name), el('em',{}, c.pct + '%')]))) : null,
+    el('p',rvIn(2200, 'rv-sub rv-sub--c'), 'Every nation, shaded by how close its politics are to yours.' + (list.length ? ' Your ' + list.length + ' closest are below; tap one to find it.' : '')),
   ])]) };
 }
 
