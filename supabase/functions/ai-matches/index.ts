@@ -221,11 +221,14 @@ async function askLeaders(inp: CardInput): Promise<any[] | { error: string }> {
   }, required: ['name', 'era', 'born', 'label', 'why', 'economic', 'political', 'social'] } } }, required: ['leaders'] };
   const r = await gemini(prompt, schema, 0.4);
   if ('error' in r) return r;
-  const seen = new Set<string>();
+  // The same person named twice ("Bismarck" and "Otto von Bismarck"): every word of one name is in the other.
+  const seen: string[][] = [];
+  const words = (n: string) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z]+/).filter((w) => w.length > 1);
+  const same = (a: string[], b: string[]) => a.length > 0 && b.length > 0 && (a.every((w) => b.includes(w)) || b.every((w) => a.includes(w)));
   return (r.data.leaders ?? []).map((l: any) => {
-    const pos = readPos(l), name = clip(l?.name, 80);
-    if (!pos || !name || seen.has(name.toLowerCase()) || !['modern', 'historical'].includes(l.era)) return null;
-    seen.add(name.toLowerCase());
+    const pos = readPos(l), name = clip(l?.name, 80), w = words(name);
+    if (!pos || !name || seen.some((x) => same(x, w)) || !['modern', 'historical'].includes(l.era)) return null;
+    seen.push(w);
     // The era comes from the birth year when there is one (the AI's own label is sometimes wrong, e.g. Churchill as
     // "historical"): born before 1855, the main career was before 1900.
     const born = Number(l.born);
