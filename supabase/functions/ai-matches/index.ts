@@ -257,6 +257,7 @@ function readLeaders(inp: CardInput, list: any[], seen: string[][]): any[] {
 const LEADERS_PER_ERA = 3;   // the reveal and the card show three of each era
 async function askLeaders(inp: CardInput): Promise<any[] | { error: string }> {
   const prompt = `A person finished a long political test (their scores and their chosen answer to each question are below). Name the real political leaders whose views are NEAREST to this person's.\n\nGive 6 ${ERA_LINE.modern} and 6 ${ERA_LINE.historical}. Draw from every region of the world and every tradition: Asia, Africa, the Middle East, Latin America and Europe as much as North America; monarchs, revolutionaries, reformers, founders, prime ministers, presidents. Do not default to the most famous Western names: pick whoever really sits nearest.\n${LEADER_RULES}\n${personText(inp)}`;
+  const t0 = Date.now();
   const r = await gemini(prompt, LEADERS_SCHEMA, 0.4);
   if ('error' in r) return r;
   const seen: string[][] = [];
@@ -264,10 +265,14 @@ async function askLeaders(inp: CardInput): Promise<any[] | { error: string }> {
   // A model sometimes sends fewer than asked, or puts most of them in one era once the birth years are checked (a run
   // came back with one historical leader). An era that is short is asked for again on its own, naming who is already in.
   const short = (['modern', 'historical'] as const).filter((era) => leaders.filter((l: any) => l.era === era).length < LEADERS_PER_ERA);
-  if (short.length) {
+  // Only while there is time for it, and for 30 s at most: the whole card has to finish inside the function's time limit
+  // (photos and portraits come after this), and a short list is better than no card.
+  if (short.length && Date.now() - t0 < 60000) {
     console.log(`card: leaders short in ${short.map((e) => e + ' ' + leaders.filter((l: any) => l.era === e).length).join(', ')}; asking again`);
-    const more = await Promise.all(short.map((era) => gemini(`A person finished a long political test (their scores and their chosen answer to each question are below). Name 6 real ${ERA_LINE[era]} whose views are NEAREST to this person's, from any region of the world and any tradition. Every one must be ${era}; "era" is "${era}" for all of them. Do not name any of these, already chosen: ${leaders.map((l: any) => l.name).join(', ') || '(none)'}.\n${LEADER_RULES}\n${personText(inp)}`, LEADERS_SCHEMA, 0.4)));
-    more.forEach((m, i) => { if (!('error' in m)) leaders.push(...readLeaders(inp, m.data.leaders ?? [], seen).filter((l: any) => l.era === short[i])); });
+    const asks = Promise.all(short.map((era) => gemini(`A person finished a long political test (their scores and their chosen answer to each question are below). Name 6 real ${ERA_LINE[era]} whose views are NEAREST to this person's, from any region of the world and any tradition. Every one must be ${era}; "era" is "${era}" for all of them. Do not name any of these, already chosen: ${leaders.map((l: any) => l.name).join(', ') || '(none)'}.\n${LEADER_RULES}\n${personText(inp)}`, LEADERS_SCHEMA, 0.4)));
+    const more = await Promise.race([asks, new Promise<null>((done) => setTimeout(() => done(null), 30000))]);
+    if (!more) console.log('card: the extra leaders took too long; going on without them');
+    (more ?? []).forEach((m, i) => { if (!('error' in m)) leaders.push(...readLeaders(inp, m.data.leaders ?? [], seen).filter((l: any) => l.era === short[i])); });
   }
   return leaders.sort((a: any, b: any) => b.pct - a.pct);
 }
