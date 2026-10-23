@@ -1768,6 +1768,9 @@ const TAB_TITLES = { motion:'Motion of the day', guide:'30-day guide', home:'Hom
 
 function brandMark(){
   const M_PATH = 'M 10,80 L 10,20 L 50,65 L 90,20 L 90,80';
+  // The page is rebuilt on every change (each answer in the test, say), and a new logo would start its 3.4 s loop from
+  // blank. A negative delay from one shared clock puts every new copy at the same point the old one had reached.
+  const phase = -Math.round(performance.now() % 3400);
   return el('div',{class:'mark', html: `
     <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -1782,8 +1785,8 @@ function brandMark(){
         </filter>
       </defs>
       <path class="logo-base" d="${M_PATH}"/>
-      <path class="logo-lit" d="${M_PATH}"/>
-      <path class="logo-flash" d="${M_PATH}"/>
+      <path class="logo-lit" d="${M_PATH}" style="animation-delay:${phase}ms"/>
+      <path class="logo-flash" d="${M_PATH}" style="animation-delay:${phase}ms"/>
     </svg>`});
 }
 
