@@ -1,10 +1,16 @@
 -- The profile write guard runs with an empty search_path (so nothing on the path can stand in for what it calls),
 -- but it called is_staff() without its schema, so every profile insert or update by a signed-in person, and every new
 -- account's profile, failed with "function is_staff(uuid) does not exist". Same function, with public.is_staff.
+--
+-- It also ran as SECURITY DEFINER, so inside it current_user was always its owner and it could not tell a person
+-- editing their own row from the site's own trusted functions (save_ideology_vector and the like, which run as their
+-- owner but keep the person's auth.uid()). It treated both as the person and quietly put the old values back, so a
+-- finished test never saved its compass, labels or archetype. It now runs as the caller: a direct write by a signed-in
+-- person (current_user 'authenticated') is guarded as before; writes from the server's own functions go through.
 create or replace function public.guard_profile_write()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path to ''
 as $function$
 declare
@@ -22,8 +28,8 @@ declare
   col text;
   col_default jsonb;
 begin
-  -- Edge functions / DB triggers run without a user JWT: always trusted.
-  if auth.uid() is null or public.is_staff(auth.uid()) then
+  -- Edge functions / DB triggers run without a user JWT, and the server's own functions run as their owner: trusted.
+  if auth.uid() is null or current_user not in ('authenticated', 'anon') or public.is_staff(auth.uid()) then
     return new;
   end if;
 
