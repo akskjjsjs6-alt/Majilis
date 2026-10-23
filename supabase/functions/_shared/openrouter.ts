@@ -116,7 +116,11 @@ async function ask(model: string, prompt: string, schema: unknown, temperature: 
     }),
     signal: AbortSignal.timeout(timeoutMs),
   });
-  const data = await res.json().catch(() => null);
+  // Time running out while the answer is still arriving is a timeout too (not an "empty answer"), so the model rests.
+  const data = await res.json().catch((e) => {
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') throw Object.assign(new Error(`OpenRouter ${model}: timed out while answering`), { name: 'TimeoutError' });
+    return null;
+  });
   if (!res.ok || data?.error) {
     const status = res.ok ? Number(data?.error?.code) || 500 : res.status;
     const next = NEXT_FORMAT[format];

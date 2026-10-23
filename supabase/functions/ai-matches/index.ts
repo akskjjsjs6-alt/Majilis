@@ -234,27 +234,36 @@ async function askLeaders(inp: CardInput): Promise<any[] | { error: string }> {
   }).filter(Boolean).sort((a: any, b: any) => b.pct - a.pct);
 }
 
+// Written as two requests at the same time (the nations; the ideologies): one long answer took a free model about 30 s
+// and sometimes ran out of time, two halves take about half as long each, and if one half fails the other still counts.
 async function askNationsAndIdeologies(inp: CardInput): Promise<{ countries: any[]; oldCountries: any[]; ideologies: any[] } | { error: string }> {
-  const prompt = `A person finished a long political test (their scores and their chosen answer to each question are below).\n\n1. Name 6 real, sovereign countries (from any region) whose mainstream politics and government TODAY sit nearest to this person, with each country's two-letter ISO 3166-1 code.\n1b. Name 5 real HISTORICAL states that existed before 1900 (kingdoms, empires, republics, caliphates, city-states; from any region) whose politics and government in their own time sit nearest to this person. "name": the state's exact English Wikipedia article title (e.g. "Kingdom of Prussia", "Dutch Republic", "Ottoman Empire").\n2. Name 8 specific, real political ideologies or schools of thought nearest to this person. Be precise rather than generic: e.g. "Ordoliberalism", "Christian democracy", "Georgism", "Distributism", "Kemalism", "Market socialism", "Paleoconservatism", "Social liberalism", "Eco-socialism", "Technocracy", "Islamic democracy", "Minarchism". Each "name" should be the ideology's usual English name (its Wikipedia article title).\nFor each ideology, "blurb": ONE plain sentence, at most 16 words, on what it stands for.\n${RULES}\n${personText(inp)}`;
-  const schema = { type: 'OBJECT', properties: {
+  const intro = `A person finished a long political test (their scores and their chosen answer to each question are below).\n\n`;
+  const nationsPrompt = intro + `1. Name 6 real, sovereign countries (from any region) whose mainstream politics and government TODAY sit nearest to this person, with each country's two-letter ISO 3166-1 code.\n2. Name 5 real HISTORICAL states that existed before 1900 (kingdoms, empires, republics, caliphates, city-states; from any region) whose politics and government in their own time sit nearest to this person. "name": the state's exact English Wikipedia article title (e.g. "Kingdom of Prussia", "Dutch Republic", "Ottoman Empire").\n${RULES}\n${personText(inp)}`;
+  const ideologiesPrompt = intro + `Name 8 specific, real political ideologies or schools of thought nearest to this person. Be precise rather than generic: e.g. "Ordoliberalism", "Christian democracy", "Georgism", "Distributism", "Kemalism", "Market socialism", "Paleoconservatism", "Social liberalism", "Eco-socialism", "Technocracy", "Islamic democracy", "Minarchism". Each "name" should be the ideology's usual English name (its Wikipedia article title).\nFor each ideology, "blurb": ONE plain sentence, at most 16 words, on what it stands for.\n${RULES}\n${personText(inp)}`;
+  const nationsSchema = { type: 'OBJECT', properties: {
     countries: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, code: { type: 'STRING' }, ...PLACED }, required: ['name', 'code', 'economic', 'political', 'social'] } },
     oldCountries: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, ...PLACED }, required: ['name', 'economic', 'political', 'social'] } },
+  }, required: ['countries', 'oldCountries'] };
+  const ideologiesSchema = { type: 'OBJECT', properties: {
     ideologies: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, blurb: { type: 'STRING' }, ...PLACED }, required: ['name', 'blurb', 'economic', 'political', 'social'] } },
-  }, required: ['countries', 'oldCountries', 'ideologies'] };
-  const r = await gemini(prompt, schema, 0.4);
-  if ('error' in r) return r;
-  const countries = (r.data.countries ?? []).map((c: any) => {
+  }, required: ['ideologies'] };
+  const [rn, ri] = await Promise.all([gemini(nationsPrompt, nationsSchema, 0.4), gemini(ideologiesPrompt, ideologiesSchema, 0.4)]);
+  if ('error' in rn && 'error' in ri) return rn;
+  const dn = 'error' in rn ? {} : rn.data, di = 'error' in ri ? {} : ri.data;
+  if ('error' in rn) console.log(`card: nations failed (${rn.error}); ideologies only`);
+  if ('error' in ri) console.log(`card: ideologies failed (${ri.error}); nations only`);
+  const countries = (dn.countries ?? []).map((c: any) => {
     const pos = readPos(c), code = clip(c?.code, 2).toLowerCase();
     return pos && /^[a-z]{2}$/.test(code) ? { name: clip(c.name, 40), code, pos, pct: closeAll(inp, pos) } : null;
   }).filter(Boolean).sort((a: any, b: any) => b.pct - a.pct);
   const seenOld = new Set<string>();
-  const oldCountries = (r.data.oldCountries ?? []).map((c: any) => {
+  const oldCountries = (dn.oldCountries ?? []).map((c: any) => {
     const pos = readPos(c), name = clip(c?.name, 60);
     if (!pos || !name || seenOld.has(name.toLowerCase())) return null;
     seenOld.add(name.toLowerCase());
     return { name, pos, pct: closeAll(inp, pos) };
   }).filter(Boolean).sort((a: any, b: any) => b.pct - a.pct);
-  const ideologies = (r.data.ideologies ?? []).map((i: any) => {
+  const ideologies = (di.ideologies ?? []).map((i: any) => {
     const pos = readPos(i);
     return pos && i?.name ? { name: clip(i.name, 50), blurb: clip(i.blurb, 160), pos, pct: closeAll(inp, pos) } : null;
   }).filter(Boolean).sort((a: any, b: any) => b.pct - a.pct);
