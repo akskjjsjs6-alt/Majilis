@@ -6,9 +6,25 @@
 
 const KEY = Deno.env.get('NVIDIA_API') ?? Deno.env.get('OPENROUTER_API_KEY');
 const URL = 'https://openrouter.ai/api/v1/chat/completions';
-// Fast, inexpensive models, best first; if one is busy, fails or answers in the wrong shape, the next is tried.
-const MODELS = ['deepseek/deepseek-v4.1-flash', 'z-ai/glm-5.3-flash', 'nvidia/nemotron-3.5-lightning'];
+// Free models first, then a few inexpensive paid ones. If one is busy, fails, is too slow or answers in the wrong
+// shape, the next is tried, and Gemini (in each function) comes after all of them. openrouter/free is OpenRouter's
+// own pick from whatever free models are up at the moment, as the last free try.
+const FREE_MODELS = [
+  'nvidia/nemotron-3.5-lightning:free',      // fastest
+  'nvidia/nemotron-3.5-super-vl:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'thinkingmachines/inkling-small:free',
+  'openrouter/free',
+];
+const PAID_MODELS = ['deepseek/deepseek-v4.1-flash', 'z-ai/glm-5.3-flash', 'nvidia/nemotron-3.5-lightning'];
+const MODELS = [...FREE_MODELS, ...PAID_MODELS];
+const isFree = (m: string) => FREE_MODELS.includes(m);
+const TRY_MS = 20_000;   // one model gets at most this long, so a slow one can't use up the whole wait
 const busyUntil: Record<string, number> = {};   // a model that said it's overloaded is skipped for a minute
+// Free models share a daily allowance on the account; once it's used up, every free model says so, so they are all
+// skipped for a while instead of each being asked in turn.
+let freeOut = 0;
 
 // Gemini schema ({ type: 'OBJECT', ... }) to JSON Schema ({ type: 'object', ... }).
 function toJsonSchema(s: any): any {
@@ -75,9 +91,12 @@ async function ask(model: string, prompt: string, schema: unknown, temperature: 
   if (!res.ok || data?.error) {
     const status = res.ok ? Number(data?.error?.code) || 500 : res.status;
     if (format === 'schema' && status === 400) return ask(model, prompt, schema, temperature, timeoutMs, 'json');   // this model doesn't take a schema
-    const err: any = new Error(`OpenRouter ${status} (${model}): ${String(data?.error?.message ?? '').slice(0, 140)}`);
+    const msg = String(data?.error?.message ?? '');
+    const err: any = new Error(`OpenRouter ${status} (${model}): ${msg.slice(0, 140)}`);
     err.busy = status === 429 || status >= 500;
-    err.fatal = status === 401 || status === 402;   // a bad key or no credit: no other model will do better
+    err.freeOut = status === 429 && isFree(model) && /per[- ]day|daily/i.test(msg);
+    err.fatal = status === 401;   // a bad key: no other model will do better
+    err.noCredit = status === 402;   // no credit: only the free models can still answer
     throw err;
   }
   const text = data?.choices?.[0]?.message?.content;
@@ -92,18 +111,24 @@ async function ask(model: string, prompt: string, schema: unknown, temperature: 
 export async function aiJson(prompt: string, schema: unknown, temperature = 0.3, budgetMs = 45_000, label = ''): Promise<any | null> {
   if (!KEY) return null;
   const start = Date.now();
-  const order = [...MODELS.filter((m) => !(busyUntil[m] > start)), ...MODELS.filter((m) => busyUntil[m] > start)];
+  const usable = MODELS.filter((m) => !(isFree(m) && freeOut > start));
+  const order = [...usable.filter((m) => !(busyUntil[m] > start)), ...usable.filter((m) => busyUntil[m] > start)];
+  let noCredit = false;
   for (const model of order) {
+    if (noCredit && !isFree(model)) continue;
+    if (isFree(model) && freeOut > Date.now()) continue;
     const left = start + budgetMs - Date.now();
     if (left < 4000) break;
     try {
-      const out = await ask(model, prompt, schema, temperature, Math.min(40_000, left), 'schema');
+      const out = await ask(model, prompt, schema, temperature, Math.min(TRY_MS, left), 'schema');
       console.log(`ai: openrouter ${model} ${Date.now() - start}ms ${label}`);
       return out;
     } catch (e: any) {
       if (e?.name === 'TimeoutError' || e?.busy) busyUntil[model] = Date.now() + 60_000;
+      if (e?.freeOut) freeOut = Date.now() + 15 * 60_000;
       console.warn(`ai: openrouter ${model} failed ${label}: ${String(e?.message ?? e).slice(0, 180)}`);
       if (e?.fatal) break;
+      if (e?.noCredit) noCredit = true;
     }
   }
   return null;
