@@ -2826,12 +2826,37 @@ const cardMatchKey = () => 'majlis-card-' + (state.user && state.user.id || 'gue
 const answersKey = () => 'majlis-answers-' + (state.user && state.user.id || 'guest');
 const compassSig = (c) => ['economic', 'political', 'social'].map(k => c[k].x + ',' + c[k].y).join('|');
 let cardMatchesMemory = null;   // kept here too, in case the device can't store it
+// Ideologies rooted in one faith are only for people of that faith: a Muslim is never shown Christian democracy (the
+// server filters the AI's answers the same way; this also covers results saved before it did).
+const FAITH_OF = [['Christianity', /christian|catholic|protestant|evangelical|social gospel|liberation theology/i], ['Islam', /islam|muslim|caliphat|salafi|wahhab/i],
+  ['Judaism', /judai|jewish|zionis|torah/i], ['Hinduism', /hindu/i], ['Buddhism', /buddhis/i], ['Sikhism', /sikh|khalsa/i]];
+function faithClash(name){
+  const mine = state.user && state.user.religion;
+  if(!mine || /^(Atheism|Agnosticism|Spiritual but not religious|Other|Prefer not to say)$/.test(mine)) return false;
+  const its = (FAITH_OF.find(([, re]) => re.test(name || '')) || [])[0];
+  return !!(its && its !== mine);
+}
+function faithSafeMatches(m){
+  if(m && m.ideologies) m.ideologies = m.ideologies.filter(i => !faithClash(i.name));
+  return m;
+}
+// A precision result whose match is another faith's ideology: the closest runner-up that fits takes its place.
+function faithSafePrecision(r){
+  if(!r || !r.match) return r;
+  const runners = (r.runnersUp || []).filter(x => x && !faithClash(x.name));
+  if(faithClash(r.match.name) && runners.length){
+    const next = runners.shift();
+    r.match = { name: next.name, blurb: next.blurb || '', fit: next.fit || 0, why: 'Of the ideologies that fit your answers, ' + next.name + ' is the closest one that sits with your own faith.' };
+  }
+  r.runnersUp = runners;
+  return r;
+}
 function savedCardMatches(){
   const c = state.user && state.user.compass;
   if(!c) return null;
   const sig = compassSig(c);
-  if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return cardMatchesMemory;
-  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 4 && m.sig === sig ? m : null; } catch(e){ return null; }
+  if(cardMatchesMemory && cardMatchesMemory.sig === sig && cardMatchesMemory.key === cardMatchKey()) return faithSafeMatches(cardMatchesMemory);
+  try { const m = JSON.parse(localStorage.getItem(cardMatchKey()) || 'null'); return m && m.v === 4 && m.sig === sig ? faithSafeMatches(m) : null; } catch(e){ return null; }
 }
 // The leader shown for an era: the closest one who has a photo, so the card always shows a face.
 function leaderFor(m, era){
@@ -3315,7 +3340,7 @@ function renderResultOverlay(){
 /* ================= THE RESULTS REVEAL (after the test, before the card) =================
    A short animation through your results (about 30 seconds): the Majlis M draws itself, then your conviction
    score, what sets you apart, where you sit on the three maps, a world heat map of your closest nations, podiums of
-   your three closest nations and leaders (modern and historical), your fingerprint beside your closest leader's,
+   your three closest nations, leaders and parties (each today and in history),
    your era, your three closest ideologies, and finally the card spins up and hands over to the card window. It
    sits outside the page, so the page redrawing underneath never restarts it. Everything it shows comes from the
    AI's matches: the leaders, nations and ideologies it placed on the three maps are the crowd
@@ -3579,6 +3604,19 @@ function rvFigureScene(m){
   return rvTopScene('Figures closest to you', eras, (key) => rvPodium(eras.find(e => e.key === key).list,
     (l) => portraitNode(l.name, l.photo), (l) => [l.label, rvEraNote(key)].filter(Boolean).join(' · '), (l) => l.why));
 }
+// Your closest parties, today and in history, the same way as the leaders: a podium for each, a switch between them.
+// They come from the AI's "more" results (rxMore in results.js), asked for while the reveal waits on your card.
+function rvPartyScene(){
+  const more = typeof rxMore === 'function' ? rxMore() : null;
+  if(!more || !more.parties.length) return null;
+  const eras = [{ key: 'modern', label: 'Today', list: more.parties.filter(p => p.active) }, { key: 'historical', label: 'Historical', list: more.parties.filter(p => !p.active) }]
+    .filter(e => e.list.length);
+  if(!eras.length) return null;
+  const nameOf = (p) => Object.assign({}, p, { name: p.short && p.short !== p.name && p.name.length > 28 ? p.short : p.name });
+  eras.forEach(e => { e.list = e.list.map(nameOf); });
+  return rvTopScene('Parties closest to you', eras, (key) => rvPodium(eras.find(e => e.key === key).list,
+    (p) => el('span',{class:'rv-flag'}, rxFlag(p.code, p.country)), (p) => [p.country, key === 'modern' ? 'active today' : 'historical party'].filter(Boolean).join(' · '), (p) => p.blurb));
+}
 // Where an ideology sits economically, as a plain tag.
 function rvSide(i){
   if(!okPos(i.pos)) return null;
@@ -3712,29 +3750,6 @@ function rvFingerprint(v, colors, cls, coarse){
   const code = 'MJ-' + v.reduce((h, x) => Math.imul(h ^ x, 16777619) >>> 0, 2166136261).toString(16).toUpperCase().padStart(8, '0').replace(/(.{4})/, '$1-');
   return { node: el('div',{class:'rv-fp ' + (cls || ''), html: svg}), read: d, code };
 }
-// After the leaders: your print beside your closest leader's, then the two slide together so the ridges overlap.
-function rvPrintScene(m){
-  const pick = ['modern', 'historical'].map(e => leaderFor(m, e)).filter(l => l && okPos(l.pos)).sort((a, b) => b.pct - a.pct)[0];
-  if(!pick) return null;
-  const mine = rvFingerprint(rvFpValues(state.user.compass), ['var(--neon)', 'var(--accent)'], 'rv-fp--you');
-  const theirs = rvFingerprint(rvFpValues(pick.pos), ['var(--gold)', 'var(--danger)'], 'rv-fp--them');
-  const side = (f, who, face, d0) => el('div',{class:'rv-prints__side ' + (f === mine ? 'is-l' : 'is-r')},[
-    el('div',{class:'rv-prints__print'},[f.node, el('i',{class:'rv-prints__scan', style:'--d:' + rvD(d0 + 1500) + 'ms'})]),
-    el('div',rvIn(d0 + 1900, 'rv-prints__who'),[face, el('div',{},[el('b',{}, who), el('small',{}, f.read.type + ' · ' + f.read.core + ' core')])]),
-    el('code',rvIn(d0 + 2100, 'rv-prints__code'), f.code),
-  ]);
-  const you = el('div',{class:'match-photo rv-prints__you'}, 'You');
-  return { title: 'Your fingerprint', ms: rvD(5200), node: el('div',{class:'rv-scene'},[el('div',{class:'rv-scene__in'},[
-    el('div',{class:'rv-head'},[el('h2',{class:'rv-title'}, rvWords('Your fingerprint', 0, 90)),
-      el('p',rvIn(300, 'rv-sub rv-sub--head'), 'Drawn from where you each sit on the three maps. Different answers, different print.')]),
-    el('div',{class:'rv-prints', style:'--m:' + rvD(3300) + 'ms'},[
-      side(mine, 'You', you, 200),
-      el('div',{class:'rv-prints__mid'},[rvRing(pick.pct, 3500), el('small',rvIn(3900), 'Where the ridges run together, you think alike')]),
-      side(theirs, pick.name, portraitNode(pick.name, pick.photo), 500),
-    ]),
-  ])]) };
-}
-
 // Your era: are your closest modern matches (1900 to today) or historical ones (before 1900) nearer to you?
 // The average of the top three leaders and the top three nations of each era decides it.
 function rvEraFitScene(m){
@@ -3898,14 +3913,14 @@ function startResultsReveal(){
   if(!m && !waiting) return openCard();
   // Each scene is built once here (empty ones are left out) and built again only when you go back to it.
   rvWorld();   // the map outlines start loading now, so they're ready by their scene
-  const LATER = [rvApartScene, rvMapsScene, rvCubeScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvSkyScene, rvPrecisionScene, rvCardScene];
+  const LATER = [rvApartScene, rvMapsScene, rvCubeScene, rvWorldScene, rvNationScene, rvFigureScene, rvPartyScene, rvEraFitScene, rvIdeologyScene, rvPrecisionScene, rvCardScene];
   const build = (fs) => fs.map(f => { const s = f(m); return s && { f, s, title: s.title, auto: !!s.auto }; }).filter(Boolean);
   const usable = (list) => list.length >= 1 && list[list.length - 1].f === rvCardScene;
   let parts;
   if(waiting){
     const waitPart = { f: rvWaitScene, s: null, title: 'Finding your people', auto: true };
     let settling = null;
-    const settle = () => settling || (settling = cardMatchesReady().then(ok => {
+    const settle = () => settling || (settling = cardMatchesReady().then(ok => ok ? Promise.race([partiesReady(), new Promise(r => setTimeout(r, 20000))]).then(() => ok) : ok).then(ok => {
       m = ok ? savedCardMatches() : null;
       const rest = m ? build(LATER) : [];
       const at = parts.indexOf(waitPart);
@@ -7369,7 +7384,7 @@ function savedPrecision(){
   if(!c) return null;
   const sig = compassSig(c);
   if(precisionMemory && precisionMemory.sig === sig && precisionMemory.key === precisionKey()) return precisionMemory;
-  try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); return p && p.v === 3 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
+  try { const p = JSON.parse(localStorage.getItem(precisionKey()) || 'null'); if(p && p.result) faithSafePrecision(p.result); return p && p.v === 3 && p.sig === sig ? (precisionMemory = Object.assign(p, { key: precisionKey() })) : null; } catch(e){ return null; }
 }
 function savePrecision(p){
   if(p.early) return;   // only kept in memory until your results are in
@@ -7499,7 +7514,7 @@ function applyPrecisionRound(p, data){
   const cur = savedPrecision();
   if(!cur || cur.sig !== p.sig) return;
   cur.round += 1; cur.batch = questions; cur.idx = 0;
-  cur.candidates = (data.candidates || []).filter(c => c && c.name).map(c => ({ name: String(c.name), blurb: String(c.blurb || '') }));
+  cur.candidates = (data.candidates || []).filter(c => c && c.name && !faithClash(String(c.name))).map(c => ({ name: String(c.name), blurb: String(c.blurb || '') }));
   savePrecision(cur);
 }
 // The next round: the questions still owed (10, or fewer if an earlier round came back short). Written in the
@@ -7548,7 +7563,7 @@ function loadPrecisionFinal(){
     const r = data && data.result;
     const cur = savedPrecision();
     if(!cur) return;
-    if(r && r.match && r.match.name) cur.result = { match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] };
+    if(r && r.match && r.match.name) cur.result = faithSafePrecision({ match: r.match, runnersUp: Array.isArray(r.runnersUp) ? r.runnersUp : [], deciding: Array.isArray(r.deciding) ? r.deciding : [] });
     else {
       cur.result = localPrecisionResult(cur);
       // The AI's answer, if it comes later, replaces the quick result.
@@ -7556,16 +7571,28 @@ function loadPrecisionFinal(){
       ask.then(d => {
         const rr = d && d.result, now = savedPrecision();
         if(!rr || !rr.match || !rr.match.name || !now || now.sig !== sig || !now.result || !now.result.local) return;
-        now.result = { match: rr.match, runnersUp: Array.isArray(rr.runnersUp) ? rr.runnersUp : [], deciding: Array.isArray(rr.deciding) ? rr.deciding : [] };
+        now.result = faithSafePrecision({ match: rr.match, runnersUp: Array.isArray(rr.runnersUp) ? rr.runnersUp : [], deciding: Array.isArray(rr.deciding) ? rr.deciding : [] });
         savePrecision(now);
         if(state.tab === 'precision') render();
       }).catch(() => {});
     }
     savePrecision(cur);
-    // Straight after the test, the round ends in the results reveal (which plays its middle part while your card's
-    // matches are still being found).
-    if(cur.afterTest) return finishPrecisionFlow;
+    // Straight after the test, "Deciding" stays up until your card's matches and your parties are in too (for up to
+    // REVEAL_WAIT_MS), so the results reveal then plays straight through; if the AI is slower than that, the reveal's
+    // own middle part covers the rest.
+    if(cur.afterTest) return () => revealInputsReady(REVEAL_WAIT_MS).then(finishPrecisionFlow);
   });
+}
+const REVEAL_WAIT_MS = 60000;
+function revealInputsReady(ms){
+  const all = cardMatchesReady().then(ok => ok ? partiesReady() : null).catch(() => {});
+  return Promise.race([all, new Promise(r => setTimeout(r, ms))]);
+}
+// Your closest parties (for their scene in the reveal), asked for once your card's matches are in.
+function partiesReady(){
+  if(typeof rxMore !== 'function' || rxMore()) return Promise.resolve();
+  if(!rx.more.loading && !rx.more.error) rxFetchMore();
+  return new Promise(done => { const t = setInterval(() => { if(!rx.more.loading){ clearInterval(t); done(); } }, 300); });
 }
 function answerPrecision(opt){
   const p = savedPrecision();
@@ -7676,7 +7703,37 @@ function plStepTick(){
 }
 const PL_SPOTS = [[13, 14], [37, 14], [63, 14], [87, 14], [25, 38], [50, 38], [75, 38], [13, 62], [37, 62], [63, 62], [87, 62], [25, 86], [50, 86], [75, 86]];
 let plTimer = null;
+// The last screen of the round ("Deciding"): its own look, so it doesn't replay the funnel you saw between rounds.
+// Your finalists circle the Majlis seal and light up in turn while the AI names your match; it stays up until your
+// card, leaders and parties are in too, then the results reveal plays.
+function precisionDecider(p, cfg){
+  const finalists = (p && p.candidates && p.candidates.length ? p.candidates.map(c => c.name) : plNames(p).names).slice(0, 6);
+  const slots = finalists.map((n, i) => el('div',{class:'dc-slot', style:'--a:' + Math.round(i / finalists.length * 360) + 'deg'}, el('span',{class:'dc-name'}, n)));
+  const node = el('div',{class:'pl pl--final dc', role:'status', 'aria-live':'polite'},[
+    el('div',{class:'dc-stage', 'aria-hidden':'true'},[
+      el('i',{class:'dc-ring'}), el('i',{class:'dc-ring dc-ring--2'}), el('i',{class:'dc-ring dc-ring--3'}),
+      el('div',{class:'dc-orbit'}, slots),
+      el('div',{class:'dc-seal', html: M_SVG(10)}),
+    ]),
+    el('div',{class:'pl-kicker'}, cfg.kicker),
+    el('div',{class:'pl-title'}, cfg.title),
+    el('div',{class:'pl-steps'}, cfg.steps.map((t, i) => el('span',{class: i ? '' : 'is-on'}, t + '…'))),
+    el('div',{class:'pl-bar', 'aria-hidden':'true'}, el('i')),
+  ]);
+  const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let k = 0;
+  const lit = setInterval(() => {
+    if(!node.isConnected && k > 2){ clearInterval(lit); return; }
+    slots.forEach((s, i) => s.classList.toggle('is-lit', i === k % slots.length));
+    const seal = node.querySelector('.dc-seal');
+    if(seal){ seal.classList.remove('is-pulse'); void seal.offsetWidth; seal.classList.add('is-pulse'); }
+    k += 1;
+  }, still ? 2400 : 1300);
+  if(!plStepTimer) plStepTimer = setInterval(plStepTick, 250);
+  return node;
+}
 function precisionLoader(p, cfg){
+  if(cfg.decide) return precisionDecider(p, cfg);
   const list = plNames(p);
   const take = () => { const n = list.names[list.next % list.names.length]; list.next += 1; return n; };
   const names = PL_SPOTS.map(([x, y], i) => el('span',{class:'pl-name' + (x < 20 || x > 80 ? ' pl-name--edge' : x === 50 ? ' pl-name--mid' : x < 50 ? ' pl-name--l' : ' pl-name--r'), style:'left:' + x + '%;top:' + y + '%;--i:' + i}, take()));
@@ -7713,8 +7770,8 @@ function plTick(take){
     } else n.classList.add('is-kept');
   }, 880);
 }
-const PL_FINAL = { kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match', final: true,
-  steps: ['Weighing all 40 answers', 'Comparing the last few', 'Naming your match'] };
+const PL_FINAL = { kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Deciding', final: true, decide: true,
+  steps: ['Weighing all 40 answers', 'Comparing your finalists', 'Naming your match', 'Lining up your leaders, nations and parties'] };
 const AREA_LABEL = { political: 'Politics', economic: 'Economics', social: 'Society', religious: 'Religion', philosophical: 'Philosophy' };
 function renderPrecision(){
   const wrap = el('div',{class:'prec-page'});
