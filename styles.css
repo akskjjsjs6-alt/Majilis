@@ -3057,6 +3057,25 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rv-logo svg { width: 100%; height: 100%; }
 .rv-logo path { stroke-dasharray: 400; stroke-dashoffset: 400; animation: rvDraw 1.1s .1s cubic-bezier(.6,0,.3,1) forwards; }
 @keyframes rvDraw { to { stroke-dashoffset: 0; } }
+/* The middle part of the reveal, while the AI is still finding your matches: an orbit around the M, then what it is doing now. */
+.rv-wait__orb { position: relative; width: 170px; height: 170px; margin: 0 auto 22px; }
+.rv-wait__ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--neon) 55%, transparent);
+  animation: rvWaitRing 3s cubic-bezier(.2,.6,.4,1) calc(var(--k, 0) * 1s) infinite; opacity: 0; }
+@keyframes rvWaitRing { 0% { transform: scale(.45); opacity: .9; } 100% { transform: scale(1.15); opacity: 0; } }
+.rv-wait__sat { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 12px var(--accent); animation: rvWaitOrbit calc(5s + var(--i) * .7s) linear calc(var(--i) * -1.3s) infinite; }
+.rv-wait__sat:nth-child(odd) { background: var(--gold); box-shadow: 0 0 12px var(--gold); }
+@keyframes rvWaitOrbit { from { transform: rotate(0deg) translateX(calc(52px + var(--i) * 6px)) rotate(0deg); } to { transform: rotate(360deg) translateX(calc(52px + var(--i) * 6px)) rotate(-360deg); } }
+.rv-wait__m { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; animation: rvWaitBeat 2.4s ease-in-out infinite; }
+@keyframes rvWaitBeat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.rv-wait__body { max-width: 440px; margin: 26px auto 0; }
+.rv-wait__steps { position: relative; height: 22px; font-size: 15px; color: var(--text); }
+.rv-wait__steps span { position: absolute; left: 0; right: 0; opacity: 0; transform: translateY(6px); transition: opacity .35s, transform .35s; }
+.rv-wait__steps span.is-on { opacity: 1; transform: none; }
+.rv-wait__bar { position: relative; height: 4px; margin: 14px auto 0; max-width: 300px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.rv-wait__bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 4px; background: var(--neon); transition: width .5s ease; }
+.rv-wait__acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { .rv-wait__ring, .rv-wait__sat, .rv-wait__m { animation: none; } .rv-wait__ring { opacity: .3; } }
 @keyframes rvLogo { 0% { transform: scale(.8); } 40% { transform: scale(1); } 100% { transform: scale(1.06); } }
 .rv-lede { margin: 18px 0 0; color: var(--muted); font-size: clamp(16px, 2.2vw, 20px); }
 

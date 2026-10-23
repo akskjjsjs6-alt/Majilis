@@ -3807,6 +3807,70 @@ function rvWorldScene(m){
   ])]) };
 }
 
+// The middle part: straight after the test the AI may still be finding your leaders, nations and ideologies. The
+// reveal opens anyway (the opening and your conviction score don't need them) and this scene plays until they are
+// in: an orbit around the M, and what the AI is doing now, moving on by the clock and holding on the last step.
+const RV_WAIT_STEPS = ['Placing world leaders on your three maps', 'Comparing present-day nations', 'Looking back through history',
+  'Matching the ideologies closest to you', 'Finding portraits for your card'];
+const RV_WAIT_MIN = 4500;   // it always plays this long, so it never just flashes past
+function rvWaitScene(ready, retry, giveUp){
+  const p = savedPrecision(), match = p && p.result && p.result.match && p.result.match.name;
+  const steps = el('div',{class:'rv-wait__steps'}, RV_WAIT_STEPS.map((t, i) => el('span',{class: i ? '' : 'is-on'}, t + '…')));
+  const fill = el('i');
+  const orbit = el('div',{class:'rv-wait__orb', 'aria-hidden':'true'},[
+    el('i',{class:'rv-wait__ring'}), el('i',{class:'rv-wait__ring', style:'--k:1'}), el('i',{class:'rv-wait__ring', style:'--k:2'}),
+    ...[0, 1, 2, 3, 4, 5].map(i => el('i',{class:'rv-wait__sat', style:'--i:' + i})),
+    el('div',{class:'rv-logo rv-wait__m', html: M_SVG(10)}),
+  ]);
+  const body = el('div',{class:'rv-wait__body'},[steps, el('div',{class:'rv-wait__bar'}, fill)]);
+  const node = el('div',{class:'rv-scene rv-scene--intro rv-wait'},[el('div',{class:'rv-scene__in'},[
+    orbit,
+    el('div',rvIn(0, 'rv-kicker'), 'ALMOST THERE'),
+    el('h2',{class:'rv-title'}, rvWords('Finding your people', 100, 100)),
+    el('p',rvIn(700, 'rv-lede'), match ? 'You\'re closest to ' + match + '. Now the AI is finding the leaders, nations and ideologies that share your views.'
+      : 'The AI is finding the leaders, nations and ideologies that share your views.'),
+    el('div',rvIn(1100), body),
+  ])]);
+  let t0 = 0, timer = null, done = false;   // its clock starts when it comes on, not when it's built
+  const tick = () => {
+    if(!node.isConnected && Date.now() - t0 > 2000){ clearInterval(timer); timer = null; return; }
+    const secs = (Date.now() - t0) / 1000;
+    const k = done ? RV_WAIT_STEPS.length - 1 : Math.min(RV_WAIT_STEPS.length - 1, Math.floor(secs / 2.6));
+    [...steps.children].forEach((n, i) => n.classList.toggle('is-on', i === k));
+    fill.style.width = (done ? 100 : Math.round(92 * (1 - Math.exp(-secs / 14)))) + '%';
+  };
+  return { title: 'Finding your people', auto: true, wait: true, node, settle: ready,
+    // Called when the scene comes on: moves on (go) once the matches are in and it has played for a while.
+    hold(go){
+      if(!t0) t0 = Date.now();
+      if(!timer){ timer = setInterval(tick, 200); tick(); }
+      ready().then(ok => {
+        if(!ok){
+          clearInterval(timer);
+          body.replaceChildren(el('p',{class:'rv-sub rv-sub--c'}, 'The AI couldn\'t finish your matches just now.'),
+            el('div',{class:'rv-wait__acts'},[
+              el('button',{type:'button', class:'btn', onclick:()=>{ body.replaceChildren(steps, el('div',{class:'rv-wait__bar'}, fill)); timer = null; t0 = 0; retry(); }}, 'Try again'),
+              el('button',{type:'button', class:'btn secondary', onclick: giveUp}, 'See my card'),
+            ]));
+          return;
+        }
+        setTimeout(() => { done = true; tick(); clearInterval(timer); setTimeout(go, 500); }, Math.max(0, RV_WAIT_MIN - (Date.now() - t0)));
+      });
+    } };
+}
+// The card's matches, when they are in (true) or have failed (false); asks for them if nothing is asking yet.
+function cardMatchesReady(){
+  if(!cardMatchesPending){
+    if(savedCardMatches()) return Promise.resolve(true);
+    if(state.cardMatches.error) state.cardMatches = { loading: false, error: null };
+    const run = state.cardMatches.loading
+      ? new Promise(done => { const t = setInterval(() => { if(!state.cardMatches.loading){ clearInterval(t); done(); } }, 300); })
+      : fetchCardMatches();
+    cardMatchesPending = run.then(() => preloadCardPortrait()).catch(() => {}).finally(() => { cardMatchesPending = null; });
+  }
+  return cardMatchesPending.then(() => !!savedCardMatches());
+}
+
 // Closing: your card spins up out of the scene, a light sweeps across it, and it hands over to the card window.
 function rvCardScene(){
   const card = buildResultCard();
@@ -3823,19 +3887,52 @@ function rvCardScene(){
 // scene hands over to the card window by itself.
 let revealOpen = null;
 function startResultsReveal(){
-  const m = savedCardMatches();
   if(revealOpen) revealOpen.close(true);
   const openCard = () => { state.showCard = true; render(); };
-  if(!m || !state.user || !state.user.compass) return openCard();
+  if(!state.user || !state.user.compass) return openCard();
+  // Signed in with the AI's matches still on their way, the reveal opens with the scenes that don't need them, then
+  // the middle part (rvWaitScene) plays until they are in, and the rest follows.
+  const u = state.user, waiting = !!(cardMatchesPending || (!savedCardMatches() && !u.isGuest && u.id));
+  let m = waiting ? null : savedCardMatches();
+  if(!m && !waiting) return openCard();
   // Each scene is built once here (empty ones are left out) and built again only when you go back to it.
   rvWorld();   // the map outlines start loading now, so they're ready by their scene
-  const parts = [rvIntroScene, rvConvictionScene, rvApartScene, rvMapsScene, rvCubeScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvSkyScene, rvPrecisionScene, rvCardScene].map(f => ({ f, s: f(m) })).filter(x => x.s);
-  if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
-  const titles = parts.map(x => x.s.title);
+  const LATER = [rvApartScene, rvMapsScene, rvCubeScene, rvWorldScene, rvNationScene, rvFigureScene, rvPrintScene, rvEraFitScene, rvIdeologyScene, rvSkyScene, rvPrecisionScene, rvCardScene];
+  const build = (fs) => fs.map(f => { const s = f(m); return s && { f, s, title: s.title, auto: !!s.auto }; }).filter(Boolean);
+  const usable = (list) => list.length >= 1 && list[list.length - 1].f === rvCardScene;
+  let parts;
+  if(waiting){
+    const waitPart = { f: rvWaitScene, s: null, title: 'Finding your people', auto: true };
+    let settling = null;
+    const settle = () => settling || (settling = cardMatchesReady().then(ok => {
+      m = ok ? savedCardMatches() : null;
+      const rest = m ? build(LATER) : [];
+      const at = parts.indexOf(waitPart);
+      if(!m || !usable(rest) || at === -1){ settling = null; return false; }   // "Try again" asks again
+      // The matches are in: the rest of the scenes take the middle part's place (it plays on if it's showing).
+      parts.splice(at + 1, 0, ...rest);
+      if(ch !== at) parts.splice(at, 1);
+      paintDots();
+      return true;
+    }));
+    waitPart.s = rvWaitScene(settle, () => { const at = parts.indexOf(waitPart); scene = null; if(ch === at) show(at); }, () => finish());
+    parts = build([rvIntroScene, rvConvictionScene]).concat([waitPart]);
+  } else {
+    parts = build([rvIntroScene, rvConvictionScene]).concat(build(LATER));
+    if(parts.length < 3 || parts[parts.length - 1].f !== rvCardScene) return openCard();   // nothing to reveal
+  }
+  let titles = [];
   let ch = -1, scene = null, ended = false, readyTimer = null;
 
-  const dots = el('div',{class:'rv-dots', role:'group', 'aria-label':'Parts of the reveal'}, parts.map((x, k) => x.s.auto ? null :
-    el('button',{type:'button', class:'rv-dot', 'aria-label': titles[k], title: titles[k], onclick:()=>show(k)})));
+  const dots = el('div',{class:'rv-dots', role:'group', 'aria-label':'Parts of the reveal'});
+  function paintDots(){
+    titles = parts.map(x => x.title);
+    dots.replaceChildren(...parts.map((x, k) => x.auto ? null :
+      el('button',{type:'button', class:'rv-dot', 'aria-label': titles[k], title: titles[k], onclick:()=>show(parts.indexOf(x))})).filter(Boolean));
+    [...dots.children].forEach(d => d.classList.toggle('is-on', d.title === titles[ch]));
+  }
+  paintDots();
+  if(waiting) parts.find(x => x.f === rvWaitScene).s.settle();   // matches in before you get there: the middle part is left out
   const count = el('span',{class:'rv-count', 'aria-hidden':'true'});
   const backBtn = el('button',{type:'button', class:'rv-back', 'aria-label':'Back', onclick:()=>back()}, '‹');
   const nextBtn = el('button',{type:'button', class:'rv-next', onclick:()=>show(ch + 1)}, 'Next ›');
@@ -3854,9 +3951,10 @@ function startResultsReveal(){
     clearTimeout(readyTimer);
     ch = k;
     const next = parts[k].s || parts[k].f(m);
-    parts[k].s = null;
+    if(!next.wait) parts[k].s = null;
     const old = scene;
-    if(old){ old.node.classList.add('is-out'); setTimeout(() => old.node.remove(), 900); }
+    if(old){ old.node.classList.add('is-out'); setTimeout(() => { if(scene !== old) old.node.remove(); }, 900); }
+    next.node.classList.remove('is-out');   // the middle part is the same scene each time you come back to it
     scene = next;
     stage.appendChild(next.node);
     root.dataset.ch = String(k);
@@ -3869,6 +3967,12 @@ function startResultsReveal(){
     else nextBtn.append('Next', el('span',{class:'rv-next__to'}, ': ' + after.replace(/ closest to you$/, '')), ' ›');   // phones show just "Next ›"
     count.textContent = ([...dots.children].findIndex(d => d.title === titles[k]) + 1) + ' / ' + dots.children.length;
     nextBtn.classList.remove('is-ready');
+    // The middle part moves on once the AI's matches are in (to the scene that took its place).
+    const part = parts[k];
+    if(next.wait) return next.hold(() => {
+      if(ended || parts[ch] !== part) return;
+      const at = ch; parts.splice(at, 1); paintDots(); show(at);
+    });
     // The opening and the card move on by themselves; every other scene waits for you once it has played.
     readyTimer = setTimeout(() => {
       if(parts[k].f === rvCardScene) return handOver();
@@ -7322,9 +7426,8 @@ function queuePrecisionAfterTest(){
   precisionUi.error = null;
   state.tab = 'precision';
 }
-// Leaves the round for your results: the compass page, with the reveal playing over it.
 // Leaves the round for your results: the compass page, with the reveal playing over it. If your card is still being
-// made, the compass page shows that and the reveal starts as soon as the card is ready.
+// made, the reveal plays its middle part until it is ready.
 let cardMatchesPending = null;   // the card's AI step, running in the background after the test
 function finishPrecisionFlow(){
   const p = savedPrecision();
@@ -7332,8 +7435,7 @@ function finishPrecisionFlow(){
   if(p && p.afterTest){ p.afterTest = false; savePrecision(p); }
   navigateWithLoading('compass');
   if(!reveal) return;
-  if(cardMatchesPending) cardMatchesPending.then(() => { if(state.tab === 'compass') startResultsReveal(); });
-  else startResultsReveal();
+  startResultsReveal();
 }
 function startPrecision(){
   precisionAhead = null;
@@ -7459,9 +7561,9 @@ function loadPrecisionFinal(){
       }).catch(() => {});
     }
     savePrecision(cur);
-    // Straight after the test, the round ends in the end results. This screen stays up until your card is made
-    // too, so the reveal follows it straight away.
-    if(cur.afterTest) return async () => { if(cardMatchesPending) await cardMatchesPending; finishPrecisionFlow(); };
+    // Straight after the test, the round ends in the results reveal (which plays its middle part while your card's
+    // matches are still being found).
+    if(cur.afterTest) return finishPrecisionFlow;
   });
 }
 function answerPrecision(opt){
@@ -7611,7 +7713,7 @@ function plTick(take){
   }, 880);
 }
 const PL_FINAL = { kicker: 'PRECISION ROUND · ALL 40 ANSWERED', title: 'Finding your exact match', final: true,
-  steps: ['Weighing all 40 answers', 'Naming your match', 'Putting your results together'] };
+  steps: ['Weighing all 40 answers', 'Comparing the last few', 'Naming your match'] };
 const AREA_LABEL = { political: 'Politics', economic: 'Economics', social: 'Society', religious: 'Religion', philosophical: 'Philosophy' };
 function renderPrecision(){
   const wrap = el('div',{class:'prec-page'});
