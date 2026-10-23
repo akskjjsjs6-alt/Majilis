@@ -2626,11 +2626,6 @@ h2 .role-tag { font-size: 0.5em; }
 .rc9__faith .rc9-emb { width: 11.6cqw; height: 11.6cqw; }
 .rc9__faith .rc9-who__era { margin-top: 0.4cqw; }
 .rc9__flavor { inset: 0; pointer-events: none; z-index: 3; }
-/* Your fingerprint and its MJ code, beside "Your axes". */
-.rc9-fp { left: 44.6cqw; top: 28.6cqw; width: 11.6cqw; display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 4; }
-.rc9-fp .rv-fp { position: relative; inset: auto; clip-path: none; animation: none; width: 9.4cqw; height: 12.2cqw; filter: drop-shadow(0 0 0.5cqw rgba(0,0,0,0.6)); }
-.rc9-fp .rv-fp svg { display: block; width: 100%; height: 100%; }
-.rc9-fp__code { margin-top: 0.4cqw; font: 800 1.3cqw/1 ui-monospace, 'SFMono-Regular', Menlo, monospace; letter-spacing: 0.04em; color: var(--rc-ink); text-shadow: var(--rc-head-shadow); white-space: nowrap; }
 .rc9__flavor svg { display: block; width: 100%; height: 100%; overflow: visible; }
 /* room around the card for what pops out of it */
 .rc-wrap .rc9 { width: 86%; max-width: 400px; margin: 13% auto 0; }
@@ -3321,11 +3316,8 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rv-ring__in b { font-size: 32px; font-weight: 800; color: var(--accent); line-height: 1; letter-spacing: -.02em; }
 .rv-ring__in small { font-size: 11px; letter-spacing: .2em; font-weight: 700; color: var(--muted); margin-top: 4px; }
 
-/* fingerprints (the one on your card) draw themselves in */
+/* a scene's subtitle under its heading */
 .rv-sub--head { margin: 0; flex-basis: 100%; }
-.rv-fp { position: absolute; inset: 0; clip-path: circle(0% at 50% 48%); animation: rvFpGrow 2.2s cubic-bezier(.45,0,.2,1) both; }
-@keyframes rvFpGrow { to { clip-path: circle(75% at 50% 48%); } }
-.rv-fp svg { width: 100%; height: 100%; display: block; }
 
 /* closing: the card spins up and a light runs across it */
 .rv-scene--card .rv-scene__in { display: flex; flex-direction: column; align-items: center; }

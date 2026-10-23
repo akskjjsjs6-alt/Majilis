@@ -3255,9 +3255,6 @@ function buildResultCard(){
   // The theme's flavour: its own badges, captions and stickers, drawn over the panels.
   const flavor = window.cardFlavorSVG && cardFlavorSVG(theme, { ideology: ideos[0] && ideos[0].name, pct: ideos[0] && ideos[0].pct, hasFaith: !!faith });
   if(flavor) card.appendChild(el('div',{class:'rc9__flavor', 'aria-hidden':'true', html: flavor}));
-  // Your fingerprint and its MJ code, beside "Your axes": drawn from where you sit on the three maps, so it's yours alone.
-  const fp = rvFingerprint(rvFpValues(u.compass), ['var(--rc-pct)', 'var(--rc-ink)'], 'rc9-fp__print', true);
-  card.appendChild(el('div',{class:'rc9-fp', 'aria-label':'Your fingerprint ' + fp.code},[fp.node, el('code',{class:'rc9-fp__code'}, fp.code)]));
   card.appendChild(el('div',{class:'rc9__foot'}, 'FIND WHERE YOU STAND · MAJLIS'));
   return outer;
 }
@@ -3684,75 +3681,6 @@ function rvConvictionScene(){
   ])]) };
 }
 
-// Fingerprints: a print drawn from where someone sits on the three maps (six axes). Its pattern comes from how
-// strongly they hold their views (an arch when moderate, a loop when firm, a whorl when strong), it opens toward
-// their economic side, and every axis adds its own ripple to the ridges, so different answers make a different
-// print. The ridges are the contour lines of one field, traced across a grid (marching squares).
-const rvFpAxes = () => ['economic', 'political', 'social'].flatMap(k => [COMPASS_DEFS[k].xLabels, COMPASS_DEFS[k].yLabels]);   // read when used: COMPASS_DEFS comes later in this file
-const rvFpValues = (pos) => ['economic', 'political', 'social'].flatMap(k => [pos[k].x, pos[k].y]);
-function rvFpRead(v){
-  const axes = rvFpAxes(), lean = v.map((x, k) => ({ s: Math.abs(x - 50), pole: axes[k][x >= 50 ? 1 : 0] })).sort((a, b) => b.s - a.s);
-  const conviction = Math.round(v.reduce((n, x) => n + Math.abs(x - 50), 0) / v.length * 2);
-  return { core: lean[0].pole, conviction, type: conviction >= 50 ? 'Whorl' : conviction >= 28 ? 'Loop' : 'Arch', side: v[0] < 50 ? -1 : 1 };
-}
-const rvFpMemo = new Map();
-function rvFpPath(v, d){
-  const key = v.join(',') + (d.coarse ? ':c' : '');
-  if(rvFpMemo.has(key)) return rvFpMemo.get(key);
-  const path = rvFpDraw(v, d);
-  if(rvFpMemo.size > 40) rvFpMemo.clear();
-  rvFpMemo.set(key, path);
-  return path;
-}
-function rvFpDraw(v, d){
-  const waves = v.map((x, k) => ({ a: (x - 50) / 50, f: 1.5 + k * .7, p: k * 2.1 }));
-  const F = (x, y) => {
-    let wx = x, wy = y;
-    waves.forEach(w => { wx += .034 * w.a * Math.sin(w.f * y * 3 + w.p); wy += .034 * w.a * Math.cos(w.f * x * 3 + w.p); });
-    const cy = wy + .08;
-    if(d.type === 'Whorl') return Math.sqrt(wx * wx * 1.15 + cy * cy);
-    if(d.type === 'Loop'){   // ridges come in from your side, turn round the core and go back out the same way
-      const ux = wx * d.side + .15;
-      return ux > 0 ? Math.abs(cy) : Math.sqrt(ux * ux + cy * cy);
-    }
-    return wy - .32 * Math.exp(-(wx * wx) / .22) + .06 * wx * d.side;   // an arch, raised toward your side
-  };
-  let seed = v.reduce((h, x) => Math.imul(h ^ x, 16777619) >>> 0, 2166136261);
-  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
-  const ends = Array.from({ length: 18 }, () => [rnd() * 1.6 - .8, rnd() * 2 - 1, .012 + rnd() * .012]);   // where ridges stop, as on a real fingertip
-  const N = 150, xs = (i) => -1 + 2 * i / N, val = [];
-  for(let j = 0; j <= N; j++){ val[j] = []; for(let i = 0; i <= N; i++) val[j][i] = F(xs(i), xs(j) * 1.3); }
-  const step = (.056 - d.conviction / 100 * .012) * (d.coarse ? 2.3 : 1), px = (x, y) => ((x + 1) * 145).toFixed(1) + ' ' + ((y / 1.3 + 1) * 190).toFixed(1);
-  const parts = [];
-  for(let j = 0; j < N; j++) for(let i = 0; i < N; i++){
-    const x0 = xs(i), y0 = xs(j) * 1.3, x1 = xs(i + 1), y1 = xs(j + 1) * 1.3;
-    if(x0 * x0 / .72 + y0 * y0 / 1.45 > 1) continue;   // the oval of a fingertip
-    const q = [val[j][i], val[j][i + 1], val[j + 1][i + 1], val[j + 1][i]];
-    const lo = Math.ceil(Math.min(...q) / step), hi = Math.floor(Math.max(...q) / step);
-    for(let n = lo; n <= hi; n++){
-      const L = n * step, pts = [], c = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-      for(let e = 0; e < 4; e++){
-        const a = q[e] - L, b = q[(e + 1) % 4] - L;
-        if((a > 0) !== (b > 0)){ const t = a / (a - b), A = c[e], B = c[(e + 1) % 4]; pts.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); }
-      }
-      if(pts.length < 2 || ends.some(([ex, ey, r]) => Math.hypot(pts[0][0] - ex, pts[0][1] - ey) < r)) continue;
-      parts.push('M' + px(pts[0][0], pts[0][1]) + 'L' + px(pts[1][0], pts[1][1]));
-    }
-  }
-  return parts.join('');
-}
-let rvFpN = 0;
-// coarse: fewer, thicker ridges, for small prints (the result card), where fine ones would run together.
-function rvFingerprint(v, colors, cls, coarse){
-  const d = Object.assign(rvFpRead(v), { coarse: !!coarse }), id = 'rvfp' + (++rvFpN);
-  const svg = '<svg viewBox="0 0 290 380" aria-hidden="true"><defs>'
-    + '<linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:' + colors[0] + '"/><stop offset="1" style="stop-color:' + colors[1] + '"/></linearGradient>'
-    + '<radialGradient id="' + id + 'f" cx=".5" cy=".48" r=".55"><stop offset=".74" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
-    + '<mask id="' + id + 'm"><rect width="290" height="380" fill="url(#' + id + 'f)"/></mask></defs>'
-    + '<g mask="url(#' + id + 'm)"><path d="' + rvFpPath(v, d) + '" fill="none" stroke="url(#' + id + ')" stroke-width="' + (coarse ? 5 : 2.1) + '" stroke-linecap="round"/></g></svg>';
-  const code = 'MJ-' + v.reduce((h, x) => Math.imul(h ^ x, 16777619) >>> 0, 2166136261).toString(16).toUpperCase().padStart(8, '0').replace(/(.{4})/, '$1-');
-  return { node: el('div',{class:'rv-fp ' + (cls || ''), html: svg}), read: d, code };
-}
 // Your era: are your closest modern matches (1900 to today) or historical ones (before 1900) nearer to you?
 // The average of the top three leaders and the top three nations of each era decides it.
 function rvEraFitScene(m){
