@@ -3271,13 +3271,20 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 
 /* world heat map */
 .rv-heatkey { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
-.rv-heatkey i { width: 110px; height: 10px; border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 35%, var(--gold)), var(--accent)); }
+.rv-heatkey i { width: 110px; height: 10px; border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 70%, var(--surface)), var(--gold), var(--accent)); }
 .rv-world { border-radius: 24px; background: var(--surface); border: 1px solid var(--line-2); padding: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.14); }
 .rv-world__map { position: relative; aspect-ratio: 1000 / 392; }
 .rv-world__map.is-none { display: none; }
 .rv-world__map svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .rv-world__wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
-.rv-world__base path { fill: color-mix(in srgb, var(--text) 12%, var(--surface)); stroke: var(--surface); stroke-width: .6; }
+.rv-world__base path, .rv-world__none { fill: color-mix(in srgb, var(--text) 12%, var(--surface)); stroke: var(--surface); stroke-width: .6; }
+.rv-world__fill { stroke: var(--surface); stroke-width: .5; cursor: pointer; animation: rvFadeIn .8s ease var(--d, 0ms) both; transition: filter .3s, stroke .2s, stroke-width .2s; }
+.rv-world__hot { cursor: pointer; }
+@keyframes rvFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.rv-world__fill.is-tap, .rv-world__hot.is-tap { stroke: var(--text); stroke-width: 1.4; }
+.rv-world__read { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 10px; min-height: 22px; margin-top: 12px; font-size: 14px; color: var(--muted); text-align: center; }
+.rv-world__read b { color: var(--text); }
+.rv-world__read em { font-style: normal; font-weight: 800; color: var(--accent); }
 .rv-world__hot { stroke: var(--surface); stroke-width: .6; transform-box: fill-box; transform-origin: center; animation: rvHeat 1s cubic-bezier(.3,1.4,.5,1) var(--d, 0ms) both;
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent)); }
 @keyframes rvHeat { 0% { opacity: 0; transform: scale(.4); } 60% { opacity: 1; transform: scale(1.15); } 100% { transform: none; } }
@@ -3293,7 +3300,7 @@ html.rv-lock, html.rv-lock body { overflow: hidden; }
 .rv-world__item em { font-style: normal; font-weight: 800; color: var(--accent); }
 .rv-world__hot { transition: filter .3s, stroke .3s, stroke-width .3s; }
 /* a filter, not opacity: the entrance animation keeps hold of opacity */
-.rv-world__map.has-pick .rv-world__hot:not(.is-pick), .rv-world__map.has-pick .rv-world__pin { filter: opacity(.22); }
+.rv-world__map.has-pick [data-c]:not(.is-pick), .rv-world__map.has-pick .rv-world__pin { filter: opacity(.22); }
 .rv-world__hot.is-pick { stroke: var(--text); stroke-width: 1.6; filter: drop-shadow(0 0 10px var(--neon)); }
 /* a flag filling its round frame (podium, map dots, the list under the world map) */
 .rv-flag { display: flex; width: 100%; height: 100%; }
@@ -3584,3 +3591,5 @@ h2 .ideo-tag { font-size: 0.42em; }
 /* the cube inside the results reveal */
 .rx--rv { margin-top: 0; }
 .rx--rv .rx-cube { max-width: min(520px, 58vh); }
+/* the world map on the Compass page: no entrance animation, since the page redraws often and it would replay */
+.rx-world .rv-world__fill, .rx-world .rv-world__hot, .rx-world .rv-world__pin { animation: none; }
